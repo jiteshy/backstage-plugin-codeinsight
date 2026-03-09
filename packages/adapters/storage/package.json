@@ -1,0 +1,26 @@
+{
+  "name": "@codeinsight/storage",
+  "version": "0.1.0",
+  "description": "Knex/PostgreSQL StorageAdapter implementation for CodeInsight",
+  "license": "Apache-2.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "db:migrate": "NODE_OPTIONS='--require ts-node/register' knex --knexfile knexfile.ts migrate:latest",
+    "db:rollback": "NODE_OPTIONS='--require ts-node/register' knex --knexfile knexfile.ts migrate:rollback",
+    "db:migrate:status": "NODE_OPTIONS='--require ts-node/register' knex --knexfile knexfile.ts migrate:status"
+  },
+  "dependencies": {
+    "@codeinsight/types": "workspace:*",
+    "knex": "^3.1.0",
+    "pg": "^8.11.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.0",
+    "ts-node": "^10.9.0",
+    "typescript": "~5.4.0"
+  }
+}
