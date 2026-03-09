@@ -1,0 +1,19 @@
+{
+  "name": "@codeinsight/ingestion",
+  "version": "0.1.0",
+  "description": "Ingestion pipeline and file filter for CodeInsight",
+  "license": "Apache-2.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@codeinsight/types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~5.4.0"
+  }
+}
