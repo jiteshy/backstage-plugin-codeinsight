@@ -1,4 +1,5 @@
 import type { DatabaseConfig } from '@codeinsight/types';
+
 import { createKnex } from './knex';
 
 // ---------------------------------------------------------------------------

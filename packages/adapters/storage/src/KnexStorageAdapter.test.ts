@@ -1,6 +1,5 @@
-import Knex from 'knex';
-import type { Knex as KnexType } from 'knex';
 import { randomUUID } from 'crypto';
+
 import type {
   Artifact,
   CIGEdge,
@@ -9,6 +8,9 @@ import type {
   RepoFile,
   Repository,
 } from '@codeinsight/types';
+import Knex from 'knex';
+import type { Knex as KnexType } from 'knex';
+
 import { KnexStorageAdapter } from './KnexStorageAdapter';
 
 // ---------------------------------------------------------------------------
