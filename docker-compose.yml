@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: codeinsight-postgres
+    environment:
+      POSTGRES_USER: codeinsight
+      POSTGRES_PASSWORD: codeinsight
+      POSTGRES_DB: codeinsight
+    ports:
+      - "5433:5432"
+    volumes:
+      - codeinsight-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U codeinsight -d codeinsight"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  codeinsight-pgdata:
