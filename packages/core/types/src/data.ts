@@ -37,7 +37,6 @@ export type JobTrigger = 'manual' | 'webhook' | 'schedule';
 // ---------------------------------------------------------------------------
 
 export interface Repository {
-  tenantId: string;
   repoId: string;
   name: string;
   url: string;
@@ -49,8 +48,7 @@ export interface Repository {
 }
 
 export interface RepoFile {
-  tenantId: string;
-  repoId: string;
+  repoId: string; // PK: (repoId, filePath) — matches DB composite key
   filePath: string;
   currentSha: string;
   lastProcessedSha?: string | null;
@@ -60,7 +58,6 @@ export interface RepoFile {
 }
 
 export interface CIGNode {
-  tenantId: string;
   nodeId: string;
   repoId: string;
   filePath: string;
@@ -74,7 +71,6 @@ export interface CIGNode {
 }
 
 export interface CIGEdge {
-  tenantId: string;
   edgeId: string;
   repoId: string;
   fromNodeId: string;
@@ -83,7 +79,6 @@ export interface CIGEdge {
 }
 
 export interface Artifact {
-  tenantId: string;
   repoId: string;
   artifactId: string;
   artifactType: ArtifactType;
@@ -98,7 +93,6 @@ export interface Artifact {
 }
 
 export interface ArtifactInput {
-  tenantId: string;
   repoId: string;
   artifactId: string;
   filePath: string;
@@ -106,7 +100,6 @@ export interface ArtifactInput {
 }
 
 export interface ArtifactDependency {
-  tenantId: string;
   repoId: string;
   dependentId: string;
   dependencyId: string;
@@ -114,7 +107,6 @@ export interface ArtifactDependency {
 }
 
 export interface IngestionJob {
-  tenantId: string;
   jobId: string;
   repoId: string;
   trigger: JobTrigger;
