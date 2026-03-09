@@ -225,6 +225,16 @@ importers:
         specifier: ~5.4.0
         version: 5.4.5
 
+  packages/core/ingestion:
+    dependencies:
+      '@codeinsight/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      typescript:
+        specifier: ~5.4.0
+        version: 5.4.5
+
   packages/core/types:
     devDependencies:
       typescript:
