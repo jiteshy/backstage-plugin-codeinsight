@@ -1,0 +1,33 @@
+{
+  "name": "app",
+  "version": "0.0.0",
+  "private": true,
+  "backstage": {
+    "role": "frontend"
+  },
+  "scripts": {
+    "build": "backstage-cli package build",
+    "start": "backstage-cli package start",
+    "clean": "backstage-cli package clean"
+  },
+  "dependencies": {
+    "@backstage/app-defaults": "^1.7.5",
+    "@backstage/catalog-model": "^1.7.6",
+    "@backstage/core-app-api": "^1.19.5",
+    "@backstage/core-components": "^0.18.7",
+    "@backstage/core-plugin-api": "^1.12.3",
+    "@backstage/plugin-catalog": "^1.33.1",
+    "@backstage/plugin-catalog-react": "^2.0.0",
+    "@backstage/theme": "^0.6.3",
+    "@codeinsight/plugin": "workspace:*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.26.0"
+  },
+  "devDependencies": {
+    "@backstage/cli": "^0.35.4",
+    "@module-federation/enhanced": "^0.21.6",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0"
+  }
+}

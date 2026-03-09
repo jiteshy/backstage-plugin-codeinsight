@@ -1,0 +1,36 @@
+app:
+  title: CodeInsight Dev
+  baseUrl: http://localhost:3000
+
+backend:
+  baseUrl: http://localhost:7007
+  listen:
+    port: 7007
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+  cors:
+    origin: http://localhost:3000
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  auth:
+    dangerouslyDisableDefaultAuthPolicy: true
+
+auth:
+  providers:
+    guest: {}
+
+catalog:
+  rules:
+    - allow: [Component, API, Resource, System, Domain, Location]
+  locations:
+    - type: file
+      target: ../catalog-info.yaml
+
+codeinsight:
+  cloneTempDir: /tmp/codeinsight-clones
+  cloneTtlHours: 24
+  features:
+    docs: true
+    diagrams: true
+    qna: true

@@ -1,0 +1,29 @@
+{
+  "name": "codeinsight-dev-backend",
+  "version": "0.0.0",
+  "private": true,
+  "backstage": {
+    "role": "backend"
+  },
+  "scripts": {
+    "build": "backstage-cli package build",
+    "start": "backstage-cli package start",
+    "clean": "backstage-cli package clean"
+  },
+  "dependencies": {
+    "@backstage/backend-defaults": "^0.15.2",
+    "@backstage/backend-plugin-api": "^1.7.0",
+    "@backstage/plugin-app-backend": "^0.5.11",
+    "@backstage/plugin-auth-backend": "^0.27.0",
+    "@backstage/plugin-auth-backend-module-guest-provider": "^0.2.16",
+    "@backstage/plugin-catalog-backend": "^3.4.0",
+    "@backstage/plugin-permission-backend": "^0.7.9",
+    "@backstage/plugin-permission-backend-module-allow-all-policy": "^0.2.16",
+    "@codeinsight/plugin-backend": "workspace:*",
+    "better-sqlite3": "^12.0.0"
+  },
+  "devDependencies": {
+    "@backstage/cli": "^0.35.4",
+    "@module-federation/enhanced": "^0.21.6"
+  }
+}
