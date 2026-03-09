@@ -37,7 +37,6 @@ export interface EmbeddingClient {
 // ---------------------------------------------------------------------------
 
 export interface VectorChunk {
-  tenantId: string;
   chunkId: string;
   repoId: string;
   content: string;
@@ -48,7 +47,6 @@ export interface VectorChunk {
 }
 
 export interface VectorFilter {
-  tenantId: string;
   repoId: string;
   layers?: string[];
   filePaths?: string[];
@@ -82,37 +80,32 @@ export interface RepoConnector {
 
 export interface StorageAdapter {
   // Repository operations
-  getRepo(tenantId: string, repoId: string): Promise<Repository | null>;
+  getRepo(repoId: string): Promise<Repository | null>;
   upsertRepo(repo: Repository): Promise<void>;
-  updateRepoStatus(
-    tenantId: string,
-    repoId: string,
-    status: RepoStatus,
-    lastCommitSha?: string,
-  ): Promise<void>;
+  updateRepoStatus(repoId: string, status: RepoStatus, lastCommitSha?: string): Promise<void>;
 
   // File tracking
   upsertRepoFiles(files: RepoFile[]): Promise<void>;
-  getRepoFiles(tenantId: string, repoId: string): Promise<RepoFile[]>;
-  getChangedRepoFiles(tenantId: string, repoId: string): Promise<RepoFile[]>;
+  getRepoFiles(repoId: string): Promise<RepoFile[]>;
+  getChangedRepoFiles(repoId: string): Promise<RepoFile[]>;
 
   // CIG
   upsertCIGNodes(nodes: CIGNode[]): Promise<void>;
   upsertCIGEdges(edges: CIGEdge[]): Promise<void>;
-  deleteCIGForFiles(tenantId: string, repoId: string, filePaths: string[]): Promise<void>;
-  getCIGNodes(tenantId: string, repoId: string): Promise<CIGNode[]>;
-  getCIGEdges(tenantId: string, repoId: string): Promise<CIGEdge[]>;
+  deleteCIGForFiles(repoId: string, filePaths: string[]): Promise<void>;
+  getCIGNodes(repoId: string): Promise<CIGNode[]>;
+  getCIGEdges(repoId: string): Promise<CIGEdge[]>;
 
   // Artifacts (Phase 2+)
   upsertArtifact(artifact: Artifact): Promise<void>;
-  getArtifact(tenantId: string, artifactId: string, repoId: string): Promise<Artifact | null>;
-  getStaleArtifacts(tenantId: string, repoId: string): Promise<Artifact[]>;
+  getArtifact(artifactId: string, repoId: string): Promise<Artifact | null>;
+  getStaleArtifacts(repoId: string): Promise<Artifact[]>;
 
   // Jobs
   createJob(job: IngestionJob): Promise<string>;
-  updateJob(tenantId: string, jobId: string, update: Partial<IngestionJob>): Promise<void>;
-  getJob(tenantId: string, jobId: string): Promise<IngestionJob | null>;
-  getActiveJobForRepo(tenantId: string, repoId: string): Promise<IngestionJob | null>;
+  updateJob(jobId: string, update: Partial<IngestionJob>): Promise<void>;
+  getJob(jobId: string): Promise<IngestionJob | null>;
+  getActiveJobForRepo(repoId: string): Promise<IngestionJob | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -120,7 +113,6 @@ export interface StorageAdapter {
 // ---------------------------------------------------------------------------
 
 export interface Job {
-  tenantId: string;
   repoId: string;
   repoUrl: string;
   trigger: IngestionJob['trigger'];
@@ -128,7 +120,7 @@ export interface Job {
 
 export interface JobQueue {
   enqueue(job: Job): Promise<string>;
-  getStatus(tenantId: string, jobId: string): Promise<JobStatus>;
+  getStatus(jobId: string): Promise<JobStatus>;
 }
 
 // ---------------------------------------------------------------------------
