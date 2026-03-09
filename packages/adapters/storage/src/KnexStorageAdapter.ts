@@ -1,4 +1,3 @@
-import type { Knex } from 'knex';
 import type {
   Artifact,
   CIGEdge,
@@ -9,6 +8,7 @@ import type {
   Repository,
   StorageAdapter,
 } from '@codeinsight/types';
+import type { Knex } from 'knex';
 
 // ---------------------------------------------------------------------------
 // DB row types (snake_case) — internal only
