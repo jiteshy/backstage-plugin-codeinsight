@@ -18,9 +18,14 @@
     "test": "jest --passWithNoTests",
     "test:ci": "jest --passWithNoTests --ci --coverage",
     "clean": "pnpm -r exec rm -rf dist && rm -f **/*.tsbuildinfo",
-    "dev": "pnpm --filter codeinsight-dev-backend start",
-    "dev:backend": "pnpm --filter codeinsight-dev-backend start",
-    "dev:app": "pnpm --filter app start"
+    "dev": "docker compose up -d postgres && pnpm db:migrate && pnpm --filter codeinsight-dev-backend start",
+    "dev:backend": "docker compose up -d postgres && pnpm db:migrate && pnpm --filter codeinsight-dev-backend start",
+    "dev:app": "pnpm --filter app start",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d postgres && pnpm db:migrate",
+    "db:migrate": "pnpm --filter @codeinsight/storage db:migrate",
+    "db:rollback": "pnpm --filter @codeinsight/storage db:rollback"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
