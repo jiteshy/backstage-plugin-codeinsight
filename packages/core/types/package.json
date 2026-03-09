@@ -1,0 +1,16 @@
+{
+  "name": "@codeinsight/types",
+  "version": "0.1.0",
+  "description": "Shared types and interfaces for CodeInsight — zero logic, zero runtime deps",
+  "license": "Apache-2.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "devDependencies": {
+    "typescript": "~5.4.0"
+  }
+}

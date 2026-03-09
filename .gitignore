@@ -138,6 +138,13 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
+# Build artifacts
+dist/
+build/
+
+# pnpm
+.pnpm-store/
+
 # Temp
 .claude
 docs
