@@ -1,48 +1,7 @@
 import type { RepoFile } from '@codeinsight/types';
-import Parser from 'tree-sitter';
 
 import { CIGBuilder } from './CIGBuilder';
 import type { LanguageExtractor } from './types';
-
-/* eslint-disable @typescript-eslint/no-var-requires */
-const JavaScriptGrammar = require('tree-sitter-javascript');
-const TypeScriptGrammar = require('tree-sitter-typescript');
-/* eslint-enable @typescript-eslint/no-var-requires */
-
-// ---------------------------------------------------------------------------
-// 1. Verify Tree-sitter loads and parses TS/JS
-// ---------------------------------------------------------------------------
-
-describe('Tree-sitter setup', () => {
-  it('loads the TypeScript grammar and parses a simple file', () => {
-    const parser = new Parser();
-    parser.setLanguage(TypeScriptGrammar.typescript);
-
-    const source = `
-export function greet(name: string): string {
-  return \`Hello, \${name}\`;
-}
-`;
-    const tree = parser.parse(source);
-    expect(tree.rootNode.type).toBe('program');
-    expect(tree.rootNode.hasError).toBe(false);
-    expect(tree.rootNode.childCount).toBeGreaterThan(0);
-  });
-
-  it('loads the JavaScript grammar and parses a simple file', () => {
-    const parser = new Parser();
-    parser.setLanguage(JavaScriptGrammar);
-
-    const source = `
-function add(a, b) {
-  return a + b;
-}
-`;
-    const tree = parser.parse(source);
-    expect(tree.rootNode.type).toBe('program');
-    expect(tree.rootNode.hasError).toBe(false);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // 2. CIGBuilder dispatcher

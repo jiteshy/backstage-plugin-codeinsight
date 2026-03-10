@@ -1,0 +1,1 @@
+export { TypeScriptExtractor } from './TypeScriptExtractor';
