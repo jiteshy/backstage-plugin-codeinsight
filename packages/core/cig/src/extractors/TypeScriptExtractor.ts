@@ -1,4 +1,6 @@
-import type { CIGEdge, CIGNode, RepoFile, SymbolType } from '@codeinsight/types';
+import path from 'path';
+
+import type { CIGEdge, CIGNode, EdgeType, RepoFile, SymbolType } from '@codeinsight/types';
 import type Parser from 'tree-sitter';
 
 import type { LanguageExtractor } from '../types';
@@ -20,6 +22,11 @@ const NESTED_BLOCK_TYPES = new Set([
   'switch_statement',
 ]);
 
+/** Build the deterministic nodeId for a file's module-level CIGNode. */
+function moduleNodeId(repoId: string, filePath: string): string {
+  return `${repoId}:${filePath}:<module>:variable`;
+}
+
 export class TypeScriptExtractor implements LanguageExtractor {
   readonly languages = ['typescript', 'tsx', 'javascript'];
 
@@ -34,16 +41,21 @@ export class TypeScriptExtractor implements LanguageExtractor {
   }
 
   // -------------------------------------------------------------------------
-  // Edge extraction (Pass 2) — stub for 1.7.3
+  // Edge extraction (Pass 2) — import/export relationships
   // -------------------------------------------------------------------------
 
   extractEdges(
-    _tree: Parser.Tree,
-    _file: RepoFile,
-    _repoId: string,
-    _nodesByFile: Map<string, CIGNode[]>,
+    tree: Parser.Tree,
+    file: RepoFile,
+    repoId: string,
+    nodesByFile: Map<string, CIGNode[]>,
   ): CIGEdge[] {
-    return [];
+    const edges: CIGEdge[] = [];
+    const srcModuleId = moduleNodeId(repoId, file.filePath);
+    const allFilePaths = Array.from(nodesByFile.keys());
+
+    this.walkForEdges(tree.rootNode, file, repoId, srcModuleId, nodesByFile, allFilePaths, edges);
+    return edges;
   }
 
   // -------------------------------------------------------------------------
@@ -295,6 +307,251 @@ export class TypeScriptExtractor implements LanguageExtractor {
         this.walkBodyForNested(child, file, repoId, out, parentClassName);
       }
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Edge extraction: walk AST for import/export statements
+  // -------------------------------------------------------------------------
+
+  private walkForEdges(
+    node: Parser.SyntaxNode,
+    file: RepoFile,
+    repoId: string,
+    srcModuleId: string,
+    nodesByFile: Map<string, CIGNode[]>,
+    allFilePaths: string[],
+    edges: CIGEdge[],
+  ): void {
+    if (node.type === 'import_statement') {
+      this.extractImportEdges(node, file, repoId, srcModuleId, nodesByFile, allFilePaths, edges);
+      return;
+    }
+
+    if (node.type === 'export_statement') {
+      // Re-exports: export { x } from './module' or export * from './module'
+      const source = this.getStringLiteralChild(node);
+      if (source) {
+        this.extractReexportEdges(node, file, repoId, srcModuleId, nodesByFile, allFilePaths, edges);
+      }
+      return;
+    }
+
+    // Recurse into top-level children
+    for (let i = 0; i < node.namedChildCount; i++) {
+      this.walkForEdges(node.namedChild(i)!, file, repoId, srcModuleId, nodesByFile, allFilePaths, edges);
+    }
+  }
+
+  private extractImportEdges(
+    node: Parser.SyntaxNode,
+    file: RepoFile,
+    repoId: string,
+    srcModuleId: string,
+    nodesByFile: Map<string, CIGNode[]>,
+    allFilePaths: string[],
+    edges: CIGEdge[],
+  ): void {
+    const sourcePath = this.getStringLiteralChild(node);
+    if (!sourcePath || !this.isRelativeImport(sourcePath)) return;
+
+    const resolved = this.resolveImportPath(sourcePath, file.filePath, allFilePaths);
+    if (!resolved) return;
+
+    const targetNodes = nodesByFile.get(resolved);
+    if (!targetNodes) return;
+
+    // Find import_clause child
+    const importClause = this.findChildByType(node, 'import_clause');
+    if (!importClause) {
+      // Side-effect import: import './module' → edge to target module
+      const targetId = moduleNodeId(repoId, resolved);
+      edges.push(this.makeEdge(repoId, srcModuleId, targetId, 'imports'));
+      return;
+    }
+
+    // Process the import clause children
+    for (let i = 0; i < importClause.namedChildCount; i++) {
+      const child = importClause.namedChild(i)!;
+
+      if (child.type === 'identifier') {
+        // Default import: import Foo from './module'
+        this.addEdgeForDefaultImport(repoId, srcModuleId, resolved, edges);
+      } else if (child.type === 'named_imports') {
+        // Named imports: import { Foo, Bar as Baz } from './module'
+        this.addEdgesForNamedImports(child, repoId, srcModuleId, resolved, targetNodes, edges);
+      } else if (child.type === 'namespace_import') {
+        // Namespace import: import * as ns from './module'
+        const targetId = moduleNodeId(repoId, resolved);
+        edges.push(this.makeEdge(repoId, srcModuleId, targetId, 'imports'));
+      }
+    }
+  }
+
+  private extractReexportEdges(
+    node: Parser.SyntaxNode,
+    file: RepoFile,
+    repoId: string,
+    srcModuleId: string,
+    nodesByFile: Map<string, CIGNode[]>,
+    allFilePaths: string[],
+    edges: CIGEdge[],
+  ): void {
+    const sourcePath = this.getStringLiteralChild(node);
+    if (!sourcePath || !this.isRelativeImport(sourcePath)) return;
+
+    const resolved = this.resolveImportPath(sourcePath, file.filePath, allFilePaths);
+    if (!resolved) return;
+
+    const targetNodes = nodesByFile.get(resolved);
+    if (!targetNodes) return;
+
+    // Check for export * from './module'
+    let hasWildcard = false;
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i)!;
+      if (!child.isNamed && child.type === '*') {
+        hasWildcard = true;
+        break;
+      }
+    }
+
+    if (hasWildcard) {
+      const targetId = moduleNodeId(repoId, resolved);
+      edges.push(this.makeEdge(repoId, srcModuleId, targetId, 'imports'));
+      return;
+    }
+
+    // export { Foo, Bar } from './module' — named re-exports
+    const exportClause = this.findChildByType(node, 'export_clause');
+    if (exportClause) {
+      this.addEdgesForNamedImports(exportClause, repoId, srcModuleId, resolved, targetNodes, edges);
+    }
+  }
+
+  private addEdgeForDefaultImport(
+    repoId: string,
+    srcModuleId: string,
+    resolved: string,
+    edges: CIGEdge[],
+  ): void {
+    const targetId = moduleNodeId(repoId, resolved);
+    edges.push(this.makeEdge(repoId, srcModuleId, targetId, 'imports'));
+  }
+
+  private addEdgesForNamedImports(
+    importsNode: Parser.SyntaxNode,
+    repoId: string,
+    srcModuleId: string,
+    resolved: string,
+    targetNodes: CIGNode[],
+    edges: CIGEdge[],
+  ): void {
+    for (let i = 0; i < importsNode.namedChildCount; i++) {
+      const spec = importsNode.namedChild(i)!;
+      if (spec.type !== 'import_specifier' && spec.type !== 'export_specifier') continue;
+
+      // For `import { Foo as Bar }`, the imported name is "Foo" (first identifier)
+      // For `import { Foo }`, the imported name is "Foo"
+      const nameNode = spec.childForFieldName('name');
+      const importedName = nameNode?.text ?? spec.namedChild(0)?.text;
+      if (!importedName) continue;
+
+      // Handle `default as X` re-exports
+      if (importedName === 'default') {
+        const targetId = moduleNodeId(repoId, resolved);
+        edges.push(this.makeEdge(repoId, srcModuleId, targetId, 'imports'));
+        continue;
+      }
+
+      // Find the matching exported symbol in the target file
+      const targetNode = targetNodes.find(
+        n => n.symbolName === importedName && n.exported && n.symbolName !== '<module>',
+      );
+      if (targetNode) {
+        edges.push(this.makeEdge(repoId, srcModuleId, targetNode.nodeId, 'imports'));
+      } else {
+        // Fallback: create edge to target module (symbol might be re-exported or a type)
+        const targetId = moduleNodeId(repoId, resolved);
+        edges.push(this.makeEdge(repoId, srcModuleId, targetId, 'imports'));
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Path resolution for imports
+  // -------------------------------------------------------------------------
+
+  private isRelativeImport(importPath: string): boolean {
+    return importPath.startsWith('./') || importPath.startsWith('../');
+  }
+
+  private resolveImportPath(
+    importPath: string,
+    currentFilePath: string,
+    allFilePaths: string[],
+  ): string | null {
+    const currentDir = path.dirname(currentFilePath);
+    const resolved = path.normalize(path.join(currentDir, importPath));
+    const fileSet = new Set(allFilePaths);
+
+    // Try exact match
+    if (fileSet.has(resolved)) return resolved;
+
+    // Try with extensions
+    const extensions = ['.ts', '.tsx', '.js', '.jsx'];
+    for (const ext of extensions) {
+      if (fileSet.has(resolved + ext)) return resolved + ext;
+    }
+
+    // Try as directory with index file
+    for (const ext of extensions) {
+      const indexPath = path.join(resolved, `index${ext}`);
+      if (fileSet.has(indexPath)) return indexPath;
+    }
+
+    return null;
+  }
+
+  // -------------------------------------------------------------------------
+  // AST helpers
+  // -------------------------------------------------------------------------
+
+  private getStringLiteralChild(node: Parser.SyntaxNode): string | null {
+    for (let i = 0; i < node.namedChildCount; i++) {
+      const child = node.namedChild(i)!;
+      if (child.type === 'string') {
+        // Remove quotes from the string literal
+        const text = child.text;
+        return text.slice(1, -1);
+      }
+    }
+    return null;
+  }
+
+  private findChildByType(
+    node: Parser.SyntaxNode,
+    type: string,
+  ): Parser.SyntaxNode | null {
+    for (let i = 0; i < node.namedChildCount; i++) {
+      const child = node.namedChild(i)!;
+      if (child.type === type) return child;
+    }
+    return null;
+  }
+
+  private makeEdge(
+    repoId: string,
+    fromNodeId: string,
+    toNodeId: string,
+    edgeType: EdgeType,
+  ): CIGEdge {
+    return {
+      edgeId: `${fromNodeId}->${edgeType}->${toNodeId}`,
+      repoId,
+      fromNodeId,
+      toNodeId,
+      edgeType,
+    };
   }
 
   // -------------------------------------------------------------------------

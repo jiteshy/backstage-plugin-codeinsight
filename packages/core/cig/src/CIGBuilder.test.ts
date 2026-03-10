@@ -46,8 +46,10 @@ describe('CIGBuilder', () => {
 
     expect(result.filesProcessed).toBe(1);
     expect(result.filesSkipped).toBe(0);
-    expect(result.nodes).toHaveLength(1);
-    expect(result.nodes[0].symbolName).toBe('stub');
+    // stub symbol + <module> node = 2
+    expect(result.nodes).toHaveLength(2);
+    expect(result.nodes.find(n => n.symbolName === 'stub')).toBeDefined();
+    expect(result.nodes.find(n => n.symbolName === '<module>')).toBeDefined();
   });
 
   it('skips files with no registered extractor', () => {
@@ -135,7 +137,8 @@ describe('CIGBuilder', () => {
       { file: makeFile('src/b.ts', 'typescript'), content: 'export const x = 1;' },
     ]);
 
-    expect(result.nodes).toHaveLength(2);
+    // 2 myFn symbols + 2 module nodes = 4
+    expect(result.nodes).toHaveLength(4);
     expect(result.edges).toHaveLength(1);
     expect(result.edges[0].edgeType).toBe('imports');
     expect(result.edges[0].fromNodeId).toBe('repo-1:src/a.ts:fn');

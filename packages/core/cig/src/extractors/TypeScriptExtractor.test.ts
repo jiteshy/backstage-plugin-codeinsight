@@ -1,6 +1,7 @@
-import type { CIGNode, RepoFile } from '@codeinsight/types';
+import type { CIGEdge, CIGNode, RepoFile } from '@codeinsight/types';
 
 import { CIGBuilder } from '../CIGBuilder';
+import type { CIGBuildResult } from '../types';
 
 import { TypeScriptExtractor } from './TypeScriptExtractor';
 
@@ -17,12 +18,28 @@ const makeFile = (filePath: string, language = 'typescript'): RepoFile => ({
   parseStatus: 'pending',
 });
 
+/** Extract symbols, filtering out the <module> node added by CIGBuilder. */
 function extractSymbols(source: string, language = 'typescript'): CIGNode[] {
   const builder = new CIGBuilder();
   builder.registerExtractor(new TypeScriptExtractor());
   const file = makeFile('src/test.ts', language);
   const result = builder.build('repo-1', [{ file, content: source }]);
-  return result.nodes;
+  return result.nodes.filter(n => n.symbolName !== '<module>');
+}
+
+/** Build a multi-file CIG and return the full result (including module nodes + edges). */
+function buildMultiFile(
+  files: Array<{ filePath: string; content: string; language?: string }>,
+): CIGBuildResult {
+  const builder = new CIGBuilder();
+  builder.registerExtractor(new TypeScriptExtractor());
+  return builder.build(
+    'repo-1',
+    files.map(f => ({
+      file: makeFile(f.filePath, f.language ?? 'typescript'),
+      content: f.content,
+    })),
+  );
 }
 
 function findNode(nodes: CIGNode[], name: string): CIGNode | undefined {
@@ -470,14 +487,17 @@ export interface Config { port: number; }
 
       expect(result.filesProcessed).toBe(1);
       expect(result.errors).toHaveLength(0);
-      // function + class + method + interface = 4
-      expect(result.nodes).toHaveLength(4);
-      expect(result.nodes.map(n => n.symbolName).sort()).toEqual([
+      // function + class + method + interface + <module> = 5
+      const symbols = result.nodes.filter(n => n.symbolName !== '<module>');
+      expect(symbols).toHaveLength(4);
+      expect(symbols.map(n => n.symbolName).sort()).toEqual([
         'Config',
         'Service',
         'Service.run',
         'greet',
       ]);
+      // Module node exists
+      expect(result.nodes.find(n => n.symbolName === '<module>')).toBeDefined();
     });
 
     it('handles multiple files', () => {
@@ -500,8 +520,10 @@ export interface Config { port: number; }
       ]);
 
       expect(result.filesProcessed).toBe(3);
-      // foo + Bar + Bar.baz + qux = 4
-      expect(result.nodes).toHaveLength(4);
+      // foo + Bar + Bar.baz + qux = 4 symbols + 3 module nodes = 7
+      const symbols = result.nodes.filter(n => n.symbolName !== '<module>');
+      expect(symbols).toHaveLength(4);
+      expect(result.nodes.filter(n => n.symbolName === '<module>')).toHaveLength(3);
     });
   });
 
@@ -528,6 +550,581 @@ export default function App() {
       expect(findNode(nodes, 'Props')?.symbolType).toBe('interface');
       expect(findNode(nodes, 'Greeting')?.symbolType).toBe('function');
       expect(findNode(nodes, 'App')?.symbolType).toBe('function');
+    });
+  });
+});
+
+// ===========================================================================
+// Edge extraction tests (Phase 1.7.3)
+// ===========================================================================
+
+describe('TypeScriptExtractor — edge extraction', () => {
+  function findEdge(edges: CIGEdge[], fromFile: string, toSymbol: string): CIGEdge | undefined {
+    return edges.find(
+      e => e.fromNodeId.includes(fromFile) && e.toNodeId.includes(toSymbol),
+    );
+  }
+
+  // -----------------------------------------------------------------------
+  // Named imports
+  // -----------------------------------------------------------------------
+
+  describe('named imports', () => {
+    it('creates import edges for named imports', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/utils.ts',
+          content: `export function formatDate() {}
+export function parseDate() {}`,
+        },
+        {
+          filePath: 'src/app.ts',
+          content: `import { formatDate, parseDate } from './utils';
+export function main() { formatDate(); parseDate(); }`,
+        },
+      ]);
+
+      expect(result.errors).toHaveLength(0);
+      // Two import edges: app -> formatDate, app -> parseDate
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(2);
+      expect(findEdge(importEdges, 'src/app.ts', 'formatDate')).toBeDefined();
+      expect(findEdge(importEdges, 'src/app.ts', 'parseDate')).toBeDefined();
+    });
+
+    it('resolves imports with file extension omitted', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/helpers.ts',
+          content: `export class Helper {}`,
+        },
+        {
+          filePath: 'src/main.ts',
+          content: `import { Helper } from './helpers';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/helpers.ts:Helper:class');
+    });
+
+    it('resolves index file imports', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/lib/index.ts',
+          content: `export function libFn() {}`,
+        },
+        {
+          filePath: 'src/app.ts',
+          content: `import { libFn } from './lib';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/lib/index.ts:libFn:function');
+    });
+
+    it('handles aliased imports (import { Foo as Bar })', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/types.ts',
+          content: `export interface Config { port: number; }`,
+        },
+        {
+          filePath: 'src/app.ts',
+          content: `import { Config as AppConfig } from './types';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      // Edge points to the original symbol name in the source file
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/types.ts:Config:interface');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Default imports
+  // -----------------------------------------------------------------------
+
+  describe('default imports', () => {
+    it('creates edge for default import', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/service.ts',
+          content: `export default function createService() {}`,
+        },
+        {
+          filePath: 'src/app.ts',
+          content: `import createService from './service';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      // Default imports point to the target module node
+      expect(importEdges[0].fromNodeId).toBe('repo-1:src/app.ts:<module>:variable');
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/service.ts:<module>:variable');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Namespace imports
+  // -----------------------------------------------------------------------
+
+  describe('namespace imports', () => {
+    it('creates edge for namespace import (import * as)', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/utils.ts',
+          content: `export function foo() {}
+export function bar() {}`,
+        },
+        {
+          filePath: 'src/app.ts',
+          content: `import * as utils from './utils';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      expect(importEdges[0].fromNodeId).toBe('repo-1:src/app.ts:<module>:variable');
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/utils.ts:<module>:variable');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Side-effect imports
+  // -----------------------------------------------------------------------
+
+  describe('side-effect imports', () => {
+    it('creates edge for side-effect import (import "./module")', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/polyfill.ts',
+          content: `// side effects only`,
+        },
+        {
+          filePath: 'src/app.ts',
+          content: `import './polyfill';
+export function main() {}`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/polyfill.ts:<module>:variable');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Re-exports
+  // -----------------------------------------------------------------------
+
+  describe('re-exports', () => {
+    it('creates edges for named re-exports (export { x } from)', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/types.ts',
+          content: `export interface User { id: string; }
+export type Role = 'admin' | 'user';`,
+        },
+        {
+          filePath: 'src/index.ts',
+          content: `export { User, Role } from './types';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(2);
+      expect(findEdge(importEdges, 'src/index.ts', 'User')).toBeDefined();
+      expect(findEdge(importEdges, 'src/index.ts', 'Role')).toBeDefined();
+    });
+
+    it('creates edge for export * from', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/helpers.ts',
+          content: `export function help() {}`,
+        },
+        {
+          filePath: 'src/index.ts',
+          content: `export * from './helpers';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      expect(importEdges[0].fromNodeId).toBe('repo-1:src/index.ts:<module>:variable');
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/helpers.ts:<module>:variable');
+    });
+
+    it('creates edge for export { default as X } from', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/service.ts',
+          content: `export default function createService() {}`,
+        },
+        {
+          filePath: 'src/index.ts',
+          content: `export { default as createService } from './service';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      // 'default' maps to the module node
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/service.ts:<module>:variable');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // External / bare imports (should be skipped)
+  // -----------------------------------------------------------------------
+
+  describe('external imports', () => {
+    it('ignores bare/external imports (no edge created)', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/app.ts',
+          content: `import express from 'express';
+import { Router } from 'express';
+import React from 'react';
+export function main() {}`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Unresolvable paths
+  // -----------------------------------------------------------------------
+
+  describe('unresolvable imports', () => {
+    it('ignores imports to files not in the build set', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/app.ts',
+          content: `import { missing } from './not-in-build';
+export function main() {}`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Type imports
+  // -----------------------------------------------------------------------
+
+  describe('type imports', () => {
+    it('creates edges for type-only imports', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/types.ts',
+          content: `export interface User { id: string; }`,
+        },
+        {
+          filePath: 'src/service.ts',
+          content: `import type { User } from './types';
+export function getUser(): User { return { id: '1' }; }`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/types.ts:User:interface');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Mixed imports in a single statement
+  // -----------------------------------------------------------------------
+
+  describe('mixed import forms', () => {
+    it('handles default + named imports in one statement', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/lib.ts',
+          content: `export default function main() {}
+export function helper() {}`,
+        },
+        {
+          filePath: 'src/app.ts',
+          content: `import main, { helper } from './lib';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      // default import → module node + named import → helper symbol = 2
+      expect(importEdges).toHaveLength(2);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Module nodes
+  // -----------------------------------------------------------------------
+
+  describe('module nodes', () => {
+    it('creates a <module> node for each processed file', () => {
+      const result = buildMultiFile([
+        { filePath: 'src/a.ts', content: `export function foo() {}` },
+        { filePath: 'src/b.ts', content: `export class Bar {}` },
+      ]);
+
+      const moduleNodes = result.nodes.filter(n => n.symbolName === '<module>');
+      expect(moduleNodes).toHaveLength(2);
+      expect(moduleNodes.map(n => n.filePath).sort()).toEqual(['src/a.ts', 'src/b.ts']);
+      expect(moduleNodes[0].symbolType).toBe('variable');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Edge deduplication
+  // -----------------------------------------------------------------------
+
+  describe('edge properties', () => {
+    it('edges have deterministic edgeIds', () => {
+      const result = buildMultiFile([
+        { filePath: 'src/utils.ts', content: `export function foo() {}` },
+        { filePath: 'src/app.ts', content: `import { foo } from './utils';` },
+      ]);
+
+      const edge = result.edges[0];
+      expect(edge.edgeId).toBe(
+        'repo-1:src/app.ts:<module>:variable->imports->repo-1:src/utils.ts:foo:function',
+      );
+      expect(edge.repoId).toBe('repo-1');
+      expect(edge.edgeType).toBe('imports');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Named import fallback — symbol not found in target
+  // -----------------------------------------------------------------------
+
+  describe('named import fallback', () => {
+    it('falls back to module edge when imported symbol is not an exported node in the target file', () => {
+      // 'secret' is declared but NOT exported in utils.ts, so the CIG has no
+      // matching exported node. The extractor must fall back to a module edge
+      // rather than dropping the edge entirely.
+      const result = buildMultiFile([
+        {
+          filePath: 'src/utils.ts',
+          content: `export function helper() {}
+function secret() {}`,
+        },
+        {
+          filePath: 'src/app.ts',
+          content: `import { secret } from './utils';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      // Fallback: points to the target module node, not a symbol node
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/utils.ts:<module>:variable');
+      expect(importEdges[0].fromNodeId).toBe('repo-1:src/app.ts:<module>:variable');
+    });
+
+    it('falls back to module edge when a named re-export references a symbol not exported from the target', () => {
+      // 'internal' is not exported in helpers.ts; index.ts tries to re-export it.
+      // The extractor must still produce an edge (to the module) rather than silently dropping it.
+      const result = buildMultiFile([
+        {
+          filePath: 'src/helpers.ts',
+          content: `function internal() {}`,
+        },
+        {
+          filePath: 'src/index.ts',
+          content: `export { internal } from './helpers';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/helpers.ts:<module>:variable');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // resolveImportPath — exact path match (specifier already has extension)
+  // -----------------------------------------------------------------------
+
+  describe('import path resolution', () => {
+    it('resolves an import specifier that already includes the .ts extension', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/utils.ts',
+          content: `export function foo() {}`,
+        },
+        {
+          filePath: 'src/app.ts',
+          content: `import { foo } from './utils.ts';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/utils.ts:foo:function');
+    });
+
+    it('resolves a .tsx file when the import specifier has no extension', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/Button.tsx',
+          content: `export function Button() {}`,
+          language: 'tsx',
+        },
+        {
+          filePath: 'src/App.tsx',
+          content: `import { Button } from './Button';`,
+          language: 'tsx',
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/Button.tsx:Button:function');
+    });
+
+    it('resolves a .js file when the import specifier has no extension', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/util.js',
+          content: `export function jsHelper() {}`,
+          language: 'javascript',
+        },
+        {
+          filePath: 'src/main.ts',
+          content: `import { jsHelper } from './util';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(1);
+      expect(importEdges[0].toNodeId).toBe('repo-1:src/util.js:jsHelper:function');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // External re-exports are skipped
+  // -----------------------------------------------------------------------
+
+  describe('external re-exports', () => {
+    it('ignores re-exports sourced from external packages (no edge created)', () => {
+      // export { something } from 'external-pkg' — isRelativeImport returns false
+      const result = buildMultiFile([
+        {
+          filePath: 'src/index.ts',
+          content: `export { Component } from 'react';
+export { default as lodash } from 'lodash';`,
+        },
+      ]);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+      expect(importEdges).toHaveLength(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Edge extraction error handling (CIGBuilder.build try/catch)
+  // -----------------------------------------------------------------------
+
+  describe('edge extraction error handling', () => {
+    it('records an error and continues when extractEdges throws for one file', () => {
+      // Register an extractor whose extractEdges throws on the first call.
+      // The second file must still be processed.
+      const { CIGBuilder: CIGBuilderCtor } = jest.requireActual('../CIGBuilder') as typeof import('../CIGBuilder');
+      const builder = new CIGBuilderCtor();
+
+      let callCount = 0;
+      const faultyExtractor = {
+        languages: ['typescript' as const],
+        extractSymbols: new TypeScriptExtractor().extractSymbols.bind(new TypeScriptExtractor()),
+        extractEdges: (...args: Parameters<TypeScriptExtractor['extractEdges']>) => {
+          callCount++;
+          if (callCount === 1) throw new Error('edge extraction boom');
+          return new TypeScriptExtractor().extractEdges(...args);
+        },
+      };
+      builder.registerExtractor(faultyExtractor);
+
+      const result = builder.build('repo-1', [
+        { file: makeFile('src/a.ts'), content: `export function a() {}` },
+        { file: makeFile('src/b.ts'), content: `import { a } from './a';` },
+      ]);
+
+      // One error recorded for the file that threw
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].error).toMatch(/Edge extraction failed/);
+      // Both files were still symbol-processed
+      expect(result.filesProcessed).toBe(2);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Complex multi-file scenario
+  // -----------------------------------------------------------------------
+
+  describe('complex multi-file import graph', () => {
+    it('builds correct import graph for a multi-file project', () => {
+      const result = buildMultiFile([
+        {
+          filePath: 'src/types.ts',
+          content: `export interface User { id: string; name: string; }
+export type Role = 'admin' | 'user';`,
+        },
+        {
+          filePath: 'src/db.ts',
+          content: `import type { User } from './types';
+export class UserRepository {
+  async findById(id: string): Promise<User | null> { return null; }
+}`,
+        },
+        {
+          filePath: 'src/service.ts',
+          content: `import type { User, Role } from './types';
+import { UserRepository } from './db';
+export class UserService {
+  constructor(private repo: UserRepository) {}
+  async getUser(id: string): Promise<User | null> { return this.repo.findById(id); }
+}`,
+        },
+        {
+          filePath: 'src/index.ts',
+          content: `export { UserService } from './service';
+export type { User, Role } from './types';
+export * from './db';`,
+        },
+      ]);
+
+      expect(result.errors).toHaveLength(0);
+
+      const importEdges = result.edges.filter(e => e.edgeType === 'imports');
+
+      // db.ts imports: User from types (1 edge)
+      const dbEdges = importEdges.filter(e => e.fromNodeId.includes('src/db.ts'));
+      expect(dbEdges).toHaveLength(1);
+
+      // service.ts imports: User + Role from types (2), UserRepository from db (1) = 3
+      const serviceEdges = importEdges.filter(e => e.fromNodeId.includes('src/service.ts'));
+      expect(serviceEdges).toHaveLength(3);
+
+      // index.ts re-exports: UserService from service (1), User + Role from types (2),
+      // * from db (1) = 4
+      const indexEdges = importEdges.filter(e => e.fromNodeId.includes('src/index.ts'));
+      expect(indexEdges).toHaveLength(4);
+
+      // Total: 1 + 3 + 4 = 8 import edges
+      expect(importEdges).toHaveLength(8);
     });
   });
 });
