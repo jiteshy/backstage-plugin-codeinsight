@@ -109,6 +109,29 @@ export class CIGBuilder {
       }
     }
 
+    // --- Create file-level module nodes (anchors for import edges) ---
+    for (const [filePath, { tree, file }] of treeCache) {
+      if (!nodesByFile.has(filePath)) continue;
+      const fileNodes = nodesByFile.get(filePath)!;
+      const lastLine = tree.rootNode?.endPosition?.row != null
+        ? tree.rootNode.endPosition.row + 1
+        : fileNodes.reduce((max, n) => Math.max(max, n.endLine), 1);
+      const moduleNode: CIGNode = {
+        nodeId: `${repoId}:${filePath}:<module>:variable`,
+        repoId,
+        filePath,
+        symbolName: '<module>',
+        symbolType: 'variable',
+        startLine: 1,
+        endLine: lastLine,
+        exported: false,
+        extractedSha: file.currentSha,
+        metadata: null,
+      };
+      nodesByFile.get(filePath)!.push(moduleNode);
+      allNodes.push(moduleNode);
+    }
+
     // --- Pass 2: extract edges (reuse cached trees) ---
     for (const [filePath, { tree, file }] of treeCache) {
       const language = file.language!;
