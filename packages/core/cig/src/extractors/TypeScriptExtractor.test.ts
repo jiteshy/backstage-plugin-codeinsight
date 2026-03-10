@@ -1074,7 +1074,7 @@ export { default as lodash } from 'lodash';`,
   // Complex multi-file scenario
   // -----------------------------------------------------------------------
 
-  describe('complex multi-file import graph', () => {
+  describe('complex multi-file import graph (including routes)', () => {
     it('builds correct import graph for a multi-file project', () => {
       const result = buildMultiFile([
         {
@@ -1125,6 +1125,389 @@ export * from './db';`,
 
       // Total: 1 + 3 + 4 = 8 import edges
       expect(importEdges).toHaveLength(8);
+    });
+  });
+});
+
+// ===========================================================================
+// Route extraction tests (Phase 1.7.6)
+// ===========================================================================
+
+describe('TypeScriptExtractor — route extraction', () => {
+  /** Extract only route nodes from the symbol result. */
+  function extractRoutes(source: string, language = 'typescript'): CIGNode[] {
+    const builder = new CIGBuilder();
+    builder.registerExtractor(new TypeScriptExtractor());
+    const file: RepoFile = {
+      repoId: 'repo-1',
+      filePath: 'src/routes.ts',
+      currentSha: 'sha-abc',
+      fileType: 'source',
+      language,
+      parseStatus: 'pending',
+    };
+    const result = builder.build('repo-1', [{ file, content: source }]);
+    return result.nodes.filter(n => n.symbolType === 'route');
+  }
+
+  // -----------------------------------------------------------------------
+  // Basic HTTP methods
+  // -----------------------------------------------------------------------
+
+  describe('basic HTTP method routes', () => {
+    it('extracts router.get()', () => {
+      const routes = extractRoutes(`
+import { Router } from 'express';
+const router = Router();
+router.get('/users', getUsers);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].symbolName).toBe('GET /users');
+      expect(routes[0].symbolType).toBe('route');
+      expect(routes[0].metadata).toEqual({
+        httpMethod: 'GET',
+        routePath: '/users',
+        handler: 'getUsers',
+      });
+    });
+
+    it('extracts app.post()', () => {
+      const routes = extractRoutes(`
+import express from 'express';
+const app = express();
+app.post('/users', createUser);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].symbolName).toBe('POST /users');
+      expect(routes[0].metadata).toEqual({
+        httpMethod: 'POST',
+        routePath: '/users',
+        handler: 'createUser',
+      });
+    });
+
+    it('extracts app.put()', () => {
+      const routes = extractRoutes(`
+const app = express();
+app.put('/users/:id', updateUser);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].symbolName).toBe('PUT /users/:id');
+      expect(routes[0].metadata?.httpMethod).toBe('PUT');
+    });
+
+    it('extracts app.patch()', () => {
+      const routes = extractRoutes(`
+const app = express();
+app.patch('/users/:id', patchUser);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].metadata?.httpMethod).toBe('PATCH');
+    });
+
+    it('extracts app.delete()', () => {
+      const routes = extractRoutes(`
+const app = express();
+app.delete('/users/:id', deleteUser);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].symbolName).toBe('DELETE /users/:id');
+    });
+
+    it('extracts app.head() and app.options()', () => {
+      const routes = extractRoutes(`
+const app = express();
+app.head('/health', headHandler);
+app.options('/cors', corsHandler);
+`);
+      expect(routes).toHaveLength(2);
+      expect(routes[0].symbolName).toBe('HEAD /health');
+      expect(routes[1].symbolName).toBe('OPTIONS /cors');
+    });
+
+    it('extracts app.all()', () => {
+      const routes = extractRoutes(`
+const app = express();
+app.all('/catchall', catchAll);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].symbolName).toBe('ALL /catchall');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // router.use() with path prefix
+  // -----------------------------------------------------------------------
+
+  describe('router.use() with path', () => {
+    it('extracts router.use() with a path prefix', () => {
+      const routes = extractRoutes(`
+const router = Router();
+router.use('/api', apiRouter);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].symbolName).toBe('USE /api');
+      expect(routes[0].metadata).toEqual({
+        httpMethod: 'USE',
+        routePath: '/api',
+        handler: 'apiRouter',
+      });
+    });
+
+    it('skips router.use() without a string path (middleware-only)', () => {
+      const routes = extractRoutes(`
+const router = Router();
+router.use(corsMiddleware);
+router.use(express.json());
+`);
+      expect(routes).toHaveLength(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Multiple middlewares
+  // -----------------------------------------------------------------------
+
+  describe('middleware arguments', () => {
+    it('captures the last argument as handler when multiple middlewares are present', () => {
+      const routes = extractRoutes(`
+const router = Router();
+router.post('/data', auth, validate, handleData);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].metadata?.handler).toBe('handleData');
+    });
+
+    it('returns null handler for inline arrow function', () => {
+      const routes = extractRoutes(`
+const app = express();
+app.get('/inline', (req, res) => res.send('ok'));
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].symbolName).toBe('GET /inline');
+      expect(routes[0].metadata).toEqual({
+        httpMethod: 'GET',
+        routePath: '/inline',
+      });
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Member expression handlers
+  // -----------------------------------------------------------------------
+
+  describe('member expression handlers', () => {
+    it('captures controller.method as handler', () => {
+      const routes = extractRoutes(`
+const router = Router();
+router.get('/items', controller.listItems);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].metadata?.handler).toBe('controller.listItems');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Multiple routes in one file
+  // -----------------------------------------------------------------------
+
+  describe('multiple routes', () => {
+    it('extracts all routes from a typical Express router file', () => {
+      const routes = extractRoutes(`
+import { Router } from 'express';
+
+const router = Router();
+
+router.get('/users', listUsers);
+router.get('/users/:id', getUser);
+router.post('/users', createUser);
+router.put('/users/:id', updateUser);
+router.delete('/users/:id', deleteUser);
+
+export default router;
+`);
+      expect(routes).toHaveLength(5);
+      expect(routes.map(r => r.symbolName)).toEqual([
+        'GET /users',
+        'GET /users/:id',
+        'POST /users',
+        'PUT /users/:id',
+        'DELETE /users/:id',
+      ]);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Non-router objects are ignored
+  // -----------------------------------------------------------------------
+
+  describe('non-router objects', () => {
+    it('ignores method calls on unknown objects', () => {
+      const routes = extractRoutes(`
+const db = createDb();
+db.get('/key', fetchKey);
+`);
+      expect(routes).toHaveLength(0);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // server object
+  // -----------------------------------------------------------------------
+
+  describe('server object', () => {
+    it('extracts routes from a "server" object', () => {
+      const routes = extractRoutes(`
+const server = fastify();
+server.get('/health', healthCheck);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].symbolName).toBe('GET /health');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Line numbers
+  // -----------------------------------------------------------------------
+
+  describe('line numbers', () => {
+    it('captures correct start and end lines for route calls', () => {
+      const routes = extractRoutes(`
+const router = Router();
+router.get('/test', handler);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].startLine).toBe(3);
+      expect(routes[0].endLine).toBe(3);
+    });
+
+    it('captures multi-line route calls', () => {
+      const routes = extractRoutes(`
+const router = Router();
+router.post(
+  '/multi',
+  authMiddleware,
+  validate,
+  handleMulti
+);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].startLine).toBe(3);
+      expect(routes[0].endLine).toBe(8);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // nodeId format
+  // -----------------------------------------------------------------------
+
+  describe('nodeId format', () => {
+    it('has correct nodeId format for route nodes', () => {
+      const routes = extractRoutes(`
+const app = express();
+app.get('/api/v1/items', listItems);
+`);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].nodeId).toBe('repo-1:src/routes.ts:GET#/api/v1/items:route');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // JavaScript files
+  // -----------------------------------------------------------------------
+
+  describe('JavaScript files', () => {
+    it('extracts routes from plain JavaScript files', () => {
+      const routes = extractRoutes(`
+const express = require('express');
+const router = express.Router();
+router.get('/js-route', jsHandler);
+`, 'javascript');
+      expect(routes).toHaveLength(1);
+      expect(routes[0].symbolName).toBe('GET /js-route');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Chained route syntax
+  // -----------------------------------------------------------------------
+
+  describe('chained route syntax', () => {
+    it('extracts chained router.route().get() calls', () => {
+      const routes = extractRoutes(`
+const router = Router();
+router.route('/users').get(listUsers).post(createUser);
+`);
+      expect(routes).toHaveLength(2);
+      const names = routes.map(r => r.symbolName).sort();
+      expect(names).toEqual(['GET /users', 'POST /users']);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Duplicate route registrations
+  // -----------------------------------------------------------------------
+
+  describe('duplicate routes', () => {
+    it('emits two nodes when the same route is registered twice', () => {
+      const routes = extractRoutes(`
+const router = Router();
+router.get('/health', handler1);
+router.get('/health', handler2);
+`);
+      expect(routes).toHaveLength(2);
+      // Both have the same nodeId — known limitation
+      expect(routes[0].nodeId).toBe(routes[1].nodeId);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Coexistence with symbol extraction
+  // -----------------------------------------------------------------------
+
+  describe('coexistence with symbol extraction', () => {
+    it('route nodes coexist with function/class symbols', () => {
+      const builder = new CIGBuilder();
+      builder.registerExtractor(new TypeScriptExtractor());
+      const file: RepoFile = {
+        repoId: 'repo-1',
+        filePath: 'src/server.ts',
+        currentSha: 'sha-abc',
+        fileType: 'source',
+        language: 'typescript',
+        parseStatus: 'pending',
+      };
+      const result = builder.build('repo-1', [{
+        file,
+        content: `
+import express from 'express';
+
+const app = express();
+
+function getHealth(req: any, res: any) {
+  res.json({ status: 'ok' });
+}
+
+export class UserController {
+  list(req: any, res: any) {}
+}
+
+app.get('/health', getHealth);
+app.get('/users', UserController.prototype.list);
+`,
+      }]);
+
+      const symbols = result.nodes.filter(n => n.symbolName !== '<module>');
+      const functions = symbols.filter(n => n.symbolType === 'function');
+      const classes = symbols.filter(n => n.symbolType === 'class');
+      const routes = symbols.filter(n => n.symbolType === 'route');
+
+      expect(functions.map(f => f.symbolName)).toContain('getHealth');
+      expect(functions.map(f => f.symbolName)).toContain('UserController.list');
+      expect(classes.map(c => c.symbolName)).toContain('UserController');
+      expect(routes).toHaveLength(2);
+      expect(routes[0].symbolName).toBe('GET /health');
+      expect(routes[1].symbolName).toBe('GET /users');
     });
   });
 });

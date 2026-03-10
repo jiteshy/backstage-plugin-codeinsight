@@ -37,6 +37,7 @@ export class TypeScriptExtractor implements LanguageExtractor {
   extractSymbols(tree: Parser.Tree, file: RepoFile, repoId: string): CIGNode[] {
     const nodes: CIGNode[] = [];
     this.walkForSymbols(tree.rootNode, file, repoId, nodes, false, null);
+    this.walkForRoutes(tree.rootNode, file, repoId, nodes);
     return nodes;
   }
 
@@ -552,6 +553,244 @@ export class TypeScriptExtractor implements LanguageExtractor {
       toNodeId,
       edgeType,
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // Route extraction: Express/Fastify/Koa-style route definitions
+  // -------------------------------------------------------------------------
+
+  /** HTTP methods recognized as route-defining calls. */
+  private static readonly ROUTE_METHODS = new Set([
+    'get', 'post', 'put', 'patch', 'delete', 'head', 'options', 'all',
+  ]);
+
+  /** Object names that typically hold a router/app instance. */
+  private static readonly ROUTER_OBJECTS = new Set([
+    'app', 'router', 'server',
+  ]);
+
+  /**
+   * Walk the entire AST looking for Express-style route calls:
+   *   router.get('/path', handler)
+   *   app.post('/path', middleware, handler)
+   *   router.use('/prefix', subRouter)
+   */
+  private walkForRoutes(
+    node: Parser.SyntaxNode,
+    file: RepoFile,
+    repoId: string,
+    out: CIGNode[],
+  ): void {
+    if (node.type === 'call_expression') {
+      this.tryExtractRoute(node, file, repoId, out);
+    }
+    for (let i = 0; i < node.namedChildCount; i++) {
+      this.walkForRoutes(node.namedChild(i)!, file, repoId, out);
+    }
+  }
+
+  /**
+   * Check if a call_expression matches a route pattern and extract it.
+   */
+  private tryExtractRoute(
+    callNode: Parser.SyntaxNode,
+    file: RepoFile,
+    repoId: string,
+    out: CIGNode[],
+  ): void {
+    const fn = callNode.childForFieldName('function');
+    if (!fn || fn.type !== 'member_expression') return;
+
+    const object = fn.childForFieldName('object');
+    const property = fn.childForFieldName('property');
+    if (!object || !property) return;
+
+    const methodName = property.text;
+
+    // Must be a known HTTP method or 'use'
+    const isRouteMethod = TypeScriptExtractor.ROUTE_METHODS.has(methodName);
+    if (!isRouteMethod && methodName !== 'use') return;
+
+    const args = callNode.childForFieldName('arguments');
+    if (!args) return;
+
+    // Check for chained pattern: router.route('/path').get(handler)
+    // In this case, object is a call_expression for router.route('/path'),
+    // the path comes from .route() args, and .get() args have only handler(s).
+    const chainedPath = this.extractChainedRoutePath(object);
+    if (chainedPath) {
+      const handler = this.extractHandlerFromArgs(args);
+      const method = methodName.toUpperCase();
+      const symbolName = `${method} ${chainedPath}`;
+      const metadata: Record<string, unknown> = {
+        httpMethod: method,
+        routePath: chainedPath,
+      };
+      if (handler) metadata.handler = handler;
+
+      out.push({
+        nodeId: `${repoId}:${file.filePath}:${method}#${chainedPath}:route`,
+        repoId,
+        filePath: file.filePath,
+        symbolName,
+        symbolType: 'route',
+        startLine: callNode.startPosition.row + 1,
+        endLine: callNode.endPosition.row + 1,
+        exported: false,
+        extractedSha: file.currentSha,
+        metadata,
+      });
+      return;
+    }
+
+    // Standard pattern: router.get('/path', handler)
+    const objectName = this.extractObjectName(object);
+    if (!objectName) return;
+    if (!TypeScriptExtractor.ROUTER_OBJECTS.has(objectName)) return;
+
+    // Extract route path (first string argument) and handler name
+    const routeInfo = this.extractRouteInfo(args, methodName);
+    if (!routeInfo) return;
+
+    const { routePath, httpMethod, handler } = routeInfo;
+
+    // Build a descriptive symbol name: GET /api/users
+    const method = httpMethod.toUpperCase();
+    const symbolName = `${method} ${routePath}`;
+    const metadata: Record<string, unknown> = {
+      httpMethod: method,
+      routePath,
+    };
+    if (handler) {
+      metadata.handler = handler;
+    }
+
+    // Use # as method/path separator in nodeId to avoid spaces in the colon-delimited key
+    out.push({
+      nodeId: `${repoId}:${file.filePath}:${method}#${routePath}:route`,
+      repoId,
+      filePath: file.filePath,
+      symbolName,
+      symbolType: 'route',
+      startLine: callNode.startPosition.row + 1,
+      endLine: callNode.endPosition.row + 1,
+      exported: false,
+      extractedSha: file.currentSha,
+      metadata,
+    });
+  }
+
+  /**
+   * Extract the root object name from potentially chained member expressions.
+   */
+  private extractObjectName(node: Parser.SyntaxNode): string | null {
+    if (node.type === 'identifier') {
+      return node.text;
+    }
+    return null;
+  }
+
+  /**
+   * Detect the chained pattern: `router.route('/path').get(handler).post(handler2)`.
+   * Walks up call_expression chains to find the `.route('/path')` root.
+   */
+  private extractChainedRoutePath(objectNode: Parser.SyntaxNode): string | null {
+    if (objectNode.type !== 'call_expression') return null;
+
+    const fn = objectNode.childForFieldName('function');
+    if (!fn || fn.type !== 'member_expression') return null;
+
+    const prop = fn.childForFieldName('property');
+    if (!prop) return null;
+
+    const obj = fn.childForFieldName('object');
+    if (!obj) return null;
+
+    // Found the .route('/path') call at the root
+    if (prop.text === 'route') {
+      const rootName = this.extractObjectName(obj);
+      if (!rootName || !TypeScriptExtractor.ROUTER_OBJECTS.has(rootName)) return null;
+
+      const args = objectNode.childForFieldName('arguments');
+      if (!args || args.namedChildCount === 0) return null;
+
+      const firstArg = args.namedChild(0)!;
+      if (firstArg.type === 'string') {
+        return firstArg.text.slice(1, -1);
+      } else if (firstArg.type === 'template_string') {
+        return firstArg.text.slice(1, -1);
+      }
+      return null;
+    }
+
+    // Recurse: the object might be another chained call (e.g. .get() before .post())
+    return this.extractChainedRoutePath(obj);
+  }
+
+  /**
+   * Extract handler name from the last argument in a route call's args.
+   */
+  private extractHandlerFromArgs(argsNode: Parser.SyntaxNode): string | null {
+    if (argsNode.namedChildCount === 0) return null;
+    const lastArg = argsNode.namedChild(argsNode.namedChildCount - 1)!;
+    return this.extractHandlerName(lastArg);
+  }
+
+  /**
+   * Parse the arguments of a route call to extract path, method, and handler.
+   * Returns null if no string path is found (not a route definition).
+   */
+  private extractRouteInfo(
+    argsNode: Parser.SyntaxNode,
+    methodName: string,
+  ): { routePath: string; httpMethod: string; handler: string | null } | null {
+    const isUse = methodName === 'use';
+    const args: Parser.SyntaxNode[] = [];
+    for (let i = 0; i < argsNode.namedChildCount; i++) {
+      args.push(argsNode.namedChild(i)!);
+    }
+
+    if (args.length === 0) return null;
+
+    // First arg should be a string literal (the route path)
+    const firstArg = args[0];
+    let routePath: string | null = null;
+
+    if (firstArg.type === 'string') {
+      routePath = firstArg.text.slice(1, -1); // strip surrounding ' or "
+    } else if (firstArg.type === 'template_string') {
+      // Store raw template text; interpolated paths (e.g. `/api/${v}/users`) are kept verbatim.
+      routePath = firstArg.text.slice(1, -1); // strip surrounding backticks
+    }
+
+    // For .use() without a string path, skip (middleware-only use)
+    if (!routePath && isUse) return null;
+
+    // For HTTP methods without a path (rare but possible: app.get(handler))
+    // we still want to capture it if there's a string path
+    if (!routePath) return null;
+
+    const httpMethod = methodName; // always lowercase; caller uppercases
+
+    // Handler is the last argument (could be an identifier or member_expression)
+    const handler = args.length > 1 ? this.extractHandlerName(args[args.length - 1]) : null;
+
+    return { routePath, httpMethod, handler };
+  }
+
+  /**
+   * Extract a human-readable handler name from the last argument of a route call.
+   */
+  private extractHandlerName(node: Parser.SyntaxNode): string | null {
+    if (node.type === 'identifier') {
+      return node.text;
+    }
+    if (node.type === 'member_expression') {
+      return node.text;
+    }
+    // Arrow function or function expression — look for a meaningful name
+    // In practice these are inline handlers; return null.
+    return null;
   }
 
   // -------------------------------------------------------------------------
