@@ -32,6 +32,7 @@ export interface EmbeddingConfig {
 }
 
 export interface IngestionConfig {
+  tempDir: string; // base directory for repo clones
   deltaThreshold: number; // fraction (0-1) of changed files that triggers a full run
   maxConcurrentJobs: number;
   jobTimeoutMinutes: number;
