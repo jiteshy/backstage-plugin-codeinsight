@@ -1,7 +1,7 @@
 export { CIGBuilder } from './CIGBuilder';
 export { EntryPointDetector } from './EntryPointDetector';
 export { FrameworkSignalDetector } from './FrameworkSignalDetector';
-export { TypeScriptExtractor } from './extractors';
+export { PrismaExtractor, TypeScriptExtractor } from './extractors';
 export type {
   EntryPoint,
   EntryPointDetectorConfig,
@@ -16,5 +16,6 @@ export type {
 export type {
   CIGBuildResult,
   CIGBuilderConfig,
+  ContentExtractor,
   LanguageExtractor,
 } from './types';

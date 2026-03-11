@@ -20,7 +20,7 @@ export type SymbolType =
   | 'route'
   | 'schema';
 
-export type EdgeType = 'calls' | 'imports' | 'extends' | 'implements';
+export type EdgeType = 'calls' | 'imports' | 'extends' | 'implements' | 'references';
 
 export type ArtifactType = 'doc' | 'diagram' | 'qna_chunk';
 

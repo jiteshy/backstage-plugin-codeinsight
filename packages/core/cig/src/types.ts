@@ -27,6 +27,31 @@ export interface LanguageExtractor {
 }
 
 // ---------------------------------------------------------------------------
+// ContentExtractor — for languages without Tree-sitter grammars
+// ---------------------------------------------------------------------------
+
+/**
+ * Extracts CIG nodes and edges from raw file content.
+ * Use this for schema languages (Prisma, GraphQL, etc.) that don't have
+ * Tree-sitter grammars but have regular, parseable syntax.
+ */
+export interface ContentExtractor {
+  /** Languages this extractor handles (e.g. ['prisma']). */
+  readonly languages: string[];
+
+  /** Extract symbols from raw file content. */
+  extractSymbols(content: string, file: RepoFile, repoId: string): CIGNode[];
+
+  /** Extract relationships from raw file content. */
+  extractEdges(
+    content: string,
+    file: RepoFile,
+    repoId: string,
+    nodesByFile: Map<string, CIGNode[]>,
+  ): CIGEdge[];
+}
+
+// ---------------------------------------------------------------------------
 // CIGBuilder configuration
 // ---------------------------------------------------------------------------
 
