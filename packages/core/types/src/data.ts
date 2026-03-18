@@ -78,11 +78,38 @@ export interface CIGEdge {
   edgeType: EdgeType;
 }
 
+// ---------------------------------------------------------------------------
+// Artifact content — discriminated union per artifact kind
+// ---------------------------------------------------------------------------
+
+export interface DocContent {
+  kind: 'doc';
+  module: string;    // e.g. 'overview', 'api-reference', 'getting-started'
+  markdown: string;  // generated markdown text
+}
+
+export interface DiagramContent {
+  kind: 'diagram';
+  diagramType: string;  // e.g. 'flowchart', 'sequenceDiagram', 'erDiagram'
+  mermaid: string;      // raw Mermaid DSL
+  title?: string;
+}
+
+export interface QnAChunkContent {
+  kind: 'qna_chunk';
+  text: string;
+  chunkIndex: number;
+  totalChunks: number;
+  sourceFile?: string;
+}
+
+export type ArtifactContent = DocContent | DiagramContent | QnAChunkContent;
+
 export interface Artifact {
   repoId: string;
   artifactId: string;
   artifactType: ArtifactType;
-  content?: Record<string, unknown> | null;
+  content?: ArtifactContent | null;
   inputSha: string;
   promptVersion?: string | null;
   isStale: boolean;

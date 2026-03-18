@@ -3,8 +3,7 @@ import {
   LoggerService,
   RootConfigService,
 } from '@backstage/backend-plugin-api';
-import { IngestionService } from '@codeinsight/ingestion';
-import type { StorageAdapter } from '@codeinsight/types';
+import type { JobQueue, StorageAdapter } from '@codeinsight/types';
 import express from 'express';
 import Router from 'express-promise-router';
 
@@ -12,14 +11,14 @@ export interface RouterOptions {
   config: RootConfigService;
   logger: LoggerService;
   database: DatabaseService;
-  ingestionService: IngestionService;
+  jobQueue: JobQueue;
   storageAdapter: StorageAdapter;
 }
 
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, ingestionService, storageAdapter } = options;
+  const { logger, jobQueue, storageAdapter } = options;
   const router = Router();
 
   router.use(express.json());
@@ -56,7 +55,7 @@ export async function createRouter(
     }
 
     try {
-      const jobId = await ingestionService.triggerIngestion(repoId, repoUrl, trigger);
+      const jobId = await jobQueue.enqueue({ repoId, repoUrl, trigger });
       logger.info('Ingestion triggered', { repoId, trigger, jobId });
       res.status(202).json({ jobId });
     } catch (err) {

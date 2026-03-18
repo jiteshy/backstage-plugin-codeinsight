@@ -1,5 +1,6 @@
 import type {
   Artifact,
+  ArtifactType,
   CIGEdge,
   CIGNode,
   IngestionJob,
@@ -7,6 +8,7 @@ import type {
   RepoFile,
   RepoStatus,
   Repository,
+  StaleReason,
 } from './data';
 
 // ---------------------------------------------------------------------------
@@ -96,10 +98,15 @@ export interface StorageAdapter {
   getCIGNodes(repoId: string): Promise<CIGNode[]>;
   getCIGEdges(repoId: string): Promise<CIGEdge[]>;
 
+  // File tracking (extended)
+  deleteRepoFilesNotIn(repoId: string, currentFilePaths: string[]): Promise<void>;
+
   // Artifacts (Phase 2+)
   upsertArtifact(artifact: Artifact): Promise<void>;
   getArtifact(artifactId: string, repoId: string): Promise<Artifact | null>;
+  getArtifactsByType(repoId: string, type: ArtifactType): Promise<Artifact[]>;
   getStaleArtifacts(repoId: string): Promise<Artifact[]>;
+  markArtifactsStale(repoId: string, artifactIds: string[], reason: StaleReason): Promise<void>;
 
   // Jobs
   createJob(job: IngestionJob): Promise<string>;

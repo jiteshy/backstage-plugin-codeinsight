@@ -129,7 +129,7 @@ function makeArtifact(repoId: string, overrides?: Partial<Artifact>): Artifact {
     repoId,
     artifactId: `doc/${randomUUID()}`,
     artifactType: 'doc',
-    content: { title: 'Test', body: 'Hello' },
+    content: { kind: 'doc', module: 'overview', markdown: 'Hello' },
     inputSha: randomUUID(),
     promptVersion: 'v1',
     isStale: false,
@@ -450,7 +450,7 @@ describe('KnexStorageAdapter', () => {
       expect(result).not.toBeNull();
       expect(result!.artifactId).toBe(artifact.artifactId);
       expect(result!.artifactType).toBe('doc');
-      expect(result!.content).toEqual({ title: 'Test', body: 'Hello' });
+      expect(result!.content).toEqual({ kind: 'doc', module: 'overview', markdown: 'Hello' });
       expect(result!.tokensUsed).toBe(100);
       expect(result!.llmUsed).toBe(true);
     });
@@ -464,13 +464,13 @@ describe('KnexStorageAdapter', () => {
       const artifact = makeArtifact(repoId);
       await adapter.upsertArtifact(artifact);
 
-      artifact.content = { title: 'Updated' };
+      artifact.content = { kind: 'doc', module: 'overview', markdown: 'Updated' };
       artifact.isStale = true;
       artifact.staleReason = 'file_changed';
       await adapter.upsertArtifact(artifact);
 
       const result = await adapter.getArtifact(artifact.artifactId, repoId);
-      expect(result!.content).toEqual({ title: 'Updated' });
+      expect(result!.content).toEqual({ kind: 'doc', module: 'overview', markdown: 'Updated' });
       expect(result!.isStale).toBe(true);
       expect(result!.staleReason).toBe('file_changed');
     });
@@ -491,6 +491,194 @@ describe('KnexStorageAdapter', () => {
       const result = await adapter.getStaleArtifacts(repoId);
       expect(result).toHaveLength(1);
       expect(result[0].artifactId).toBe('doc/stale');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // deleteRepoFilesNotIn tests
+  // -------------------------------------------------------------------------
+
+  describe('deleteRepoFilesNotIn', () => {
+    let repoId: string;
+
+    beforeEach(async () => {
+      const repo = makeRepo();
+      repoId = repo.repoId;
+      await adapter.upsertRepo(repo);
+    });
+
+    it('deletes file records that are not in the provided list', async () => {
+      const files = [
+        makeRepoFile(repoId, 'src/keep.ts'),
+        makeRepoFile(repoId, 'src/delete-me.ts'),
+        makeRepoFile(repoId, 'src/also-delete.ts'),
+      ];
+      await adapter.upsertRepoFiles(files);
+
+      await adapter.deleteRepoFilesNotIn(repoId, ['src/keep.ts']);
+
+      const result = await adapter.getRepoFiles(repoId);
+      expect(result).toHaveLength(1);
+      expect(result[0].filePath).toBe('src/keep.ts');
+    });
+
+    it('is a no-op when all current files are still present', async () => {
+      const files = [
+        makeRepoFile(repoId, 'src/a.ts'),
+        makeRepoFile(repoId, 'src/b.ts'),
+      ];
+      await adapter.upsertRepoFiles(files);
+
+      await adapter.deleteRepoFilesNotIn(repoId, ['src/a.ts', 'src/b.ts']);
+
+      const result = await adapter.getRepoFiles(repoId);
+      expect(result).toHaveLength(2);
+    });
+
+    it('deletes all files when currentFilePaths is empty', async () => {
+      const files = [
+        makeRepoFile(repoId, 'src/a.ts'),
+        makeRepoFile(repoId, 'src/b.ts'),
+      ];
+      await adapter.upsertRepoFiles(files);
+
+      await adapter.deleteRepoFilesNotIn(repoId, []);
+
+      const result = await adapter.getRepoFiles(repoId);
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // getArtifactsByType tests
+  // -------------------------------------------------------------------------
+
+  describe('getArtifactsByType', () => {
+    let repoId: string;
+
+    beforeEach(async () => {
+      const repo = makeRepo();
+      repoId = repo.repoId;
+      await adapter.upsertRepo(repo);
+    });
+
+    it('returns only artifacts of the requested type for the repo', async () => {
+      const doc1 = makeArtifact(repoId, {
+        artifactId: 'doc/module-a',
+        artifactType: 'doc',
+        content: { kind: 'doc', module: 'overview', markdown: 'Hello' },
+      });
+      const doc2 = makeArtifact(repoId, {
+        artifactId: 'doc/module-b',
+        artifactType: 'doc',
+        content: { kind: 'doc', module: 'overview', markdown: 'World' },
+      });
+      const diagram = makeArtifact(repoId, {
+        artifactId: 'diagram/arch',
+        artifactType: 'diagram',
+        content: { kind: 'diagram', diagramType: 'architecture', mermaid: 'graph TD' },
+      });
+
+      await adapter.upsertArtifact(doc1);
+      await adapter.upsertArtifact(doc2);
+      await adapter.upsertArtifact(diagram);
+
+      const docs = await adapter.getArtifactsByType(repoId, 'doc');
+      expect(docs).toHaveLength(2);
+      const ids = docs.map(a => a.artifactId).sort();
+      expect(ids).toEqual(['doc/module-a', 'doc/module-b']);
+
+      const diagrams = await adapter.getArtifactsByType(repoId, 'diagram');
+      expect(diagrams).toHaveLength(1);
+      expect(diagrams[0].artifactId).toBe('diagram/arch');
+    });
+
+    it('returns empty array when no artifacts of that type exist', async () => {
+      const doc = makeArtifact(repoId, {
+        artifactId: 'doc/only',
+        artifactType: 'doc',
+        content: { kind: 'doc', module: 'overview', markdown: 'Hello' },
+      });
+      await adapter.upsertArtifact(doc);
+
+      const result = await adapter.getArtifactsByType(repoId, 'diagram');
+      expect(result).toEqual([]);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // markArtifactsStale tests
+  // -------------------------------------------------------------------------
+
+  describe('markArtifactsStale', () => {
+    let repoId: string;
+
+    beforeEach(async () => {
+      const repo = makeRepo();
+      repoId = repo.repoId;
+      await adapter.upsertRepo(repo);
+    });
+
+    it('marks specified artifacts as stale with the given reason', async () => {
+      const a1 = makeArtifact(repoId, { artifactId: 'doc/a1', isStale: false });
+      const a2 = makeArtifact(repoId, { artifactId: 'doc/a2', isStale: false });
+      const a3 = makeArtifact(repoId, { artifactId: 'doc/a3', isStale: false });
+      await adapter.upsertArtifact(a1);
+      await adapter.upsertArtifact(a2);
+      await adapter.upsertArtifact(a3);
+
+      await adapter.markArtifactsStale(repoId, ['doc/a1', 'doc/a3'], 'file_changed');
+
+      const r1 = await adapter.getArtifact('doc/a1', repoId);
+      expect(r1!.isStale).toBe(true);
+      expect(r1!.staleReason).toBe('file_changed');
+
+      const r2 = await adapter.getArtifact('doc/a2', repoId);
+      expect(r2!.isStale).toBe(false);
+      expect(r2!.staleReason).toBeNull();
+
+      const r3 = await adapter.getArtifact('doc/a3', repoId);
+      expect(r3!.isStale).toBe(true);
+      expect(r3!.staleReason).toBe('file_changed');
+    });
+
+    it('is a no-op when artifactIds is empty', async () => {
+      const a1 = makeArtifact(repoId, { artifactId: 'doc/fresh', isStale: false });
+      await adapter.upsertArtifact(a1);
+
+      await adapter.markArtifactsStale(repoId, [], 'file_changed');
+
+      const result = await adapter.getArtifact('doc/fresh', repoId);
+      expect(result!.isStale).toBe(false);
+      expect(result!.staleReason).toBeNull();
+    });
+
+    it('does not affect artifacts of other repos', async () => {
+      // Second repo
+      const otherRepo = makeRepo();
+      await adapter.upsertRepo(otherRepo);
+
+      const myArtifact = makeArtifact(repoId, { artifactId: 'doc/mine', isStale: false });
+      const otherArtifact = makeArtifact(otherRepo.repoId, {
+        artifactId: 'doc/mine', // same artifactId to maximize potential for collision
+        isStale: false,
+      });
+
+      await adapter.upsertArtifact(myArtifact);
+      await adapter.upsertArtifact(otherArtifact);
+
+      // Mark stale only for repoId
+      await adapter.markArtifactsStale(repoId, ['doc/mine'], 'prompt_updated');
+
+      // Own artifact is stale
+      const ownResult = await adapter.getArtifact('doc/mine', repoId);
+      expect(ownResult!.isStale).toBe(true);
+      expect(ownResult!.staleReason).toBe('prompt_updated');
+
+      // Other repo's artifact is untouched
+      const otherResult = await adapter.getArtifact('doc/mine', otherRepo.repoId);
+      expect(otherResult!.isStale).toBe(false);
+      expect(otherResult!.staleReason).toBeNull();
     });
   });
 

@@ -2,7 +2,7 @@ import {
   createBackendPlugin,
   coreServices,
 } from '@backstage/backend-plugin-api';
-import { IngestionService } from '@codeinsight/ingestion';
+import { InProcessJobQueue, IngestionService } from '@codeinsight/ingestion';
 import { GitRepoConnector } from '@codeinsight/repo';
 import { KnexStorageAdapter } from '@codeinsight/storage';
 import type { IngestionConfig, Logger, RepoCloneConfig } from '@codeinsight/types';
@@ -78,6 +78,12 @@ export const codeinsightPlugin = createBackendPlugin({
           ingestionConfig,
         );
 
+        const jobQueue = new InProcessJobQueue(
+          ingestionService,
+          storageAdapter,
+          ingestionConfig.maxConcurrentJobs,
+        );
+
         // ------------------------------------------------------------------
         // Mount router
         // ------------------------------------------------------------------
@@ -86,8 +92,8 @@ export const codeinsightPlugin = createBackendPlugin({
           config,
           logger,
           database,
-          ingestionService,
           storageAdapter,
+          jobQueue,
         });
         httpRouter.use(router);
 
