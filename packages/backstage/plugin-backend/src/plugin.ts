@@ -3,9 +3,10 @@ import {
   coreServices,
 } from '@backstage/backend-plugin-api';
 import { InProcessJobQueue, IngestionService } from '@codeinsight/ingestion';
+import { createLLMClient } from '@codeinsight/llm';
 import { GitRepoConnector } from '@codeinsight/repo';
 import { KnexStorageAdapter } from '@codeinsight/storage';
-import type { IngestionConfig, Logger, RepoCloneConfig } from '@codeinsight/types';
+import type { IngestionConfig, LLMConfig, Logger, RepoCloneConfig } from '@codeinsight/types';
 
 import { createRouter } from './router';
 
@@ -70,6 +71,37 @@ export const codeinsightPlugin = createBackendPlugin({
           cleanupAfterIngestion:
             config.getOptionalBoolean('codeinsight.ingestion.cleanupAfterIngestion') ?? true,
         };
+
+        // LLM client — optional; only instantiated when llm config is present
+        const llmProvider = config.getOptionalString('codeinsight.llm.provider');
+        const llmApiKey = config.getOptionalString('codeinsight.llm.apiKey');
+        const llmModel = config.getOptionalString('codeinsight.llm.model');
+
+        const llmConfig: LLMConfig | undefined =
+          llmProvider && llmApiKey && llmModel
+            ? {
+                provider: llmProvider as LLMConfig['provider'],
+                apiKey: llmApiKey,
+                model: llmModel,
+              }
+            : undefined;
+
+        // llmClient will be undefined if no LLM config is set; Phase 2 services
+        // that require it will check and surface a clear error at call time.
+        const llmClient = llmConfig
+          ? createLLMClient(llmConfig, coreLogger, knex)
+          : undefined;
+
+        if (llmClient) {
+          coreLogger.info('LLM client initialized', {
+            provider: llmConfig!.provider,
+            model: llmConfig!.model,
+          });
+        } else {
+          coreLogger.info(
+            'No LLM config found — doc/diagram generation will be unavailable',
+          );
+        }
 
         const ingestionService = new IngestionService(
           repoConnector,
