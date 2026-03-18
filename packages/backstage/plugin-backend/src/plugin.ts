@@ -63,6 +63,10 @@ export const codeinsightPlugin = createBackendPlugin({
             config.getOptionalNumber('codeinsight.ingestion.maxConcurrentJobs') ?? 2,
           jobTimeoutMinutes:
             config.getOptionalNumber('codeinsight.ingestion.jobTimeoutMinutes') ?? 30,
+          cloneDepth:
+            config.getOptionalNumber('codeinsight.ingestion.cloneDepth') ?? 1,
+          deltaCloneDepth:
+            config.getOptionalNumber('codeinsight.ingestion.deltaCloneDepth') ?? 50,
           cleanupAfterIngestion:
             config.getOptionalBoolean('codeinsight.ingestion.cleanupAfterIngestion') ?? true,
         };

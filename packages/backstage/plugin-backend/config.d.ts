@@ -68,6 +68,10 @@ export interface Config {
       maxConcurrentJobs?: number;
       /** Job timeout in minutes. Default: 30. */
       jobTimeoutMinutes?: number;
+      /** Git shallow clone depth for first-run (full) clones. Default: 1. */
+      cloneDepth?: number;
+      /** Git shallow clone depth for delta-eligible runs — must span fromSha..toSha. Default: 50. */
+      deltaCloneDepth?: number;
       /** Delete the cloned repo directory after each pipeline run. Default: true. */
       cleanupAfterIngestion?: boolean;
     };
