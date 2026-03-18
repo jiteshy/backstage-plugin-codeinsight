@@ -26,7 +26,7 @@ export class GitRepoConnector implements RepoConnector {
 
   async clone(url: string, targetDir: string, opts?: CloneOptions): Promise<void> {
     const depth = opts?.depth ?? this.config.defaultDepth;
-    const authToken = opts?.authToken;
+    const authToken = opts?.authToken ?? this.config.authToken;
     const cloneUrl = authToken ? this.injectToken(url, authToken) : url;
 
     const cloneArgs: string[] = [];

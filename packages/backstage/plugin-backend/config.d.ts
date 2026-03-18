@@ -68,6 +68,8 @@ export interface Config {
       maxConcurrentJobs?: number;
       /** Job timeout in minutes. Default: 30. */
       jobTimeoutMinutes?: number;
+      /** Delete the cloned repo directory after each pipeline run. Default: true. */
+      cleanupAfterIngestion?: boolean;
     };
   };
 }
