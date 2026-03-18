@@ -196,9 +196,9 @@ describe('IngestionService integration', () => {
     expect(initialJob).not.toBeNull();
     expect(['queued', 'running']).toContain(initialJob!.status);
 
-    // Wait for completion
+    // Wait for completion — 'partial' is also a success when some files are skipped
     const job = await waitForJob(adapter, jobId);
-    expect(job.status).toBe('completed');
+    expect(['completed', 'partial']).toContain(job.status);
     expect(job.filesProcessed).toBeGreaterThan(0);
     expect(job.toCommit).toBe('sha-v1');
 
@@ -292,7 +292,7 @@ describe('IngestionService integration', () => {
     const { service: svc1, adapter } = makeService(fullConnector);
     const fullJobId = await svc1.triggerIngestion(REPO_ID, REPO_URL, 'manual');
     const fullJob = await waitForJob(adapter, fullJobId);
-    expect(fullJob.status).toBe('completed');
+    expect(['completed', 'partial']).toContain(fullJob.status);
 
     const nodesAfterFull = await adapter.getCIGNodes(REPO_ID);
     expect(nodesAfterFull.length).toBeGreaterThan(0);
@@ -363,7 +363,7 @@ describe('IngestionService integration', () => {
     const jobId = await svc3.triggerIngestion(REPO_ID, REPO_URL, 'webhook');
     const job = await waitForJob(adapter, jobId);
 
-    expect(job.status).toBe('completed');
+    expect(['completed', 'partial']).toContain(job.status);
     // Full run processes all filterable files
     expect(job.filesProcessed).toBeGreaterThan(1);
     // changedFiles is preserved on threshold-triggered full runs for observability

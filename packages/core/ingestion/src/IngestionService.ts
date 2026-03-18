@@ -146,9 +146,19 @@ export class IngestionService {
       // Mark repo as processing (repo record already exists from triggerIngestion)
       await this.storageAdapter.updateRepoStatus(repoId, 'processing');
 
+      // Determine clone depth before cloning.
+      // Delta runs need enough history to span fromSha..toSha for getChangedFiles.
+      // If a prior commit SHA exists, use deltaCloneDepth (default 50); otherwise
+      // use cloneDepth (default 1) for first-run full clones.
+      const existingRepo = await this.storageAdapter.getRepo(repoId);
+      const hasPriorRun = !!existingRepo?.lastCommitSha;
+      const depth = hasPriorRun
+        ? (this.config.deltaCloneDepth ?? 50)
+        : (this.config.cloneDepth ?? 1);
+
       // Clone repo
-      this.logger.info('Cloning repository', { repoId, repoUrl, cloneDir });
-      await this.repoConnector.clone(repoUrl, cloneDir);
+      this.logger.info('Cloning repository', { repoId, repoUrl, cloneDir, depth });
+      await this.repoConnector.clone(repoUrl, cloneDir, { depth });
       const headSha = await this.repoConnector.getHeadSha(cloneDir);
 
       // Get + filter file tree
