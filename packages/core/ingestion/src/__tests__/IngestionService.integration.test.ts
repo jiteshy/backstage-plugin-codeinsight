@@ -173,6 +173,7 @@ function makeService(connector: RepoConnector): {
       deltaThreshold: 0.4,
       maxConcurrentJobs: 1,
       jobTimeoutMinutes: 30,
+      cleanupAfterIngestion: false, // fixture dir must not be deleted between tests
     },
   );
   return { service, adapter };
@@ -365,7 +366,7 @@ describe('IngestionService integration', () => {
     expect(job.status).toBe('completed');
     // Full run processes all filterable files
     expect(job.filesProcessed).toBeGreaterThan(1);
-    // changedFiles is null on full run (no delta metadata)
-    expect(job.changedFiles).toBeNull();
+    // changedFiles is preserved on threshold-triggered full runs for observability
+    expect(job.changedFiles).toEqual(manyChanges);
   });
 });

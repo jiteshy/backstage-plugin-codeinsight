@@ -14,6 +14,7 @@ export interface RepoCloneConfig {
   cloneTtlHours: number;
   defaultDepth: number;
   deltaDepth: number;
+  authToken?: string; // default token used when no per-clone token is provided
 }
 
 export interface LLMConfig {
@@ -34,8 +35,9 @@ export interface EmbeddingConfig {
 export interface IngestionConfig {
   tempDir: string; // base directory for repo clones
   deltaThreshold: number; // fraction (0-1) of changed files that triggers a full run
-  maxConcurrentJobs: number;
-  jobTimeoutMinutes: number;
+  maxConcurrentJobs: number; // reserved for future scheduler — unused in v1
+  jobTimeoutMinutes: number; // reserved for future health-check sweep — unused in v1
+  cleanupAfterIngestion?: boolean; // delete clone dir after pipeline finishes (default: true)
   fileFilter?: {
     excludeDirs?: string[];
     excludeExtensions?: string[];

@@ -1,6 +1,6 @@
+import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { randomUUID } from 'crypto';
 
 import {
   CIGBuilder,
@@ -135,6 +135,7 @@ export class IngestionService {
     repoId: string,
     repoUrl: string,
   ): Promise<void> {
+    const cloneDir = path.join(this.config.tempDir, repoId);
     try {
       // Mark job running
       await this.storageAdapter.updateJob(jobId, {
@@ -146,7 +147,6 @@ export class IngestionService {
       await this.storageAdapter.updateRepoStatus(repoId, 'processing');
 
       // Clone repo
-      const cloneDir = path.join(this.config.tempDir, repoId);
       this.logger.info('Cloning repository', { repoId, repoUrl, cloneDir });
       await this.repoConnector.clone(repoUrl, cloneDir);
       const headSha = await this.repoConnector.getHeadSha(cloneDir);
@@ -212,9 +212,12 @@ export class IngestionService {
       // Update repo status to ready
       await this.storageAdapter.updateRepoStatus(repoId, 'ready', headSha);
 
+      // Use 'partial' when some files were skipped (parse errors), 'completed' otherwise
+      const finalStatus = filesSkipped > 0 ? 'partial' : 'completed';
+
       // Mark job complete
       await this.storageAdapter.updateJob(jobId, {
-        status: 'completed',
+        status: finalStatus,
         filesProcessed,
         filesSkipped,
         completedAt: new Date(),
@@ -226,6 +229,7 @@ export class IngestionService {
         runType,
         filesProcessed,
         filesSkipped,
+        status: finalStatus,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -238,6 +242,11 @@ export class IngestionService {
       }).catch(() => {});
 
       await this.storageAdapter.updateRepoStatus(repoId, 'error').catch(() => {});
+    } finally {
+      // Clean up the cloned repo directory (default: true)
+      if (this.config.cleanupAfterIngestion !== false) {
+        await fs.rm(cloneDir, { recursive: true, force: true }).catch(() => {});
+      }
     }
   }
 
@@ -279,7 +288,8 @@ export class IngestionService {
         ratio: ratio.toFixed(2),
         threshold: this.config.deltaThreshold,
       });
-      return { runType: 'full' };
+      // Preserve changedFiles for observability even on threshold-triggered full run
+      return { runType: 'full', changedFiles };
     }
 
     return { runType: 'delta', changedFiles };

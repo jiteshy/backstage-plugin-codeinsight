@@ -16,6 +16,9 @@
   "files": ["dist", "config.d.ts"],
   "dependencies": {
     "@backstage/backend-plugin-api": "^1.7.0",
+    "@codeinsight/ingestion": "workspace:*",
+    "@codeinsight/repo": "workspace:*",
+    "@codeinsight/storage": "workspace:*",
     "@codeinsight/types": "workspace:*",
     "express": "^4.18.2",
     "express-promise-router": "^4.1.0"
