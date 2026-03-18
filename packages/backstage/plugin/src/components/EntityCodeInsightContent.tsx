@@ -268,7 +268,7 @@ function IngestionButton({
 }
 
 // ---------------------------------------------------------------------------
-// 1.10.3–1.10.6 — Main content (component-kind only)
+// 1.10.3–1.10.6 — Main content
 // ---------------------------------------------------------------------------
 
 function CodeInsightContentInner() {
@@ -334,34 +334,29 @@ function CodeInsightContentInner() {
 }
 
 // ---------------------------------------------------------------------------
-// 1.10.6 — Exported component with isKind('component') guard
+// 2.0.4 — isCodeInsightAvailable helper + exported component (no kind guard)
 // ---------------------------------------------------------------------------
 
 /**
- * Drop this onto any Backstage entity page tab. The component renders only
- * for entities of kind `component` — for all other entity kinds it shows a
- * "not available" message instead of the full UI.
- *
- * Typical usage in your entity page:
+ * Returns true if the entity has the GitHub annotation required by CodeInsight.
+ * Use this in your entity page to conditionally show the CodeInsight tab:
  *
  * ```tsx
- * <EntityLayout.Route path="/codeinsight" title="CodeInsight">
+ * <EntityLayout.Route
+ *   if={isCodeInsightAvailable}
+ *   path="/codeinsight"
+ *   title="CodeInsight"
+ * >
  *   <EntityCodeInsightContent />
  * </EntityLayout.Route>
  * ```
  */
-export const EntityCodeInsightContent = () => {
-  const { entity } = useEntity();
+export const isCodeInsightAvailable = (entity: { metadata: { annotations?: Record<string, string> } }) =>
+  Boolean(entity.metadata.annotations?.[GITHUB_ANNOTATION]);
 
-  if (entity.kind.toLowerCase() !== 'component') {
-    return (
-      <InfoCard title="CodeInsight">
-        <Typography variant="body2">
-          CodeInsight is only available for entities of kind <code>component</code>.
-        </Typography>
-      </InfoCard>
-    );
-  }
-
-  return <CodeInsightContentInner />;
-};
+/**
+ * Drop this onto any Backstage entity page tab. Works for any entity kind —
+ * use `isCodeInsightAvailable` in the route `if` prop if you want to restrict
+ * which entities show the tab.
+ */
+export const EntityCodeInsightContent = () => <CodeInsightContentInner />;

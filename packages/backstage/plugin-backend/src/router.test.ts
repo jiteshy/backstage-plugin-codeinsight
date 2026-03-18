@@ -44,9 +44,10 @@ function mockDatabase() {
   };
 }
 
-function mockIngestionService() {
+function mockJobQueue() {
   return {
-    triggerIngestion: jest.fn(),
+    enqueue: jest.fn(),
+    getStatus: jest.fn(),
   };
 }
 
@@ -60,6 +61,7 @@ function mockStorageAdapter() {
     upsertRepoFiles: jest.fn(),
     getRepoFiles: jest.fn(),
     getChangedRepoFiles: jest.fn(),
+    deleteRepoFilesNotIn: jest.fn(),
     upsertCIGNodes: jest.fn(),
     upsertCIGEdges: jest.fn(),
     deleteCIGForFiles: jest.fn(),
@@ -67,7 +69,9 @@ function mockStorageAdapter() {
     getCIGEdges: jest.fn(),
     upsertArtifact: jest.fn(),
     getArtifact: jest.fn(),
+    getArtifactsByType: jest.fn(),
     getStaleArtifacts: jest.fn(),
+    markArtifactsStale: jest.fn(),
     createJob: jest.fn(),
     updateJob: jest.fn(),
     getActiveJobForRepo: jest.fn(),
@@ -123,19 +127,19 @@ function request(
 describe('createRouter', () => {
   let server: http.Server;
   let logger: ReturnType<typeof mockLogger>;
-  let ingestionService: ReturnType<typeof mockIngestionService>;
+  let jobQueue: ReturnType<typeof mockJobQueue>;
   let storageAdapter: ReturnType<typeof mockStorageAdapter>;
 
   beforeEach(async () => {
     logger = mockLogger();
-    ingestionService = mockIngestionService();
+    jobQueue = mockJobQueue();
     storageAdapter = mockStorageAdapter();
 
     const options: RouterOptions = {
       config: mockConfig() as unknown as RouterOptions['config'],
       logger: logger as unknown as RouterOptions['logger'],
       database: mockDatabase() as unknown as RouterOptions['database'],
-      ingestionService: ingestionService as unknown as RouterOptions['ingestionService'],
+      jobQueue: jobQueue as unknown as RouterOptions['jobQueue'],
       storageAdapter: storageAdapter as unknown as RouterOptions['storageAdapter'],
     };
 
@@ -178,7 +182,7 @@ describe('createRouter', () => {
       config: mockConfig() as unknown as RouterOptions['config'],
       logger: mockLogger() as unknown as RouterOptions['logger'],
       database: mockDatabase() as unknown as RouterOptions['database'],
-      ingestionService: mockIngestionService() as unknown as RouterOptions['ingestionService'],
+      jobQueue: mockJobQueue() as unknown as RouterOptions['jobQueue'],
       storageAdapter: mockStorageAdapter() as unknown as RouterOptions['storageAdapter'],
     };
     const router = await createRouter(options);
@@ -191,7 +195,7 @@ describe('createRouter', () => {
 
   describe('POST /repos/:repoId/ingest', () => {
     it('returns 202 with jobId on success', async () => {
-      ingestionService.triggerIngestion.mockResolvedValue('job-abc');
+      jobQueue.enqueue.mockResolvedValue('job-abc');
 
       const res = await request(
         server,
@@ -202,23 +206,23 @@ describe('createRouter', () => {
 
       expect(res.status).toBe(202);
       expect(res.body).toEqual({ jobId: 'job-abc' });
-      expect(ingestionService.triggerIngestion).toHaveBeenCalledWith(
-        'my-repo',
-        'https://github.com/org/repo',
-        'manual',
-      );
+      expect(jobQueue.enqueue).toHaveBeenCalledWith({
+        repoId: 'my-repo',
+        repoUrl: 'https://github.com/org/repo',
+        trigger: 'manual',
+      });
     });
 
     it('defaults trigger to "manual" when not provided', async () => {
-      ingestionService.triggerIngestion.mockResolvedValue('job-xyz');
+      jobQueue.enqueue.mockResolvedValue('job-xyz');
 
       await request(server, 'POST', '/repos/r1/ingest', { repoUrl: 'https://github.com/a/b' });
 
-      expect(ingestionService.triggerIngestion).toHaveBeenCalledWith(
-        'r1',
-        'https://github.com/a/b',
-        'manual',
-      );
+      expect(jobQueue.enqueue).toHaveBeenCalledWith({
+        repoId: 'r1',
+        repoUrl: 'https://github.com/a/b',
+        trigger: 'manual',
+      });
     });
 
     it('returns 400 when repoUrl is missing', async () => {
@@ -239,7 +243,7 @@ describe('createRouter', () => {
     });
 
     it('returns 409 when a job is already running', async () => {
-      ingestionService.triggerIngestion.mockRejectedValue(
+      jobQueue.enqueue.mockRejectedValue(
         new Error('Ingestion already running for repo my-repo (job job-123)'),
       );
 
@@ -255,7 +259,7 @@ describe('createRouter', () => {
     });
 
     it('returns 500 on unexpected error', async () => {
-      ingestionService.triggerIngestion.mockRejectedValue(new Error('DB connection failed'));
+      jobQueue.enqueue.mockRejectedValue(new Error('DB connection failed'));
 
       const res = await request(
         server,

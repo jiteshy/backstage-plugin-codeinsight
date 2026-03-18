@@ -1,11 +1,14 @@
 import type {
   Artifact,
+  ArtifactContent,
+  ArtifactType,
   CIGEdge,
   CIGNode,
   IngestionJob,
   RepoFile,
   RepoStatus,
   Repository,
+  StaleReason,
   StorageAdapter,
 } from '@codeinsight/types';
 import type { Knex } from 'knex';
@@ -60,7 +63,7 @@ interface ArtifactRow {
   repo_id: string;
   artifact_id: string;
   artifact_type: string;
-  content: Record<string, unknown> | null;
+  content: ArtifactContent | null;
   input_sha: string;
   prompt_version: string | null;
   is_stale: boolean;
@@ -299,6 +302,35 @@ export class KnexStorageAdapter implements StorageAdapter {
     return rows.map(repoFileFromRow);
   }
 
+  async deleteRepoFilesNotIn(repoId: string, currentFilePaths: string[]): Promise<void> {
+    if (currentFilePaths.length === 0) {
+      // No current files — delete everything for this repo
+      await this.knex('ci_repo_files').where('repo_id', repoId).del();
+      return;
+    }
+
+    // Fetch existing paths and diff in memory rather than issuing a single
+    // NOT IN query, because currentFilePaths can be arbitrarily large and
+    // exceeding the DB parameter limit would produce a runtime error.
+    const existingPaths = await this.knex<RepoFileRow>('ci_repo_files')
+      .where('repo_id', repoId)
+      .select('file_path');
+
+    const currentSet = new Set(currentFilePaths);
+    const toDelete = existingPaths
+      .map(r => r.file_path)
+      .filter(p => !currentSet.has(p));
+
+    if (toDelete.length === 0) return;
+
+    for (const chunk of batch(toDelete)) {
+      await this.knex('ci_repo_files')
+        .where('repo_id', repoId)
+        .whereIn('file_path', chunk)
+        .del();
+    }
+  }
+
   // -------------------------------------------------------------------------
   // CIG
   // -------------------------------------------------------------------------
@@ -433,6 +465,27 @@ export class KnexStorageAdapter implements StorageAdapter {
     const rows = await this.knex<ArtifactRow>('ci_artifacts')
       .where({ repo_id: repoId, is_stale: true });
     return rows.map(artifactFromRow);
+  }
+
+  async getArtifactsByType(repoId: string, type: ArtifactType): Promise<Artifact[]> {
+    const rows = await this.knex<ArtifactRow>('ci_artifacts')
+      .where({ repo_id: repoId, artifact_type: type });
+    return rows.map(artifactFromRow);
+  }
+
+  async markArtifactsStale(
+    repoId: string,
+    artifactIds: string[],
+    reason: StaleReason,
+  ): Promise<void> {
+    if (artifactIds.length === 0) return;
+
+    for (const chunk of batch(artifactIds)) {
+      await this.knex('ci_artifacts')
+        .where('repo_id', repoId)
+        .whereIn('artifact_id', chunk)
+        .update({ is_stale: true, stale_reason: reason });
+    }
   }
 
   // -------------------------------------------------------------------------
