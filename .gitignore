@@ -144,8 +144,3 @@ build/
 
 # pnpm
 .pnpm-store/
-
-# Temp
-.claude
-docs
-Claude.md
