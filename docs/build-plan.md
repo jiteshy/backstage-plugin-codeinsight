@@ -367,16 +367,27 @@ These items were flagged in the Phase 1 holistic tech lead review as deferred ga
 
 ---
 
-### 2.2 — Classifier Prompt
+### 2.2 — Classifier Prompt ✅ COMPLETED
 
-- [ ] Write `prompts/classifier.md`:
+- [x] Write `prompts/classifier.md`:
   - Input: file tree paths + package manifest content (~1.5K tokens)
   - Output: JSON with repo_type, frameworks, detected_signals, prompt_modules[]
-- [ ] Create `ClassifierService.classify(cig)` — runs classifier, returns module list
-- [ ] Parse and validate classifier JSON output
-- [ ] Handle classification failures gracefully (fall back to core modules only)
+- [x] Create `ClassifierService.classify(cig)` — runs classifier, returns module list
+- [x] Parse and validate classifier JSON output
+- [x] Handle classification failures gracefully (fall back to core modules only)
 
-**Acceptance:** Classifier correctly identifies React+Express, Python FastAPI, Go service, Next.js app from file trees.
+**Acceptance:** ✅ Classifier correctly identifies React+Express, Python FastAPI, Go service, Next.js app from file trees. 20 unit tests pass.
+
+**Notes:**
+- Package: `packages/core/doc-generator/` (`@codeinsight/doc-generator`)
+- `ClassifierInput`: `{ filePaths: string[], packageJsonContents: string[] }` — file tree paths (capped at 200) + raw package.json content
+- `ClassifierResult`: `{ repoType, language, frameworks, detectedSignals, promptModules }` — matches classifier JSON output
+- System prompt embeds full module registry (14 valid module IDs) + selection rules
+- `sanitizeModules()`: filters LLM output to known-valid module IDs; always guarantees `core/overview` + `core/project-structure`
+- Fallback result: all 7 core modules, `repoType: ['unknown']`, `language: 'unknown'` — triggered on LLM error, missing JSON, or malformed JSON
+- `extractDetectedSignals()`: skips keys with `null` or string `'null'` values
+- `prompts/classifier.md`: documents prompt contract, input/output format, acceptance criteria for 5 repo types, fallback behavior, token budget
+- 20 unit tests covering all classification paths, fallback scenarios, prompt construction, and field validation
 
 ---
 
