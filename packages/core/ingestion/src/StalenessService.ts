@@ -24,7 +24,7 @@ export class StalenessService {
 
   async sweep(repoId: string, changedFiles: string[]): Promise<string[]> {
     if (changedFiles.length === 0) {
-      this.logger?.info('StalenessService: no changed files, skipping sweep', {
+      this.logger?.debug('StalenessService: no changed files, skipping sweep', {
         repoId,
       });
       return [];
@@ -42,7 +42,7 @@ export class StalenessService {
     );
 
     if (directlyStaleIds.length === 0) {
-      this.logger?.info(
+      this.logger?.debug(
         'StalenessService: no artifacts depend on changed files',
         { repoId },
       );
@@ -77,7 +77,7 @@ export class StalenessService {
         newlyStale,
         'dependency_stale',
       );
-      this.logger?.info(
+      this.logger?.debug(
         'StalenessService: cascade stale (dependency_stale)',
         { repoId, count: newlyStale.length },
       );

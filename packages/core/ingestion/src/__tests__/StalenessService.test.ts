@@ -10,8 +10,7 @@
  *   6. sweep() avoids infinite loops — stops when no new dependents found
  *   7. sweep() deduplicates artifact IDs across multiple files
  *   8. sweep() returns all stale artifact IDs (direct + cascaded)
- *   9. sweep() batches large file lists correctly (multiple storageAdapter calls)
- *  10. logger is called with appropriate messages
+ *   9. logger is called with appropriate messages at each stage
  */
 
 import type { StorageAdapter } from '@codeinsight/types';
@@ -209,8 +208,8 @@ describe('StalenessService', () => {
     expect(result).toHaveLength(3);
   });
 
-  // 9. Logger called with appropriate messages
-  it('calls logger with info messages at each stage', async () => {
+  // 9. Logger called with appropriate messages at each stage
+  it('logs sweep entry and completion at info, direct-stale count at info', async () => {
     const logger = makeLogger();
     const storage = makeMockStorage({
       getArtifactIdsByFilePaths: jest.fn().mockResolvedValue(['core/overview']),
@@ -234,8 +233,8 @@ describe('StalenessService', () => {
     );
   });
 
-  // 10. Logger skips cascade message when no cascades occur
-  it('logs nothing-to-cascade when no dependents exist', async () => {
+  // 10. No-op paths log at debug level, not info
+  it('logs no-artifacts message at debug level (not info)', async () => {
     const logger = makeLogger();
     const storage = makeMockStorage({
       getArtifactIdsByFilePaths: jest.fn().mockResolvedValue([]),
@@ -244,9 +243,13 @@ describe('StalenessService', () => {
 
     await svc.sweep('repo-1', ['src/auth.ts']);
 
-    expect(logger.info).toHaveBeenCalledWith(
+    expect(logger.debug).toHaveBeenCalledWith(
       expect.stringContaining('no artifacts'),
       expect.objectContaining({ repoId: 'repo-1' }),
+    );
+    expect(logger.info).not.toHaveBeenCalledWith(
+      expect.stringContaining('no artifacts'),
+      expect.anything(),
     );
     expect(storage.markArtifactsStale).not.toHaveBeenCalled();
   });

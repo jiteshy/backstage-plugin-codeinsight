@@ -209,26 +209,27 @@ export class IngestionService {
         filesSkipped = result.filesSkipped;
         // Mark all filtered files as processed
         await this.markFilesProcessed(filteredFiles, result.errors.map(e => e.filePath));
-        // Sweep all files — every artifact may be affected on a full run
-        staleArtifactIds = await this.stalenessService.sweep(
-          repoId,
-          filteredFiles.map(f => f.filePath),
-        );
+        // Use the precise changed set when available (threshold-triggered full run).
+        // Fall back to all file paths only on a first-ever run (changedFiles is
+        // undefined when there is no prior commit SHA to diff against).
+        const sweepPaths = changedFiles ?? filteredFiles.map(f => f.filePath);
+        staleArtifactIds = await this.stalenessService.sweep(repoId, sweepPaths);
       } else {
+        const changedFilePaths: string[] = changedFiles!;
         const result = await this.runDeltaCIG(
           repoId,
           cloneDir,
           filteredFiles,
-          changedFiles!,
+          changedFilePaths,
         );
         filesProcessed = result.filesProcessed;
         filesSkipped = result.filesSkipped;
         // Mark only changed files as processed
-        const changedSet = new Set(changedFiles!);
+        const changedSet = new Set(changedFilePaths);
         const changedRepoFiles = filteredFiles.filter(f => changedSet.has(f.filePath));
         await this.markFilesProcessed(changedRepoFiles, result.errors.map(e => e.filePath));
         // Sweep only changed files
-        staleArtifactIds = await this.stalenessService.sweep(repoId, changedFiles!);
+        staleArtifactIds = await this.stalenessService.sweep(repoId, changedFilePaths);
       }
 
       // Record stale artifact IDs in job for observability
