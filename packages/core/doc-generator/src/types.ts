@@ -1,3 +1,5 @@
+import type { Artifact } from '@codeinsight/types';
+
 // ---------------------------------------------------------------------------
 // ClassifierInput — what the caller passes to ClassifierService.classify()
 // ---------------------------------------------------------------------------
@@ -51,4 +53,47 @@ export interface ClassifierResult {
    * Always contains at minimum: core/overview, core/project-structure.
    */
   promptModules: string[];
+}
+
+// ---------------------------------------------------------------------------
+// PromptContext — built by ContextBuilder for a single prompt module
+// ---------------------------------------------------------------------------
+
+export interface PromptContext {
+  /** System prompt for the LLM. */
+  systemPrompt: string;
+  /** User prompt with all template variables substituted. */
+  userPrompt: string;
+  /** Files used as inputs for this module (for composite SHA + artifact_inputs). */
+  inputFiles: Array<{ filePath: string; sha: string }>;
+}
+
+// ---------------------------------------------------------------------------
+// DocGenerationResult — returned by DocGenerationService.generateDocs()
+// ---------------------------------------------------------------------------
+
+export interface DocGenerationResult {
+  /** Total modules processed (not skipped). */
+  modulesGenerated: number;
+  /** Total modules skipped (not stale, same inputSha). */
+  modulesSkipped: number;
+  /** Total LLM tokens consumed across all modules. */
+  totalTokensUsed: number;
+  /** Generated/updated artifacts. */
+  artifacts: Artifact[];
+  /** Modules that failed during generation. */
+  errors: Array<{ moduleId: string; error: string }>;
+}
+
+// ---------------------------------------------------------------------------
+// DocGenConfig — configuration for DocGenerationService
+// ---------------------------------------------------------------------------
+
+export interface DocGenConfig {
+  /** Max concurrent LLM calls for Phase 1 parallel module generation. Default: 20 */
+  maxConcurrency?: number;
+  /** Max tokens for LLM completion responses. Default: 2000 */
+  maxOutputTokens?: number;
+  /** Temperature for LLM calls. Default: 0.2 */
+  temperature?: number;
 }

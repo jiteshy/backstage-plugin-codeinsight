@@ -1,6 +1,7 @@
 import type {
   Artifact,
   ArtifactContent,
+  ArtifactInput,
   ArtifactType,
   CIGEdge,
   CIGNode,
@@ -486,6 +487,43 @@ export class KnexStorageAdapter implements StorageAdapter {
         .whereIn('artifact_id', chunk)
         .update({ is_stale: true, stale_reason: reason });
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Artifact Inputs
+  // -------------------------------------------------------------------------
+
+  async upsertArtifactInputs(inputs: ArtifactInput[]): Promise<void> {
+    if (inputs.length === 0) return;
+
+    for (const chunk of batch(inputs)) {
+      const rows = chunk.map(i => ({
+        repo_id: i.repoId,
+        artifact_id: i.artifactId,
+        file_path: i.filePath,
+        file_sha: i.fileSha,
+      }));
+
+      await this.knex('ci_artifact_inputs')
+        .insert(rows)
+        .onConflict(['repo_id', 'artifact_id', 'file_path'])
+        .merge({ file_sha: this.knex.raw('EXCLUDED.file_sha') });
+    }
+  }
+
+  async getArtifactInputs(
+    repoId: string,
+    artifactId: string,
+  ): Promise<ArtifactInput[]> {
+    const rows = await this.knex('ci_artifact_inputs')
+      .where({ repo_id: repoId, artifact_id: artifactId });
+
+    return rows.map((r: { repo_id: string; artifact_id: string; file_path: string; file_sha: string }) => ({
+      repoId: r.repo_id,
+      artifactId: r.artifact_id,
+      filePath: r.file_path,
+      fileSha: r.file_sha,
+    }));
   }
 
   // -------------------------------------------------------------------------

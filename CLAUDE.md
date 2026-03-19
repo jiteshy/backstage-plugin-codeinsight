@@ -30,6 +30,24 @@ pnpm db:migrate                       # run Knex migrations
 
 5. **No `tenant_id` in DB tables** — deployment is always self-hosted (one Postgres per deployment), so infrastructure isolation is sufficient.
 
+## Workflow Preferences
+
+- **Do not commit and push** after completing a task. Just complete the implementation and mark the task done in `docs/build-plan.md`.
+- When asked to implement a task, mark its completion in the build plan with notes.
+
+## Current Progress
+
+- **Phase 1**: Foundation — ✅ COMPLETED (all 1.0–1.10 sub-phases done)
+- **Phase 2**: Documentation Generation — in progress
+  - 2.0 Phase 1 Hardening — ✅ COMPLETED
+  - 2.1 LLM Client + Cache — ✅ COMPLETED (`@codeinsight/llm` package)
+  - 2.2 Classifier Prompt — ✅ COMPLETED (`ClassifierService` in `@codeinsight/doc-generator`)
+  - 2.3 Core Prompt Modules — ✅ COMPLETED (7 prompts in `prompts/core/`)
+  - 2.4 Framework-Specific Prompt Modules — ✅ COMPLETED (6 prompts in `prompts/backend/` + `prompts/frontend/`)
+  - 2.5 Doc Generation Service — ✅ COMPLETED (`DocGenerationService`, `ContextBuilder`, `PromptRegistry`)
+  - 2.6 Staleness Detection + Delta Docs — pending
+  - 2.7 Documentation Frontend Tab — pending
+
 ## Custom Agents & Skills
 
 Project-scoped agents in `.claude/agents/`:

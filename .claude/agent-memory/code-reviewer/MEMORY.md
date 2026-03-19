@@ -156,6 +156,20 @@
 - `FrameworkSignalDetector` and `EntryPointDetector` instantiated independently from CIGBuilder in integration tests — correct (pure functions over data)
 - Fixture file walker uses `FileFilter` for language detection and exclusion — couples integration test to FileFilter correctness
 
+## Known Issues Found in Phase 2.5 Review (DocGenerationService / ContextBuilder / PromptRegistry)
+- ContextBuilder.ts line 734: `path.join(cloneDir, filePath)` with no path traversal guard — filePaths come from DB/git so risk is low but `../` in a filePath escapes cloneDir silently.
+- DocGenerationService.ts line 56: `PromptRegistry` instantiated twice (once in DocGenerationService, once in ContextBuilder) — wasted allocation; no registry state but inconsistent.
+- DocGenerationService.ts line 237: `storageAdapter.getArtifact(moduleId, repoId)` — parameter order is `(artifactId, repoId)`. This is correct per interface definition at interfaces.ts line 107. No bug.
+- ContextBuilder.ts buildDeploymentVars() lines 360-369: Reads package.json for buildScripts but does NOT push to `inputFiles` — the artifact's inputSha won't change when package.json scripts change. Minor correctness issue.
+- DocGenerationService.ts line 270: `promptVersion: null` — prompts are currently hardcoded strings in PromptRegistry (not versioned from files). TODO note is present. This is a known gap from build plan, not a review finding.
+- PromptRegistry.ts: All 13 system prompts and user prompt builders are inline strings — contradicts phase 2.3/2.4 plan which specified `prompts/*.md` files. Build plan notes accept this deviation.
+- ContextBuilder.ts buildTestingVars(): `configFileName` and `testConfigContent` written but prompt template uses `configFileName` only for display — if testConfig exists but is unreadable, the section is omitted silently without warning.
+- DocGenerationService.ts buildClassifierInput() line 304: `packageJsonContents: []` — always empty. ClassifierService will classify using file paths only. Real package.json content not passed even though it's available in the cloneDir. Classifier quality degraded for large repos.
+- DocGenerationService.ts: `generateDocs()` calls `buildClassifierInput()` which passes empty `packageJsonContents`; `generateDocsWithClassification()` is the recommended path that avoids this.
+- DocGenerationService.test.ts: Mock `getArtifact` at line 144 ignores `repoId` parameter — only keys on `artifactId`. Acceptable for test simplicity.
+- ContextBuilder.ts: `readFile()` private method is defined but never called externally — only `readFileSafe()` is used. `readFile()` is an implementation detail that could be inlined.
+- CIGPersistenceService.test.ts: Updated mock adds all Phase 2.5 StorageAdapter methods — good maintenance.
+
 ## File Structure Reference
 - Types: `packages/core/types/src/{data,interfaces,config,index}.ts`
 - Backend plugin: `packages/backstage/plugin-backend/src/{plugin,router,index}.ts`
