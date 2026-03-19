@@ -188,6 +188,82 @@ describe('CodeInsightClient', () => {
   });
 
   // -----------------------------------------------------------------------
+  // getDocs
+  // -----------------------------------------------------------------------
+  describe('getDocs', () => {
+    it('sends GET to the correct URL and returns doc sections', async () => {
+      const responseBody = [
+        {
+          artifactId: 'core/overview',
+          markdown: '# Overview',
+          isStale: false,
+          staleReason: null,
+          fileCount: 2,
+          generatedAt: '2024-06-01T10:00:00.000Z',
+          tokensUsed: 300,
+        },
+      ];
+      const fetchApi = mockFetchApi(responseBody);
+      const { client } = createClient({ fetchApi });
+
+      const result = await client.getDocs('my-repo');
+
+      expect(result).toEqual(responseBody);
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        `${BASE_URL}/repos/my-repo/docs`,
+      );
+    });
+
+    it('encodes the repoId in the URL', async () => {
+      const fetchApi = mockFetchApi([]);
+      const { client } = createClient({ fetchApi });
+
+      await client.getDocs('org/repo-name');
+
+      const calledUrl = fetchApi.fetch.mock.calls[0][0] as string;
+      expect(calledUrl).toBe(`${BASE_URL}/repos/org%2Frepo-name/docs`);
+    });
+
+    it('returns an empty array when no docs exist', async () => {
+      const fetchApi = mockFetchApi([]);
+      const { client } = createClient({ fetchApi });
+
+      const result = await client.getDocs('my-repo');
+
+      expect(result).toEqual([]);
+    });
+
+    it('returns stale sections correctly', async () => {
+      const responseBody = [
+        {
+          artifactId: 'backend/api-reference',
+          markdown: '## API',
+          isStale: true,
+          staleReason: 'file_changed',
+          fileCount: 3,
+          generatedAt: '2024-06-01T09:00:00.000Z',
+          tokensUsed: 450,
+        },
+      ];
+      const fetchApi = mockFetchApi(responseBody);
+      const { client } = createClient({ fetchApi });
+
+      const result = await client.getDocs('my-repo');
+
+      expect(result[0].isStale).toBe(true);
+      expect(result[0].staleReason).toBe('file_changed');
+      expect(result[0].tokensUsed).toBe(450);
+    });
+
+    it('throws when the response is not ok', async () => {
+      const fetchApi = mockFetchApi(null, { ok: false, statusText: 'Not Found' });
+      const { client } = createClient({ fetchApi });
+
+      await expect(client.getDocs('my-repo')).rejects.toThrow('Failed to get docs: Not Found');
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // Shared behavior
   // -----------------------------------------------------------------------
   describe('discovery API integration', () => {
