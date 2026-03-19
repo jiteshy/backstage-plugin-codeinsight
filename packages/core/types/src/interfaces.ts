@@ -1,5 +1,6 @@
 import type {
   Artifact,
+  ArtifactInput,
   ArtifactType,
   CIGEdge,
   CIGNode,
@@ -107,6 +108,10 @@ export interface StorageAdapter {
   getArtifactsByType(repoId: string, type: ArtifactType): Promise<Artifact[]>;
   getStaleArtifacts(repoId: string): Promise<Artifact[]>;
   markArtifactsStale(repoId: string, artifactIds: string[], reason: StaleReason): Promise<void>;
+
+  // Artifact inputs (Phase 2+)
+  upsertArtifactInputs(inputs: ArtifactInput[]): Promise<void>;
+  getArtifactInputs(repoId: string, artifactId: string): Promise<ArtifactInput[]>;
 
   // Jobs
   createJob(job: IngestionJob): Promise<string>;
