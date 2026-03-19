@@ -17,6 +17,7 @@
   "dependencies": {
     "@backstage/backend-plugin-api": "^1.7.0",
     "@codeinsight/ingestion": "workspace:*",
+    "@codeinsight/llm": "workspace:*",
     "@codeinsight/repo": "workspace:*",
     "@codeinsight/storage": "workspace:*",
     "@codeinsight/types": "workspace:*",
