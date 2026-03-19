@@ -66,6 +66,8 @@ function createMockStorage(): jest.Mocked<StorageAdapter> {
     markArtifactsStale: jest.fn().mockResolvedValue(undefined),
     upsertArtifactInputs: jest.fn().mockResolvedValue(undefined),
     getArtifactInputs: jest.fn().mockResolvedValue([]),
+    getArtifactIdsByFilePaths: jest.fn().mockResolvedValue([]),
+    getArtifactDependents: jest.fn().mockResolvedValue([]),
     createJob: jest.fn().mockResolvedValue(undefined),
     updateJob: jest.fn().mockResolvedValue(undefined),
     getJob: jest.fn().mockResolvedValue(undefined),

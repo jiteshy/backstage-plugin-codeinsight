@@ -477,16 +477,25 @@ Write one prompt file per section. Each declares its required CIG fields and out
 
 ---
 
-### 2.6 — Staleness Detection + Delta Docs
+### 2.6 — Staleness Detection + Delta Docs ✅ COMPLETED
 
-- [ ] Implement `StalenessService.sweep(repoId, changedFiles)`:
+- [x] Implement `StalenessService.sweep(repoId, changedFiles)`:
   - Query `ci_artifact_inputs` for artifacts whose input files are in `changedFiles`
   - Mark those artifacts `is_stale=true, stale_reason='file_changed'`
-  - Walk `ci_artifact_dependencies` → cascade stale marking
-- [ ] Integrate into ingestion job: sweep runs after CIG rebuild
-- [ ] Regeneration job only processes `is_stale=true` artifacts
+  - Walk `ci_artifact_dependencies` → cascade stale marking (reason=`dependency_stale`)
+- [x] Integrate into ingestion job: sweep runs after CIG rebuild (both full and delta runs)
+- [x] Regeneration respects `is_stale` flag — `DocGenerationService.processModuleInner` already skips fresh artifacts via the `!existing.isStale && existing.inputSha === inputSha` check
+- [x] Stale artifact IDs recorded in job's `artifacts_stale` field for observability
 
-**Acceptance:** Change one file → only artifacts that used that file are regenerated. Unchanged artifacts skip. Verify via `tokens_used` in job.
+**Acceptance:** ✅ Change one file → only artifacts that used that file are marked stale. Cascade propagates via `ci_artifact_dependencies`. Unchanged artifacts skip on next doc gen run. 12 new unit tests (584 total unit tests pass).
+
+**Notes:**
+- `StalenessService` in `packages/core/ingestion/src/StalenessService.ts` — zero deps besides `@codeinsight/types`
+- Two new `StorageAdapter` methods: `getArtifactIdsByFilePaths(repoId, filePaths)` — queries `ci_artifact_inputs` by file; `getArtifactDependents(repoId, artifactIds)` — queries `ci_artifact_dependencies`
+- Both methods implemented in `KnexStorageAdapter` with proper batching (500-record chunks)
+- `IngestionService` instantiates `StalenessService` internally (injectable via 6th constructor param for testing)
+- Full run: sweeps all filtered file paths; delta run: sweeps only changed files
+- Cascade is a fixed-point loop — terminates when no new dependents are found (handles cycles safely via `allStaleIds` set)
 
 ---
 

@@ -113,6 +113,10 @@ export interface StorageAdapter {
   upsertArtifactInputs(inputs: ArtifactInput[]): Promise<void>;
   getArtifactInputs(repoId: string, artifactId: string): Promise<ArtifactInput[]>;
 
+  // Artifact inputs — staleness queries (Phase 2.6)
+  getArtifactIdsByFilePaths(repoId: string, filePaths: string[]): Promise<string[]>;
+  getArtifactDependents(repoId: string, artifactIds: string[]): Promise<string[]>;
+
   // Jobs
   createJob(job: IngestionJob): Promise<string>;
   updateJob(jobId: string, update: Partial<IngestionJob>): Promise<void>;

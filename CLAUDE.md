@@ -45,7 +45,7 @@ pnpm db:migrate                       # run Knex migrations
   - 2.3 Core Prompt Modules — ✅ COMPLETED (7 prompts in `prompts/core/`)
   - 2.4 Framework-Specific Prompt Modules — ✅ COMPLETED (6 prompts in `prompts/backend/` + `prompts/frontend/`)
   - 2.5 Doc Generation Service — ✅ COMPLETED (`DocGenerationService`, `ContextBuilder`, `PromptRegistry`)
-  - 2.6 Staleness Detection + Delta Docs — pending
+  - 2.6 Staleness Detection + Delta Docs — ✅ COMPLETED (`StalenessService`, `getArtifactIdsByFilePaths`, `getArtifactDependents`)
   - 2.7 Documentation Frontend Tab — pending
 
 ## Custom Agents & Skills

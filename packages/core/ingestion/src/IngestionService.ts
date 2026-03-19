@@ -20,6 +20,7 @@ import type {
 } from '@codeinsight/types';
 
 import { FileFilter } from './FileFilter';
+import { StalenessService } from './StalenessService';
 
 // ---------------------------------------------------------------------------
 // Factory — builds a CIGBuilder with all Phase 1 extractors registered
@@ -40,6 +41,7 @@ export class IngestionService {
   private readonly cigBuilder: CIGBuilder;
   private readonly cigPersistence: CIGPersistenceService;
   private readonly fileFilter: FileFilter;
+  private readonly stalenessService: StalenessService;
 
   constructor(
     private readonly repoConnector: RepoConnector,
@@ -47,10 +49,12 @@ export class IngestionService {
     private readonly logger: Logger,
     private readonly config: IngestionConfig,
     cigBuilder?: CIGBuilder,
+    stalenessService?: StalenessService,
   ) {
     this.cigBuilder = cigBuilder ?? createDefaultCIGBuilder();
     this.cigPersistence = new CIGPersistenceService(storageAdapter, logger);
     this.fileFilter = new FileFilter(config.fileFilter);
+    this.stalenessService = stalenessService ?? new StalenessService(storageAdapter, logger);
   }
 
   // ---------------------------------------------------------------------------
@@ -197,6 +201,7 @@ export class IngestionService {
 
       let filesProcessed = 0;
       let filesSkipped = 0;
+      let staleArtifactIds: string[] = [];
 
       if (runType === 'full') {
         const result = await this.runFullCIG(repoId, cloneDir, filteredFiles);
@@ -204,19 +209,34 @@ export class IngestionService {
         filesSkipped = result.filesSkipped;
         // Mark all filtered files as processed
         await this.markFilesProcessed(filteredFiles, result.errors.map(e => e.filePath));
+        // Use the precise changed set when available (threshold-triggered full run).
+        // Fall back to all file paths only on a first-ever run (changedFiles is
+        // undefined when there is no prior commit SHA to diff against).
+        const sweepPaths = changedFiles ?? filteredFiles.map(f => f.filePath);
+        staleArtifactIds = await this.stalenessService.sweep(repoId, sweepPaths);
       } else {
+        const changedFilePaths: string[] = changedFiles!;
         const result = await this.runDeltaCIG(
           repoId,
           cloneDir,
           filteredFiles,
-          changedFiles!,
+          changedFilePaths,
         );
         filesProcessed = result.filesProcessed;
         filesSkipped = result.filesSkipped;
         // Mark only changed files as processed
-        const changedSet = new Set(changedFiles!);
+        const changedSet = new Set(changedFilePaths);
         const changedRepoFiles = filteredFiles.filter(f => changedSet.has(f.filePath));
         await this.markFilesProcessed(changedRepoFiles, result.errors.map(e => e.filePath));
+        // Sweep only changed files
+        staleArtifactIds = await this.stalenessService.sweep(repoId, changedFilePaths);
+      }
+
+      // Record stale artifact IDs in job for observability
+      if (staleArtifactIds.length > 0) {
+        await this.storageAdapter.updateJob(jobId, {
+          artifactsStale: staleArtifactIds,
+        });
       }
 
       // Update repo status to ready

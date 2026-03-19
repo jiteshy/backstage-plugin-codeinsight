@@ -1,6 +1,6 @@
 # Code Reviewer Agent Memory
 
-## Project State (as of 2026-03-10)
+## Project State (as of 2026-03-19)
 - Phase 1.0 (scaffold), 1.1 (types), 1.2 (plugin scaffold) implemented
 - Phase 1.3 (DB migrations) implemented, reviewed — 3 fixes required before merge (see Known Issues)
 - Phase 1.4 (storage adapter) implemented (KnexStorageAdapter)
@@ -155,6 +155,14 @@
 - `nodesByType(result, type)` helper filters out `<module>` sentinel nodes — correct
 - `FrameworkSignalDetector` and `EntryPointDetector` instantiated independently from CIGBuilder in integration tests — correct (pure functions over data)
 - Fixture file walker uses `FileFilter` for language detection and exclusion — couples integration test to FileFilter correctness
+
+## Known Issues Found in Phase 2.6 Review (StalenessService / KnexStorageAdapter / IngestionService)
+- IngestionService.ts line 213 (MAJOR): Full-run sweep passes `filteredFiles.map(f => f.filePath)` — all repo files — instead of `changedFiles` on threshold-triggered full runs. Fix: use `changedFiles ?? filteredFiles.map(...)` to avoid marking every artifact stale on a 40%-threshold upgrade.
+- Migration 005 (MAJOR): `ci_artifact_dependencies` has no index on `(repo_id, dependency_id)`. `getArtifactDependents` queries this column — every cascade hop is a sequential scan. Add `009_artifact_deps_index.ts` migration.
+- StalenessService.ts line 27 (MINOR): Empty-changedFiles no-op logs at `info` level — should be `debug` (same pattern as health endpoint fix in Phase 1.2).
+- StalenessService.test.ts header comment (MINOR): Lists "test 9 — batching" but no such test exists. Comment is inaccurate; remove or add the test.
+- IngestionService.test.ts: No test verifies StalenessService.sweep is called with correct arguments after full run or delta run; the sweep integration path is untested at unit level (integration tests may cover it, but unit tests use a real StalenessService with the mock storage, so sweep calls are not directly asserted).
+- StalenessService.test.ts test 9 comment mismatch: header says test 9 is "batching" but the actual test 9 is "logger called with appropriate messages". This is a documentation mismatch only — no behaviour is missing.
 
 ## Known Issues Found in Phase 2.5 Review (DocGenerationService / ContextBuilder / PromptRegistry)
 - ContextBuilder.ts line 734: `path.join(cloneDir, filePath)` with no path traversal guard — filePaths come from DB/git so risk is low but `../` in a filePath escapes cloneDir silently.

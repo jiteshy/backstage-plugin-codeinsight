@@ -70,6 +70,7 @@ jest.mock('fs', () => {
 
 // Import after mocks are set up.
 import { IngestionService } from '../IngestionService';
+import { StalenessService } from '../StalenessService';
 
 // ---------------------------------------------------------------------------
 // Typed access to the mock internals
@@ -147,6 +148,7 @@ function makeStorageAdapter(): jest.Mocked<StorageAdapter> {
     upsertRepoFiles: jest.fn().mockResolvedValue(undefined),
     getRepoFiles: jest.fn().mockResolvedValue([]),
     getChangedRepoFiles: jest.fn().mockResolvedValue([]),
+    deleteRepoFilesNotIn: jest.fn().mockResolvedValue(undefined),
     upsertCIGNodes: jest.fn().mockResolvedValue(undefined),
     upsertCIGEdges: jest.fn().mockResolvedValue(undefined),
     deleteCIGForFiles: jest.fn().mockResolvedValue(undefined),
@@ -154,7 +156,13 @@ function makeStorageAdapter(): jest.Mocked<StorageAdapter> {
     getCIGEdges: jest.fn().mockResolvedValue([]),
     upsertArtifact: jest.fn().mockResolvedValue(undefined),
     getArtifact: jest.fn().mockResolvedValue(null),
+    getArtifactsByType: jest.fn().mockResolvedValue([]),
     getStaleArtifacts: jest.fn().mockResolvedValue([]),
+    markArtifactsStale: jest.fn().mockResolvedValue(undefined),
+    upsertArtifactInputs: jest.fn().mockResolvedValue(undefined),
+    getArtifactInputs: jest.fn().mockResolvedValue([]),
+    getArtifactIdsByFilePaths: jest.fn().mockResolvedValue([]),
+    getArtifactDependents: jest.fn().mockResolvedValue([]),
     getJob: jest.fn().mockResolvedValue(null),
   } as unknown as jest.Mocked<StorageAdapter>;
 }
@@ -532,6 +540,110 @@ describe('IngestionService', () => {
 
       expect(storage.upsertRepo).toHaveBeenCalledWith(
         expect.objectContaining({ provider: expectedProvider }),
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // pipeline — StalenessService sweep call site
+  // -------------------------------------------------------------------------
+
+  describe('pipeline — staleness sweep', () => {
+    function makeMockStalenessService(sweep = jest.fn().mockResolvedValue([])) {
+      return { sweep } as unknown as StalenessService;
+    }
+
+    it('calls sweep with all file paths on a first-run (no prior commit SHA)', async () => {
+      const sweepMock = jest.fn().mockResolvedValue([]);
+      const stalenessService = makeMockStalenessService(sweepMock);
+
+      const buildResult = makeBuildResult({ filesProcessed: 1 });
+      setupFullRunMocks(storage, buildResult);
+      // getRepo returns null → first-ever run (no lastCommitSha)
+
+      const service = new IngestionService(
+        connector, storage, logger, makeConfig(), undefined, stalenessService,
+      );
+      await triggerAndWait(service);
+
+      expect(sweepMock).toHaveBeenCalledWith(
+        'repo-1',
+        expect.arrayContaining(['src/index.ts']),
+      );
+    });
+
+    it('calls sweep with only changedFiles on a threshold-triggered full run', async () => {
+      const sweepMock = jest.fn().mockResolvedValue([]);
+      const stalenessService = makeMockStalenessService(sweepMock);
+
+      const existingRepo = { repoId: 'repo-1', status: 'ready', lastCommitSha: 'old-sha' };
+      storage.getActiveJobForRepo.mockResolvedValue(null);
+      storage.getRepo.mockResolvedValue(existingRepo as any);
+
+      // Two files in tree; both are reported as changed → ratio = 1.0 > threshold 0.4
+      const file1 = makeRepoFile({ filePath: 'src/a.ts' });
+      const file2 = makeRepoFile({ filePath: 'src/b.ts' });
+      connector.getFileTree.mockResolvedValue([file1, file2]);
+      connector.getChangedFiles.mockResolvedValue(['src/a.ts', 'src/b.ts']);
+      mockReadFile.mockResolvedValue(Buffer.from('// content'));
+
+      const buildResult = makeBuildResult({ filesProcessed: 2 });
+      cigMocks.__mockBuild.mockReturnValue(buildResult);
+
+      const service = new IngestionService(
+        connector, storage, logger, makeConfig(), undefined, stalenessService,
+      );
+      await triggerAndWait(service);
+
+      // Must use changedFiles (not all filtered files) even though runType = 'full'
+      expect(sweepMock).toHaveBeenCalledWith('repo-1', ['src/a.ts', 'src/b.ts']);
+    });
+
+    it('calls sweep with only changedFiles on a delta run', async () => {
+      const sweepMock = jest.fn().mockResolvedValue([]);
+      const stalenessService = makeMockStalenessService(sweepMock);
+
+      const existingRepo = { repoId: 'repo-1', status: 'ready', lastCommitSha: 'old-sha' };
+      storage.getActiveJobForRepo.mockResolvedValue(null);
+      storage.getRepo.mockResolvedValue(existingRepo as any);
+
+      // Three files in tree; only one changed → ratio = 0.33 < threshold 0.4 → delta run
+      const files = [
+        makeRepoFile({ filePath: 'src/a.ts' }),
+        makeRepoFile({ filePath: 'src/b.ts' }),
+        makeRepoFile({ filePath: 'src/c.ts' }),
+      ];
+      connector.getFileTree.mockResolvedValue(files);
+      connector.getChangedFiles.mockResolvedValue(['src/a.ts']);
+      mockReadFile.mockResolvedValue(Buffer.from('// content'));
+
+      const buildResult = makeBuildResult({ filesProcessed: 1 });
+      cigMocks.__mockBuild.mockReturnValue(buildResult);
+
+      const service = new IngestionService(
+        connector, storage, logger, makeConfig(), undefined, stalenessService,
+      );
+      await triggerAndWait(service);
+
+      // Delta run: sweep only the one changed file
+      expect(sweepMock).toHaveBeenCalledWith('repo-1', ['src/a.ts']);
+    });
+
+    it('records stale artifact IDs in the job when sweep returns ids', async () => {
+      const sweepMock = jest.fn().mockResolvedValue(['core/overview', 'backend/auth']);
+      const stalenessService = makeMockStalenessService(sweepMock);
+
+      const buildResult = makeBuildResult({ filesProcessed: 1 });
+      setupFullRunMocks(storage, buildResult);
+
+      const service = new IngestionService(
+        connector, storage, logger, makeConfig(), undefined, stalenessService,
+      );
+      await triggerAndWait(service);
+
+      expect(storage.updateJob).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ artifactsStale: ['core/overview', 'backend/auth'] }),
       );
     });
   });
