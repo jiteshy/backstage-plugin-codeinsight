@@ -1,6 +1,6 @@
+import type { LLMClient, LLMConfig, Logger } from '@codeinsight/types';
 import type { Knex } from 'knex';
 
-import type { LLMClient, LLMConfig, Logger } from '@codeinsight/types';
 
 import { AnthropicLLMClient } from './AnthropicLLMClient';
 import { CachingLLMClient } from './CachingLLMClient';

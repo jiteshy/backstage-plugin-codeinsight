@@ -1,4 +1,5 @@
 import type { LLMClient, Logger } from '@codeinsight/types';
+
 import { ClassifierService } from '../ClassifierService';
 import type { ClassifierInput } from '../types';
 

@@ -18,8 +18,8 @@ jest.mock('../CachingLLMClient');
 
 import { AnthropicLLMClient } from '../AnthropicLLMClient';
 import { CachingLLMClient } from '../CachingLLMClient';
-import { OpenAILLMClient } from '../OpenAILLMClient';
 import { createLLMClient } from '../createLLMClient';
+import { OpenAILLMClient } from '../OpenAILLMClient';
 
 // ---------------------------------------------------------------------------
 // Helpers
