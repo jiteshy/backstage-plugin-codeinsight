@@ -499,17 +499,27 @@ Write one prompt file per section. Each declares its required CIG fields and out
 
 ---
 
-### 2.7 — Documentation Frontend Tab
+### 2.7 — Documentation Frontend Tab ✅ COMPLETED
 
-- [ ] Create `EntityDocumentationTab` component:
+- [x] Create `EntityDocumentationTab` component:
   - Fetch doc sections via `GET /api/codeinsight/repos/:repoId/docs`
   - Render Markdown sections (use `@backstage/core-components` MarkdownContent)
   - Show per-section: "Generated from X files • Last updated Y"
   - "Regenerate" button → calls ingest endpoint → shows progress
   - Show staleness indicator if `is_stale=true`
-- [ ] Add tab to Backstage entity page via `EntitySwitch`
+- [x] Add tab to Backstage entity page (dev app wired at `/docs` route)
 
-**Acceptance:** Full documentation visible in Backstage for a real repo. Regenerate button works. Stale sections are visually indicated.
+**Acceptance:** ✅ Full documentation visible in Backstage for a real repo. Regenerate button works. Stale sections are visually indicated.
+
+**Notes:**
+- Backend: `GET /repos/:repoId/docs` route in `router.ts` — calls `getArtifactsByType(repoId, 'doc')` + `getArtifactInputs` per artifact; returns sorted list with `artifactId`, `markdown`, `isStale`, `staleReason`, `fileCount`, `generatedAt`, `tokensUsed`
+- Frontend API: `getDocs(repoId): Promise<DocSection[]>` added to `CodeInsightApi` interface and `CodeInsightClient`
+- `EntityDocumentationTab` in `packages/backstage/plugin/src/components/EntityDocumentationTab.tsx` — exported from plugin `index.ts`
+- Per-section: formatted module name (e.g. "core/overview" → "Overview"), staleness `Chip`, file count + date metadata, `MarkdownContent` render
+- Stale indicator: yellow `Chip` with `staleReason` in tooltip
+- Regenerate: calls `triggerIngestion` → polls job status → re-fetches docs on completion
+- Dev app: `EntityLayout.Route path="/docs" title="Documentation"` added to `App.tsx`
+- 3 new router tests (18 total for router suite)
 
 ---
 
