@@ -3,7 +3,7 @@ import {
   LoggerService,
   RootConfigService,
 } from '@backstage/backend-plugin-api';
-import type { JobQueue, StorageAdapter } from '@codeinsight/types';
+import type { DocContent, JobQueue, StorageAdapter } from '@codeinsight/types';
 import express from 'express';
 import Router from 'express-promise-router';
 
@@ -105,6 +105,38 @@ export async function createRouter(
       lastCommitSha: repo.lastCommitSha,
       updatedAt: repo.updatedAt,
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 2.7 — Get doc artifacts
+  // GET /repos/:repoId/docs
+  // Returns all doc artifacts for the repo with per-section metadata
+  // ---------------------------------------------------------------------------
+
+  router.get('/repos/:repoId/docs', async (req, res) => {
+    const { repoId } = req.params;
+
+    const artifacts = await storageAdapter.getArtifactsByType(repoId, 'doc');
+
+    const docs = await Promise.all(
+      artifacts.map(async artifact => {
+        const inputs = await storageAdapter.getArtifactInputs(repoId, artifact.artifactId);
+        const content = artifact.content as DocContent | undefined | null;
+        return {
+          artifactId: artifact.artifactId,
+          markdown: content?.markdown ?? '',
+          isStale: artifact.isStale,
+          staleReason: artifact.staleReason ?? null,
+          fileCount: inputs.length,
+          generatedAt: artifact.generatedAt,
+          tokensUsed: artifact.tokensUsed,
+        };
+      }),
+    );
+
+    docs.sort((a, b) => a.artifactId.localeCompare(b.artifactId));
+
+    res.json(docs);
   });
 
   return router;

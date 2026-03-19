@@ -70,8 +70,12 @@ function mockStorageAdapter() {
     upsertArtifact: jest.fn(),
     getArtifact: jest.fn(),
     getArtifactsByType: jest.fn(),
+    getArtifactInputs: jest.fn(),
     getStaleArtifacts: jest.fn(),
     markArtifactsStale: jest.fn(),
+    getArtifactIdsByFilePaths: jest.fn(),
+    getArtifactDependents: jest.fn(),
+    upsertArtifactInputs: jest.fn(),
     createJob: jest.fn(),
     updateJob: jest.fn(),
     getActiveJobForRepo: jest.fn(),
@@ -306,6 +310,96 @@ describe('createRouter', () => {
 
       const res = await request(server, 'GET', '/repos/repo-1/jobs/job-1');
       expect(res.status).toBe(404);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // GET /repos/:repoId/docs
+  // -------------------------------------------------------------------------
+
+  describe('GET /repos/:repoId/docs', () => {
+    it('returns sorted doc sections with metadata', async () => {
+      storageAdapter.getArtifactsByType.mockResolvedValue([
+        {
+          repoId: 'repo-1',
+          artifactId: 'core/overview',
+          artifactType: 'doc',
+          content: { kind: 'doc', module: 'core/overview', markdown: '# Overview\n\nHello.' },
+          inputSha: 'sha-1',
+          isStale: false,
+          staleReason: null,
+          tokensUsed: 300,
+          llmUsed: true,
+          generatedAt: new Date('2024-06-01T10:00:00Z'),
+        },
+        {
+          repoId: 'repo-1',
+          artifactId: 'backend/api-reference',
+          artifactType: 'doc',
+          content: { kind: 'doc', module: 'backend/api-reference', markdown: '## API' },
+          inputSha: 'sha-2',
+          isStale: true,
+          staleReason: 'file_changed',
+          tokensUsed: 450,
+          llmUsed: true,
+          generatedAt: new Date('2024-06-01T09:00:00Z'),
+        },
+      ]);
+      storageAdapter.getArtifactInputs
+        .mockResolvedValueOnce([{ filePath: 'README.md', fileSha: 'x' }])
+        .mockResolvedValueOnce([
+          { filePath: 'src/routes.ts', fileSha: 'y' },
+          { filePath: 'src/app.ts', fileSha: 'z' },
+        ]);
+
+      const res = await request(server, 'GET', '/repos/repo-1/docs');
+
+      expect(res.status).toBe(200);
+      const body = res.body as Array<Record<string, unknown>>;
+      // Sorted by artifactId: backend/api-reference < core/overview
+      expect(body[0].artifactId).toBe('backend/api-reference');
+      expect(body[0].markdown).toBe('## API');
+      expect(body[0].isStale).toBe(true);
+      expect(body[0].staleReason).toBe('file_changed');
+      expect(body[0].fileCount).toBe(2);
+      expect(body[1].artifactId).toBe('core/overview');
+      expect(body[1].markdown).toBe('# Overview\n\nHello.');
+      expect(body[1].isStale).toBe(false);
+      expect(body[1].fileCount).toBe(1);
+    });
+
+    it('returns empty array when no doc artifacts exist', async () => {
+      storageAdapter.getArtifactsByType.mockResolvedValue([]);
+
+      const res = await request(server, 'GET', '/repos/repo-1/docs');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+
+    it('handles artifact with no content (empty markdown)', async () => {
+      storageAdapter.getArtifactsByType.mockResolvedValue([
+        {
+          repoId: 'repo-1',
+          artifactId: 'core/overview',
+          artifactType: 'doc',
+          content: null,
+          inputSha: 'sha-1',
+          isStale: false,
+          staleReason: null,
+          tokensUsed: 0,
+          llmUsed: false,
+          generatedAt: new Date('2024-06-01T10:00:00Z'),
+        },
+      ]);
+      storageAdapter.getArtifactInputs.mockResolvedValue([]);
+
+      const res = await request(server, 'GET', '/repos/repo-1/docs');
+
+      expect(res.status).toBe(200);
+      const body = res.body as Array<Record<string, unknown>>;
+      expect(body[0].markdown).toBe('');
+      expect(body[0].fileCount).toBe(0);
     });
   });
 

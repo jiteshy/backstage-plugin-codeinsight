@@ -1,6 +1,6 @@
 import { DiscoveryApi, FetchApi } from '@backstage/core-plugin-api';
 
-import { CodeInsightApi } from './api';
+import { CodeInsightApi, DocSection } from './api';
 
 export class CodeInsightClient implements CodeInsightApi {
   private readonly discoveryApi: DiscoveryApi;
@@ -59,5 +59,16 @@ export class CodeInsightClient implements CodeInsightApi {
       throw new Error(`Failed to get repo status: ${response.statusText}`);
     }
     return (await response.json()) as { status: string; lastCommitSha?: string; updatedAt?: string };
+  }
+
+  async getDocs(repoId: string): Promise<DocSection[]> {
+    const base = await this.baseUrl();
+    const response = await this.fetchApi.fetch(
+      `${base}/repos/${encodeURIComponent(repoId)}/docs`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to get docs: ${response.statusText}`);
+    }
+    return (await response.json()) as DocSection[];
   }
 }

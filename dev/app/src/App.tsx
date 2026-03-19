@@ -5,7 +5,7 @@ import {
   CatalogIndexPage,
   EntityLayout,
 } from '@backstage/plugin-catalog';
-import { EntityCodeInsightContent } from '@codeinsight/plugin';
+import { EntityCodeInsightContent, EntityDocumentationTab } from '@codeinsight/plugin';
 import { Route } from 'react-router-dom';
 
 const entityPage = (
@@ -15,6 +15,9 @@ const entityPage = (
     </EntityLayout.Route>
     <EntityLayout.Route path="/codeinsight" title="CodeInsight">
       <EntityCodeInsightContent />
+    </EntityLayout.Route>
+    <EntityLayout.Route path="/docs" title="Documentation">
+      <EntityDocumentationTab />
     </EntityLayout.Route>
   </EntityLayout>
 );
