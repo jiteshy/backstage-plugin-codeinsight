@@ -1,5 +1,6 @@
-import type { Config } from 'jest';
 import path from 'path';
+
+import type { Config } from 'jest';
 
 const root = path.resolve(__dirname, '../../..');
 

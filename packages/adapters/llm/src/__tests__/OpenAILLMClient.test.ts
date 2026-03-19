@@ -5,9 +5,8 @@
  * The mock OpenAI constructor returns an object with `chat.completions.create`,
  * which handles both the non-streaming (complete) and streaming (stream) paths.
  */
-
+/* eslint-disable import/order */
 import type { LLMConfig } from '@codeinsight/types';
-
 // ---------------------------------------------------------------------------
 // Module-level mock for openai
 // ---------------------------------------------------------------------------
@@ -28,6 +27,7 @@ jest.mock('openai', () => {
 });
 
 import OpenAI from 'openai';
+
 import { OpenAILLMClient } from '../OpenAILLMClient';
 
 // ---------------------------------------------------------------------------

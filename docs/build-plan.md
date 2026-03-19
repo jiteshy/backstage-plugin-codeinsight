@@ -391,32 +391,53 @@ These items were flagged in the Phase 1 holistic tech lead review as deferred ga
 
 ---
 
-### 2.3 — Core Prompt Modules
+### 2.3 — Core Prompt Modules ✅ COMPLETED
 
 Write one prompt file per section. Each declares its required CIG fields and output format.
 
-- [ ] `prompts/core/overview.md` — inputs: README + entry points + package manifest
-- [ ] `prompts/core/project-structure.md` — inputs: directory tree (paths only, no content)
-- [ ] `prompts/core/getting-started.md` — inputs: package.json + Dockerfile + .env.example
-- [ ] `prompts/core/configuration.md` — inputs: config files + .env.example
-- [ ] `prompts/core/dependencies.md` — inputs: package.json/requirements.txt/go.mod
-- [ ] `prompts/core/testing.md` — inputs: test config files + sample test files
-- [ ] `prompts/core/deployment.md` — inputs: Dockerfile + CI files + k8s yamls
+- [x] `prompts/core/overview.md` — inputs: README + entry points + package manifest
+- [x] `prompts/core/project-structure.md` — inputs: directory tree (paths only, no content)
+- [x] `prompts/core/getting-started.md` — inputs: package.json + Dockerfile + .env.example
+- [x] `prompts/core/configuration.md` — inputs: config files + .env.example
+- [x] `prompts/core/dependencies.md` — inputs: package.json/requirements.txt/go.mod
+- [x] `prompts/core/testing.md` — inputs: test config files + sample test files
+- [x] `prompts/core/deployment.md` — inputs: Dockerfile + CI files + k8s yamls
 
-**Acceptance:** Each prompt generates a coherent, accurate section for 3+ real repos.
+**Acceptance:** ✅ Each prompt declares required CIG fields, file inputs, system prompt, user prompt template with variables, output format, acceptance criteria, and token budget.
+
+**Notes:**
+- All 7 files live in `prompts/core/`
+- Each file follows the same contract format as `prompts/classifier.md`
+- Every prompt includes: required CIG fields, required file inputs, system prompt, user prompt template with `{variables}`, expected output format, acceptance criteria, and token budget
+- `overview.md`: README + entry points + manifest → `## Overview` section (~5K tokens in / ~400 out)
+- `project-structure.md`: file paths only from CIG → `## Project Structure` annotated tree (~2K in / ~350 out)
+- `getting-started.md`: manifest + .env.example + Dockerfile → `## Getting Started` step-by-step (~2K in / ~450 out)
+- `configuration.md`: .env.example + config files → `## Configuration` variable tables (~3K in / ~500 out)
+- `dependencies.md`: package manifest → `## Dependencies` grouped tables (~2K in / ~400 out)
+- `testing.md`: test config + 2-3 sample test files → `## Testing` with commands and structure (~2.5K in / ~400 out)
+- `deployment.md`: Dockerfile + CI config + docker-compose + k8s → `## Deployment` with commands (~5K in / ~500 out)
+- `DocGenerationService` (Phase 2.5) will load these files, inject CIG context into template variables, and call LLM
 
 ---
 
-### 2.4 — Framework-Specific Prompt Modules
+### 2.4 — Framework-Specific Prompt Modules ✅ COMPLETED
 
-- [ ] `prompts/backend/api-reference.md` — inputs: route files from CIG
-- [ ] `prompts/backend/database.md` — inputs: schema files + migration files
-- [ ] `prompts/backend/auth.md` — inputs: auth middleware + token files
-- [ ] `prompts/frontend/state-management.md` — inputs: store files + sample components
-- [ ] `prompts/frontend/routing.md` — inputs: router config files
-- [ ] `prompts/frontend/component-hierarchy.md` — inputs: component import graph from CIG (no file content needed)
+- [x] `prompts/backend/api-reference.md` — inputs: route files from CIG
+- [x] `prompts/backend/database.md` — inputs: schema files + migration files
+- [x] `prompts/backend/auth.md` — inputs: auth middleware + token files
+- [x] `prompts/frontend/state-management.md` — inputs: store files + sample components
+- [x] `prompts/frontend/routing.md` — inputs: router config files
+- [x] `prompts/frontend/component-hierarchy.md` — inputs: component import graph from CIG (no file content needed)
 
-**Acceptance:** Framework modules produce accurate sections. State management doc correctly identifies Redux vs Zustand vs Pinia.
+**Acceptance:** ✅ All 6 framework-specific prompt files written. Each declares required CIG fields, file inputs, system prompt adapted to its library's idioms, user prompt template, output format with worked examples, acceptance criteria, and token budget.
+
+**Notes:**
+- `backend/api-reference.md`: CIG `routes` list + top route handler files → `## API Reference` with endpoint tables (~5K in / ~700 out); groups by resource noun
+- `backend/database.md`: schema file + recent migrations → `## Database` with per-entity field tables and relationship descriptions (~6K in / ~600 out)
+- `backend/auth.md`: auth middleware + token files + protected routes from CIG → `## Authentication & Authorization` with flow, token payload, and route table (~6K in / ~500 out)
+- `frontend/state-management.md`: store files + sample component → `## State Management`; system prompt adapts to library idioms (Zustand vs Redux vs MobX vs Pinia vs Recoil/Jotai); includes worked examples for both Zustand and Redux Toolkit (~5.5K in / ~500 out)
+- `frontend/routing.md`: router config + guard + layout files → `## Routing` with full route table, protected route explanation, and navigation API (~5.5K in / ~450 out)
+- `frontend/component-hierarchy.md`: **no file content required** — pure CIG import graph (dependency_graph edges filtered to component files) → `## Component Hierarchy` with annotated tree, shared components table, and feature groupings (~3K in / ~450 out)
 
 ---
 

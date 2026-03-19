@@ -1,8 +1,8 @@
 import { createHash } from 'crypto';
 
+import type { LLMClient, LLMOptions, Logger } from '@codeinsight/types';
 import type { Knex } from 'knex';
 
-import type { LLMClient, LLMOptions, Logger } from '@codeinsight/types';
 
 // ---------------------------------------------------------------------------
 // DB row type — mirrors the ci_llm_cache table

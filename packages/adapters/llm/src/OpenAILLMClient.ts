@@ -1,5 +1,5 @@
-import OpenAI from 'openai';
 import type { LLMClient, LLMConfig, LLMOptions } from '@codeinsight/types';
+import OpenAI from 'openai';
 
 export interface OpenAILLMConfig extends LLMConfig {
   /** Override the base URL — useful for Azure OpenAI or local OpenAI-compatible endpoints. */

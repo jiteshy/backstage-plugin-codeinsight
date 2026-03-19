@@ -90,6 +90,7 @@ export class InProcessJobQueue implements JobQueue {
   }
 
   private async waitForTerminal(jobId: string): Promise<void> {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const job = await this.storageAdapter.getJob(jobId);
       if (!job || TERMINAL_STATUSES.has(job.status)) return;
