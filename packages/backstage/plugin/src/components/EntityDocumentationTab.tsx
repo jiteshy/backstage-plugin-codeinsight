@@ -69,6 +69,7 @@ const useStyles = makeStyles(theme => ({
   },
   errorText: { color: theme.palette.error.main },
   emptyState: { color: theme.palette.text.secondary },
+  staleHint: { color: theme.palette.warning.dark },
   divider: { marginBottom: theme.spacing(3) },
 }));
 
@@ -126,7 +127,7 @@ function JobProgressSection({
     }, POLL_INTERVAL_MS);
 
     return () => clearInterval(timer);
-  }, [api, repoId, jobId, onComplete]);
+  }, [api, repoId, jobId, onComplete]); // onComplete is stable (useCallback []) so including it is safe
 
   if (pollError) {
     return (
@@ -154,7 +155,8 @@ function JobProgressSection({
 
 function DocSectionCard({ section }: { section: DocSection }) {
   const classes = useStyles();
-  const formattedDate = new Date(section.generatedAt).toLocaleString();
+  const ts = Date.parse(section.generatedAt);
+  const formattedDate = Number.isNaN(ts) ? 'Unknown date' : new Date(ts).toLocaleString();
 
   return (
     <Box className={classes.section}>
@@ -202,7 +204,7 @@ function DocumentationTabInner() {
 
   const [sections, setSections] = useState<DocSection[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [triggerLoading, setLoading] = useState(false);
 
   // Active regeneration job
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -268,11 +270,11 @@ function DocumentationTabInner() {
             variant="outlined"
             color="primary"
             size="small"
-            disabled={loading}
+            disabled={triggerLoading}
             onClick={handleRegenerate}
-            startIcon={loading ? <CircularProgress size={14} color="inherit" /> : undefined}
+            startIcon={triggerLoading ? <CircularProgress size={14} color="inherit" /> : undefined}
           >
-            {loading ? 'Starting...' : 'Regenerate'}
+            {triggerLoading ? 'Starting...' : 'Regenerate'}
           </Button>
         )}
         {activeJobId && (
@@ -288,7 +290,7 @@ function DocumentationTabInner() {
           </Typography>
         )}
         {staleCount > 0 && !activeJobId && (
-          <Typography variant="body2" className={classes.emptyState}>
+          <Typography variant="body2" className={classes.staleHint}>
             {staleCount} {staleCount === 1 ? 'section is' : 'sections are'} stale — regenerate to
             refresh
           </Typography>

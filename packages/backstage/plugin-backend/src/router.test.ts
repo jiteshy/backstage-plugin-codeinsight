@@ -319,6 +319,7 @@ describe('createRouter', () => {
 
   describe('GET /repos/:repoId/docs', () => {
     it('returns sorted doc sections with metadata', async () => {
+      storageAdapter.getRepo.mockResolvedValue({ repoId: 'repo-1', status: 'ready' });
       storageAdapter.getArtifactsByType.mockResolvedValue([
         {
           repoId: 'repo-1',
@@ -362,13 +363,18 @@ describe('createRouter', () => {
       expect(body[0].isStale).toBe(true);
       expect(body[0].staleReason).toBe('file_changed');
       expect(body[0].fileCount).toBe(2);
+      expect(body[0].tokensUsed).toBe(450);
+      expect(typeof body[0].generatedAt).toBe('string');
+      expect(Number.isNaN(Date.parse(body[0].generatedAt as string))).toBe(false);
       expect(body[1].artifactId).toBe('core/overview');
       expect(body[1].markdown).toBe('# Overview\n\nHello.');
       expect(body[1].isStale).toBe(false);
       expect(body[1].fileCount).toBe(1);
+      expect(body[1].tokensUsed).toBe(300);
     });
 
     it('returns empty array when no doc artifacts exist', async () => {
+      storageAdapter.getRepo.mockResolvedValue({ repoId: 'repo-1', status: 'ready' });
       storageAdapter.getArtifactsByType.mockResolvedValue([]);
 
       const res = await request(server, 'GET', '/repos/repo-1/docs');
@@ -377,7 +383,17 @@ describe('createRouter', () => {
       expect(res.body).toEqual([]);
     });
 
+    it('returns 404 when repo does not exist', async () => {
+      storageAdapter.getRepo.mockResolvedValue(null);
+
+      const res = await request(server, 'GET', '/repos/unknown-repo/docs');
+
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ error: expect.stringContaining('Repo not found') });
+    });
+
     it('handles artifact with no content (empty markdown)', async () => {
+      storageAdapter.getRepo.mockResolvedValue({ repoId: 'repo-1', status: 'ready' });
       storageAdapter.getArtifactsByType.mockResolvedValue([
         {
           repoId: 'repo-1',

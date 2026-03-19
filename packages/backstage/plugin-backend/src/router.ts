@@ -116,6 +116,12 @@ export async function createRouter(
   router.get('/repos/:repoId/docs', async (req, res) => {
     const { repoId } = req.params;
 
+    const repo = await storageAdapter.getRepo(repoId);
+    if (!repo) {
+      res.status(404).json({ error: 'Repo not found' });
+      return;
+    }
+
     const artifacts = await storageAdapter.getArtifactsByType(repoId, 'doc');
 
     const docs = await Promise.all(
