@@ -147,6 +147,7 @@ function makeStorageAdapter(): jest.Mocked<StorageAdapter> {
     upsertRepoFiles: jest.fn().mockResolvedValue(undefined),
     getRepoFiles: jest.fn().mockResolvedValue([]),
     getChangedRepoFiles: jest.fn().mockResolvedValue([]),
+    deleteRepoFilesNotIn: jest.fn().mockResolvedValue(undefined),
     upsertCIGNodes: jest.fn().mockResolvedValue(undefined),
     upsertCIGEdges: jest.fn().mockResolvedValue(undefined),
     deleteCIGForFiles: jest.fn().mockResolvedValue(undefined),
@@ -154,7 +155,13 @@ function makeStorageAdapter(): jest.Mocked<StorageAdapter> {
     getCIGEdges: jest.fn().mockResolvedValue([]),
     upsertArtifact: jest.fn().mockResolvedValue(undefined),
     getArtifact: jest.fn().mockResolvedValue(null),
+    getArtifactsByType: jest.fn().mockResolvedValue([]),
     getStaleArtifacts: jest.fn().mockResolvedValue([]),
+    markArtifactsStale: jest.fn().mockResolvedValue(undefined),
+    upsertArtifactInputs: jest.fn().mockResolvedValue(undefined),
+    getArtifactInputs: jest.fn().mockResolvedValue([]),
+    getArtifactIdsByFilePaths: jest.fn().mockResolvedValue([]),
+    getArtifactDependents: jest.fn().mockResolvedValue([]),
     getJob: jest.fn().mockResolvedValue(null),
   } as unknown as jest.Mocked<StorageAdapter>;
 }

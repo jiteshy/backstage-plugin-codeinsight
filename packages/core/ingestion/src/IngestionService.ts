@@ -20,6 +20,7 @@ import type {
 } from '@codeinsight/types';
 
 import { FileFilter } from './FileFilter';
+import { StalenessService } from './StalenessService';
 
 // ---------------------------------------------------------------------------
 // Factory — builds a CIGBuilder with all Phase 1 extractors registered
@@ -40,6 +41,7 @@ export class IngestionService {
   private readonly cigBuilder: CIGBuilder;
   private readonly cigPersistence: CIGPersistenceService;
   private readonly fileFilter: FileFilter;
+  private readonly stalenessService: StalenessService;
 
   constructor(
     private readonly repoConnector: RepoConnector,
@@ -47,10 +49,12 @@ export class IngestionService {
     private readonly logger: Logger,
     private readonly config: IngestionConfig,
     cigBuilder?: CIGBuilder,
+    stalenessService?: StalenessService,
   ) {
     this.cigBuilder = cigBuilder ?? createDefaultCIGBuilder();
     this.cigPersistence = new CIGPersistenceService(storageAdapter, logger);
     this.fileFilter = new FileFilter(config.fileFilter);
+    this.stalenessService = stalenessService ?? new StalenessService(storageAdapter, logger);
   }
 
   // ---------------------------------------------------------------------------
@@ -197,6 +201,7 @@ export class IngestionService {
 
       let filesProcessed = 0;
       let filesSkipped = 0;
+      let staleArtifactIds: string[] = [];
 
       if (runType === 'full') {
         const result = await this.runFullCIG(repoId, cloneDir, filteredFiles);
@@ -204,6 +209,11 @@ export class IngestionService {
         filesSkipped = result.filesSkipped;
         // Mark all filtered files as processed
         await this.markFilesProcessed(filteredFiles, result.errors.map(e => e.filePath));
+        // Sweep all files — every artifact may be affected on a full run
+        staleArtifactIds = await this.stalenessService.sweep(
+          repoId,
+          filteredFiles.map(f => f.filePath),
+        );
       } else {
         const result = await this.runDeltaCIG(
           repoId,
@@ -217,6 +227,15 @@ export class IngestionService {
         const changedSet = new Set(changedFiles!);
         const changedRepoFiles = filteredFiles.filter(f => changedSet.has(f.filePath));
         await this.markFilesProcessed(changedRepoFiles, result.errors.map(e => e.filePath));
+        // Sweep only changed files
+        staleArtifactIds = await this.stalenessService.sweep(repoId, changedFiles!);
+      }
+
+      // Record stale artifact IDs in job for observability
+      if (staleArtifactIds.length > 0) {
+        await this.storageAdapter.updateJob(jobId, {
+          artifactsStale: staleArtifactIds,
+        });
       }
 
       // Update repo status to ready

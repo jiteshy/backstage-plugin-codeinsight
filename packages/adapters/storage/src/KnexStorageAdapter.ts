@@ -526,6 +526,42 @@ export class KnexStorageAdapter implements StorageAdapter {
     }));
   }
 
+  async getArtifactIdsByFilePaths(
+    repoId: string,
+    filePaths: string[],
+  ): Promise<string[]> {
+    if (filePaths.length === 0) return [];
+
+    const artifactIds = new Set<string>();
+    for (const chunk of batch(filePaths)) {
+      const rows: Array<{ artifact_id: string }> = await this.knex('ci_artifact_inputs')
+        .where('repo_id', repoId)
+        .whereIn('file_path', chunk)
+        .distinct('artifact_id')
+        .select('artifact_id');
+      rows.forEach(r => artifactIds.add(r.artifact_id));
+    }
+    return Array.from(artifactIds);
+  }
+
+  async getArtifactDependents(
+    repoId: string,
+    artifactIds: string[],
+  ): Promise<string[]> {
+    if (artifactIds.length === 0) return [];
+
+    const dependentIds = new Set<string>();
+    for (const chunk of batch(artifactIds)) {
+      const rows: Array<{ dependent_id: string }> = await this.knex('ci_artifact_dependencies')
+        .where('repo_id', repoId)
+        .whereIn('dependency_id', chunk)
+        .distinct('dependent_id')
+        .select('dependent_id');
+      rows.forEach(r => dependentIds.add(r.dependent_id));
+    }
+    return Array.from(dependentIds);
+  }
+
   // -------------------------------------------------------------------------
   // Jobs
   // -------------------------------------------------------------------------
