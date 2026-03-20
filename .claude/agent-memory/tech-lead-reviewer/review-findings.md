@@ -24,6 +24,30 @@ Verdict: YELLOW (approve with 2 must-fix issues)
 
 ---
 
+## Phase 2 Documentation Generation Review (2026-03-20)
+Verdict: YELLOW (1 critical gap, proceed after fix)
+
+### Critical
+1. DocGenerationService exists in packages/core/doc-generator/ but is NOT wired into the backend plugin composition root or the ingestion pipeline. No code path ever calls generateDocs(). The /repos/:repoId/docs endpoint will always return []. Fix: wire into IngestionService.runPipeline() after CIG build and staleness sweep, before cloneDir cleanup.
+
+### Important
+1. LLM cache key implementation (SHA256 of rendered prompts + model) diverges from spec (SHA256 of prompt_file_sha + input_sha + model). Implementation is correct for current architecture but spec needs updating.
+2. Prompts hardcoded in PromptRegistry.ts, not loaded from prompts/*.md files. Acceptable for v1 but .md files should be marked as design specs.
+3. promptVersion always null on artifacts -- prompt versioning deferred.
+
+### Strengths Confirmed
+- Zero @backstage/* imports in core/ or adapters/ (grep-verified)
+- 604 unit tests pass (24 suites), 3 integration suites need Postgres (expected)
+- Discriminated union types for ArtifactContent (DocContent/DiagramContent/QnAChunkContent)
+- Staleness cascade with fixed-point termination (handles cycles)
+- CachingLLMClient: transparent, best-effort writes, null-byte separators
+- ContextBuilder: path traversal protection, lazy repoFileMap, 13 module builders
+- InProcessJobQueue with semaphore-based concurrency
+- Frontend: proper annotation-driven, polling, stale indicators
+- Config always injected, no process.env in core/adapters
+
+---
+
 # Pre-Implementation Design Review Findings
 
 Date: 2026-03-07
