@@ -35,9 +35,11 @@
 - `CIGPersistenceService` is constructed internally — must `jest.mock('@codeinsight/cig')` at module level; expose `__mockPersist` and `__mockBuild` from the mock factory for per-test configuration
 - `CIGBuilder` IS injectable (5th constructor param) — but mocking the whole module is cleaner since it also handles `TypeScriptExtractor`/`PrismaExtractor` construction
 - `fs/promises` mocked via `jest.mock('fs', ...)` merging with `jest.requireActual('fs')` — mock `readFile` and `rm` only
-- Fire-and-forget pipeline: call `triggerIngestion()` then `await new Promise(resolve => setImmediate(resolve))` twice to let the async pipeline settle
+- Fire-and-forget pipeline: call `triggerIngestion()` then `await new Promise(resolve => setImmediate(resolve))` twice to let the async pipeline settle — two ticks are sufficient even when the pipeline includes doc generation
 - Final `updateJob` call holds the terminal status — find it with `storage.updateJob.mock.calls[calls.length - 1][1]`
 - To test `triggerIngestion` in isolation without running the pipeline: `jest.spyOn(service as any, 'runPipeline').mockResolvedValue(undefined)`
+- DocGenerator mock factory: `{ generateDocs: jest.fn().mockResolvedValue({ totalTokensUsed: N }) }` — pass as 7th constructor arg; `stalenessService` (6th) can be `undefined` to use the default
+- Doc generation failure is non-fatal: mock `generateDocs` to reject, assert final `updateJob` status is `'completed'` and `tokensConsumed` is `0`
 
 ## LLM Adapter Unit Test Patterns
 - SDK modules (`@anthropic-ai/sdk`, `openai`) mocked with `jest.mock('module', () => ({ __esModule: true, default: jest.fn().mockImplementation(() => ({ ... })) }))` — use `__esModule: true` for default exports
