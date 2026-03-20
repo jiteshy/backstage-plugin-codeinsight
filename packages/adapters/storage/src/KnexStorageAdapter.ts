@@ -370,7 +370,9 @@ export class KnexStorageAdapter implements StorageAdapter {
   async upsertCIGEdges(edges: CIGEdge[]): Promise<void> {
     if (edges.length === 0) return;
 
-    for (const chunk of batch(edges)) {
+    const unique = Array.from(new Map(edges.map(e => [e.edgeId, e])).values());
+
+    for (const chunk of batch(unique)) {
       const rows: CIGEdgeRow[] = chunk.map(e => ({
         edge_id: e.edgeId,
         repo_id: e.repoId,

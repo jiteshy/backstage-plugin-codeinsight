@@ -1,3 +1,5 @@
+import path from 'path';
+
 import {
   createBackendPlugin,
   coreServices,
@@ -31,6 +33,19 @@ export const codeinsightPlugin = createBackendPlugin({
 
         // Storage adapter — backed by Backstage's managed database
         const knex = await database.getClient();
+
+        // Run migrations automatically so the plugin is self-contained.
+        // The migrations directory is resolved relative to this file's location.
+        const migrationsDir = path.resolve(
+          __dirname,
+          '../../../adapters/storage/migrations',
+        );
+        await knex.migrate.latest({
+          directory: migrationsDir,
+          loadExtensions: ['.js', '.ts'],
+          tableName: 'ci_knex_migrations',
+        });
+
         const storageAdapter = new KnexStorageAdapter(knex);
 
         // Adapt Backstage's LoggerService to our framework-agnostic Logger interface.

@@ -413,6 +413,9 @@ export class ContextBuilder {
       }
     }
 
+    // Skip if no routes were found at all — an empty API reference is misleading.
+    if (!variables['routesList'] && inputFiles.length === 0) return null;
+
     return { variables, inputFiles };
   }
 
@@ -530,6 +533,11 @@ export class ContextBuilder {
         inputFiles.push({ filePath: authRouteFile.filePath, sha: authRouteFile.currentSha });
       }
     }
+
+    // Skip the module entirely if no auth-related files were found — calling
+    // the LLM with no code causes it to respond as a help assistant ("please
+    // provide code") rather than as a doc generator.
+    if (inputFiles.length === 0) return null;
 
     return { variables, inputFiles };
   }

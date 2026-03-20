@@ -163,7 +163,8 @@ Rules:
 - If auth middleware is applied to a route group, note "Requires authentication"
 - Infer request/response shapes from handler code and type annotations; do not invent fields not visible in the code
 - Use markdown tables for parameters; use code blocks for request/response body examples
-- If there are more than 20 endpoints, document the most important ones and note that the list is non-exhaustive`,
+- If there are more than 20 endpoints, document the most important ones and note that the list is non-exhaustive
+- If no routes or handler files are provided, output only: "No API routes were found in this repository."`,
 
   'backend/database': `You are a technical documentation writer. Generate a "Database" section for a backend service based on its ORM schema definitions and migration files.
 
@@ -201,7 +202,8 @@ Rules:
 - If JWT is used, document the token payload fields (sub, exp, roles, etc.) if visible in the code
 - If OAuth2, document the provider(s) and callback flow
 - Do not document security vulnerabilities or internal implementation details not relevant to API consumers
-- Do not include credential values, secrets, or example tokens`,
+- Do not include credential values, secrets, or example tokens
+- If no authentication code is provided or the auth library is unknown, output only: "No authentication or authorization code was found in this repository."`,
 
   'frontend/component-hierarchy': `You are a technical documentation writer. Generate a "Component Hierarchy" section for a frontend application based on its component import graph.
 

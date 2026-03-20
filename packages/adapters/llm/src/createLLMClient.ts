@@ -5,6 +5,7 @@ import type { Knex } from 'knex';
 import { AnthropicLLMClient } from './AnthropicLLMClient';
 import { CachingLLMClient } from './CachingLLMClient';
 import { OpenAILLMClient } from './OpenAILLMClient';
+import { RetryingLLMClient } from './RetryingLLMClient';
 
 /**
  * Build a provider-specific LLMClient from config, wrapped in a CachingLLMClient
@@ -30,9 +31,13 @@ export function createLLMClient(
     throw new Error(`Unknown LLM provider: ${(config as LLMConfig).provider}`);
   }
 
+  // Wrap with retry logic (rate-limit backoff) before the cache layer so that
+  // only successful responses are cached.
+  const retrying = new RetryingLLMClient(inner, logger);
+
   if (knex) {
-    return new CachingLLMClient(inner, knex, config.model, logger);
+    return new CachingLLMClient(retrying, knex, config.model, logger);
   }
 
-  return inner;
+  return retrying;
 }

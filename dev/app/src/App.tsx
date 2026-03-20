@@ -5,7 +5,9 @@ import {
   CatalogIndexPage,
   EntityLayout,
 } from '@backstage/plugin-catalog';
-import { EntityCodeInsightContent, EntityDocumentationTab } from '@codeinsight/plugin';
+import { themes, UnifiedThemeProvider } from '@backstage/theme';
+import { EntityCodeInsightContent } from '@codeinsight/plugin';
+import React from 'react';
 import { Route } from 'react-router-dom';
 
 const entityPage = (
@@ -16,13 +18,29 @@ const entityPage = (
     <EntityLayout.Route path="/codeinsight" title="CodeInsight">
       <EntityCodeInsightContent />
     </EntityLayout.Route>
-    <EntityLayout.Route path="/docs" title="Documentation">
-      <EntityDocumentationTab />
-    </EntityLayout.Route>
   </EntityLayout>
 );
 
-const app = createApp();
+const app = createApp({
+  themes: [
+    {
+      id: 'light',
+      title: 'Light',
+      variant: 'light',
+      Provider: ({ children }: { children: React.ReactNode }) => (
+        <UnifiedThemeProvider theme={themes.light}>{children}</UnifiedThemeProvider>
+      ),
+    },
+    {
+      id: 'dark',
+      title: 'Dark',
+      variant: 'dark',
+      Provider: ({ children }: { children: React.ReactNode }) => (
+        <UnifiedThemeProvider theme={themes.dark}>{children}</UnifiedThemeProvider>
+      ),
+    },
+  ],
+});
 
 export default app.createRoot(
   <AppRouter>
