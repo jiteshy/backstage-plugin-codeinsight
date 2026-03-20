@@ -198,17 +198,28 @@
 - Diagram-gen package: `packages/core/diagram-gen/src/{types,utils,DiagramRegistry,DiagramGenerationService,index}.ts`, modules under `diagrams/{universal,frontend,backend}/`
 
 ## Known Issues Found in Phase 3 Review (Diagram Generation)
-- config.d.ts MISSING diagramGen block: plugin.ts reads `codeinsight.diagramGen.{maxConcurrency,maxOutputTokens,temperature}` but none of these keys are declared in config.d.ts. Backstage schema validation silently rejects them. Fix: add a `diagramGen?` block to config.d.ts.
-- ComponentHierarchyModule.ts lines 46-47: non-null assertions `!` used after a `.filter()` loop that already guards for undefined on lines 34-35. The second `cig.nodes.find()` call on the collapsed-edges loop is theoretically safe (edges that passed the filter must have valid node IDs), but the assertions are fragile — if the filter is ever changed or re-ordered, these become runtime crashes. Explicit check or factored-out map lookup is safer.
-- mermaidInitialized module-level flag in EntityCodeInsightContent.tsx: module-scope variable — correct for a CSR SPA, but if the Backstage app ever runs in SSR context the flag persists across requests (shared state). Acceptable risk for current Backstage v1 usage, but worth noting.
-- DiagramGenerationService: inputSha computed over ALL CIG nodes+edges uniformly per module, regardless of which CIG fields the module actually `requires`. Modules that only read `nodes` (not edges) are invalidated when edges-only change. This is a minor over-invalidation, not a correctness bug.
-- IngestionService.ts: diagramGenerator.generateDiagrams(repoId) called without passing detectedSignals. LLM modules triggered by signals (orm:prisma, framework:react, etc.) will never fire in production. detectedSignals from ClassifierService must be threaded through.
-- diagramGen config block missing from config.d.ts — confirmed critical issue (same pattern as docGen was in Phase 2.5 review).
+- config.d.ts MISSING diagramGen block: plugin.ts reads `codeinsight.diagramGen.{maxConcurrency,maxOutputTokens,temperature}` but none of these keys are declared in config.d.ts. Backstage schema validation silently rejects them. Fix: add a `diagramGen?` block to config.d.ts. STILL OPEN after Phase 3.6.
+- ComponentHierarchyModule.ts lines 46-47: non-null assertions — FIXED in Phase 3.6 (nodeMap lookup replaces find()).
+- mermaidInitialized module-level flag: correct for CSR SPA, SSR risk noted and accepted.
+- DiagramGenerationService: inputSha over-invalidation (all nodes/edges regardless of `requires`) — minor, accepted.
+- IngestionService.ts: detectedSignals not passed to generateDiagrams — FIXED in Phase 3.6.
+- securityLevel: 'loose' XSS risk — FIXED in Phase 3.6 (upgraded to 'strict').
+
+## Known Issues Found in Phase 3.6 Review (Diagram Portfolio Hardening)
+- CircularDependencyModule.ts (MAJOR): DFS exits while-loop when MAX_CYCLES is hit, leaving in-stack nodes (color=1) uncleared. A later DFS from a different startNode that visits one of these gray nodes will see color=1 and report a false-positive back-edge cycle. Fix: after the while-loop, drain the stack and set color=2 for all remaining frame.node entries.
+- DiagramGenerationService.ts JSDoc (MAJOR-MINOR): mergeSignals converts `{ k: v }` → `'k:v'`. The JSDoc example says `{ database: 'prisma' }` but should say `{ orm: 'prisma' }` — the wrong key would not match ErDiagramModule.triggersOn = ['orm:prisma']. Current caller (IngestionService) uses correct keys; this is a documentation/interface-contract bug.
+- PackageBoundaryModule.ts (MINOR): Root-level files (no /src/ segment, no /path/) resolve to 'root' pseudo-package, producing a misleading 'root' node in the diagram when root-level files import from packages. Not a crash.
+- CircularDependencyModule.test.ts (MINOR): "plural description" test only asserts contains('cycles'), not the exact count. Regression-resilient assertion would be contains('2 circular import cycles').
+- No test covering AST-detected signals activating a signal-gated module end-to-end through DiagramGenerationService (SignalDetector → selectModules path untested at service level).
 
 ## Phase 3 Pattern Notes
 - DiagramGenerator duck-type interface correctly defined in IngestionService.ts (not importing @codeinsight/diagram-gen directly) — good pattern.
 - DiagramGenerationService always instantiated unconditionally (unlike DocGenerationService which is gated on llmClient). This is correct because AST modules work without an LLM.
 - LLM modules gracefully skip when llmClient is undefined — checked inside each module's generate() and also at the service level.
-- Node/edge lookup in pure-AST modules uses cig.nodes.find() in O(n) loops — acceptable for v1 CIG sizes, but O(n*m) in the worst case.
+- Node/edge lookup in pure-AST modules uses nodeMap (Map, O(1)) after Phase 3.6 refactor — improved from O(n) find() calls.
 - mermaid.js rendered via dynamic import() inside useEffect — correct approach for avoiding SSR/bundle issues.
-- securityLevel: 'loose' in mermaid initialization — necessary for click events in erDiagram but is a known XSS risk if mermaid content is ever user-supplied rather than generated.
+- securityLevel: 'strict' as of Phase 3.6 — no click handlers used in diagrams, strict is correct.
+- SignalDetector (diagram-gen) and FrameworkSignalDetector (cig) are complementary: CIG-level file/symbol-type detection vs. package.json dependency detection. Both emit same 'category:value' format; mergeSignals deduplicates via Set.
+- selectModules() changed from Record<string,string> to string[] in Phase 3.6 — cleaner API, all callers updated.
+- DiagramContent.description field added in Phase 3.6 — optional, flows correctly through all 4 layers (DiagramModule → DiagramContent → router → api.ts → frontend).
+- computeInputSha now includes module.id prefix — ensures per-module cache independence.

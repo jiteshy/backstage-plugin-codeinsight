@@ -72,6 +72,37 @@ All previous YELLOW issues resolved. DocGenerationService wired. RetryingLLMClie
 
 ---
 
+## Phase 3 Diagram Generation Review (2026-03-20)
+Verdict: YELLOW (diagram portfolio value gap; proceed with Phase 3.6 revision)
+
+### Critical
+1. Only DependencyGraphModule is always-on. Without LLM, detectedSignals is always {} (docGenerator is undefined, so classifier never runs), meaning 6 of 7 modules never produce output. Users without LLM see exactly 1 diagram every time. Fix: AST-based signal detector + make more modules always-on.
+2. computeInputSha is identical for all modules (ignores module param) -- forces full regeneration of all diagrams on any CIG change.
+
+### Important
+1. DependencyGraphModule has O(E*N) node lookups (use Map like ComponentHierarchyModule)
+2. No diagnostic logging when signal-gated modules are skipped
+3. Mermaid securityLevel:'loose' is unnecessary risk
+4. DiagramSection API response missing description field
+5. RequestLifecycleModule and StateFlowModule produce low-value output (LLM guessing from names)
+
+### Proposed Phase 3.6 Additions
+- AST-based signal detector (scan file paths for patterns)
+- Module/Package Boundary Diagram (always-on, workspace deps)
+- Circular Dependency Detection diagram (always-on, DFS on import edges)
+- Make ComponentHierarchyModule always-on
+
+### Strengths Confirmed
+- Zero @backstage/* imports in core/ or adapters/ (grep-verified)
+- DiagramModule interface is clean and extensible
+- Error isolation: each module in try/catch, diagram gen non-fatal in pipeline
+- Duck-typed DiagramGenerator in IngestionService (no cross-package import)
+- 69 new tests, thorough DiagramGenerationService coverage
+- Frontend: async mermaid import, error fallback, AST/AI badge, responsive grid
+- Config always injected, no process.env
+
+---
+
 # Pre-Implementation Design Review Findings
 
 Date: 2026-03-07
