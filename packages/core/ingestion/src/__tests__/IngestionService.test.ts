@@ -366,6 +366,26 @@ describe('IngestionService', () => {
   });
 
   // -------------------------------------------------------------------------
+  // pipeline — orphan file cleanup
+  // -------------------------------------------------------------------------
+
+  describe('pipeline — orphan file cleanup', () => {
+    it('calls deleteRepoFilesNotIn with filtered file paths on a full run', async () => {
+      const buildResult = makeBuildResult({ filesProcessed: 2 });
+      setupFullRunMocks(storage, buildResult);
+
+      const service = new IngestionService(connector, storage, logger, makeConfig());
+      await triggerAndWait(service);
+
+      // Default connector returns one file: makeRepoFile() → filePath 'src/index.ts'
+      expect(storage.deleteRepoFilesNotIn).toHaveBeenCalledWith(
+        'repo-1',
+        expect.arrayContaining(['src/index.ts']),
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // pipeline — clone cleanup behaviour
   // -------------------------------------------------------------------------
 

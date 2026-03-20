@@ -191,6 +191,12 @@ export class IngestionService {
       // Persist initial file records (currentSha set, lastProcessedSha null for new files)
       await this.storageAdapter.upsertRepoFiles(filteredFiles);
 
+      // Remove records for files no longer in the repo (full run only)
+      await this.storageAdapter.deleteRepoFilesNotIn(
+        repoId,
+        filteredFiles.map(f => f.filePath),
+      );
+
       // Determine full vs delta run
       const { runType, changedFiles } = await this.determineRunType(
         repoId,
