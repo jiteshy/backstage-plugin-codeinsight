@@ -48,12 +48,13 @@ pnpm db:migrate                       # run Knex migrations
   - 2.6 Staleness Detection + Delta Docs — ✅ COMPLETED (`StalenessService`, `getArtifactIdsByFilePaths`, `getArtifactDependents`)
   - 2.7 Documentation Frontend Tab — ✅ COMPLETED (`EntityDocumentationTab`, `GET /repos/:repoId/docs`)
   - 2.8 UI Redesign & Hardening — ✅ COMPLETED (unified tab, smart button labels, TOC, back-to-top FAB, dark theme fix)
-- **Phase 3**: Diagram Generation — ✅ COMPLETED (all 3.1–3.5 sub-phases done)
+- **Phase 3**: Diagram Generation — ✅ COMPLETED (all 3.1–3.6 sub-phases done)
   - 3.1 Diagram Module Interface — ✅ COMPLETED (`DiagramModule`, `DiagramRegistry`, `createDefaultRegistry`)
   - 3.2 Pure AST Diagrams — ✅ COMPLETED (dependency-graph, er-diagram, component-hierarchy)
   - 3.3 LLM-Assisted Diagrams — ✅ COMPLETED (api-flow, request-lifecycle, ci-cd-pipeline, state-flow)
   - 3.4 Diagram Generation Service — ✅ COMPLETED (`DiagramGenerationService` wired into ingestion pipeline)
   - 3.5 Diagrams Frontend Tab — ✅ COMPLETED (Mermaid.js rendering, gallery grid, AST/AI badge, stale indicator)
+  - 3.6 Diagram Portfolio Hardening — ✅ COMPLETED (`SignalDetector`, `CircularDependencyModule`, `PackageBoundaryModule`; `computeInputSha` fix; `securityLevel` fix; removed low-value LLM modules)
 
 ## Custom Agents & Skills
 

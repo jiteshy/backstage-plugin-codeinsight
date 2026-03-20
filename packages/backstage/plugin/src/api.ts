@@ -13,6 +13,7 @@ export interface DocSection {
 export interface DiagramSection {
   artifactId: string;
   title: string;
+  description?: string | null;
   diagramType: string;
   mermaid: string;
   isStale: boolean;

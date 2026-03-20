@@ -167,6 +167,7 @@ export async function createRouter(
       return {
         artifactId: artifact.artifactId,
         title: content?.title ?? artifact.artifactId,
+        description: content?.description ?? null,
         diagramType: content?.diagramType ?? 'unknown',
         mermaid: content?.mermaid ?? '',
         isStale: artifact.isStale,

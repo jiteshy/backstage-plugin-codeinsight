@@ -93,6 +93,7 @@ export interface DiagramContent {
   diagramType: string;  // e.g. 'flowchart', 'sequenceDiagram', 'erDiagram'
   mermaid: string;      // raw Mermaid DSL
   title?: string;
+  description?: string; // short human-readable description shown in the UI
 }
 
 export interface QnAChunkContent {

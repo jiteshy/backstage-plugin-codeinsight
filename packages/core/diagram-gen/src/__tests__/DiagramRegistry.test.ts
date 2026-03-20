@@ -1,4 +1,4 @@
-import { DiagramRegistry } from '../DiagramRegistry';
+import { DiagramRegistry, createDefaultRegistry } from '../DiagramRegistry';
 import type { DiagramModule } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -84,34 +84,34 @@ describe('DiagramRegistry', () => {
     it('always includes modules with an empty triggersOn array (always-on)', () => {
       const alwaysOn = makeModule('always/on', []);
       registry.register(alwaysOn);
-      const selected = registry.selectModules({});
+      const selected = registry.selectModules([]);
       expect(selected).toContain(alwaysOn);
     });
 
-    it('returns always-on module even when detectedSignals is empty', () => {
+    it('returns always-on module even when signal list is empty', () => {
       registry.register(makeModule('universal/dep-graph', []));
-      const selected = registry.selectModules({});
+      const selected = registry.selectModules([]);
       expect(selected).toHaveLength(1);
     });
 
-    it('includes a signal-gated module when its trigger is satisfied', () => {
+    it('includes a signal-gated module when its trigger is in the signal list', () => {
       const ormMod = makeModule('universal/er-diagram', ['orm:prisma']);
       registry.register(ormMod);
-      const selected = registry.selectModules({ orm: 'prisma' });
+      const selected = registry.selectModules(['orm:prisma']);
       expect(selected).toContain(ormMod);
     });
 
     it('excludes a signal-gated module when no matching signal is present', () => {
       const ormMod = makeModule('universal/er-diagram', ['orm:prisma']);
       registry.register(ormMod);
-      const selected = registry.selectModules({ framework: 'react' });
+      const selected = registry.selectModules(['framework:react']);
       expect(selected).not.toContain(ormMod);
     });
 
     it('returns empty array when no modules match any signal', () => {
       registry.register(makeModule('gated/a', ['orm:prisma']));
       registry.register(makeModule('gated/b', ['framework:vue']));
-      const selected = registry.selectModules({ framework: 'react' });
+      const selected = registry.selectModules(['framework:react']);
       expect(selected).toHaveLength(0);
     });
 
@@ -122,7 +122,7 @@ describe('DiagramRegistry', () => {
       registry.register(always);
       registry.register(gated);
       registry.register(notTriggered);
-      const selected = registry.selectModules({ orm: 'prisma' });
+      const selected = registry.selectModules(['orm:prisma']);
       expect(selected).toContain(always);
       expect(selected).toContain(gated);
       expect(selected).not.toContain(notTriggered);
@@ -135,7 +135,7 @@ describe('DiagramRegistry', () => {
         'framework:angular',
       ]);
       registry.register(multiTrigger);
-      expect(registry.selectModules({ framework: 'vue' })).toContain(multiTrigger);
+      expect(registry.selectModules(['framework:vue'])).toContain(multiTrigger);
     });
 
     it('preserves registration order in returned array', () => {
@@ -145,7 +145,7 @@ describe('DiagramRegistry', () => {
       registry.register(a);
       registry.register(b);
       registry.register(c);
-      const selected = registry.selectModules({});
+      const selected = registry.selectModules([]);
       expect(selected).toEqual([a, b, c]);
     });
   });
@@ -165,6 +165,62 @@ describe('DiagramRegistry', () => {
 
     it('returns empty array when no modules are registered', () => {
       expect(registry.getAllModules()).toHaveLength(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // createDefaultRegistry()
+  // -------------------------------------------------------------------------
+
+  describe('createDefaultRegistry()', () => {
+    it('registers exactly 7 built-in modules', () => {
+      const defaultRegistry = createDefaultRegistry();
+      expect(defaultRegistry.getAllModules()).toHaveLength(7);
+    });
+
+    it('includes all 4 always-on modules', () => {
+      const defaultRegistry = createDefaultRegistry();
+      const alwaysOn = defaultRegistry.getAllModules().filter(m => m.triggersOn.length === 0);
+      expect(alwaysOn.map(m => m.id)).toEqual(expect.arrayContaining([
+        'universal/dependency-graph',
+        'frontend/component-hierarchy',
+        'universal/circular-dependencies',
+        'universal/package-boundaries',
+      ]));
+    });
+
+    it('selects all 4 always-on modules when signal list is empty', () => {
+      const defaultRegistry = createDefaultRegistry();
+      const selected = defaultRegistry.selectModules([]);
+      expect(selected).toHaveLength(4);
+    });
+
+    it('adds ErDiagramModule when orm:prisma is detected', () => {
+      const defaultRegistry = createDefaultRegistry();
+      const selected = defaultRegistry.selectModules(['orm:prisma']);
+      const ids = selected.map(m => m.id);
+      expect(ids).toContain('universal/er-diagram');
+    });
+
+    it('adds ApiFlowModule when framework:express is detected', () => {
+      const defaultRegistry = createDefaultRegistry();
+      const selected = defaultRegistry.selectModules(['framework:express']);
+      const ids = selected.map(m => m.id);
+      expect(ids).toContain('backend/api-flow');
+    });
+
+    it('adds CiCdPipelineModule when ci:github-actions is detected', () => {
+      const defaultRegistry = createDefaultRegistry();
+      const selected = defaultRegistry.selectModules(['ci:github-actions']);
+      const ids = selected.map(m => m.id);
+      expect(ids).toContain('universal/ci-cd-pipeline');
+    });
+
+    it('does not include removed modules (RequestLifecycle, StateFlow)', () => {
+      const defaultRegistry = createDefaultRegistry();
+      const ids = defaultRegistry.getAllModules().map(m => m.id);
+      expect(ids).not.toContain('backend/request-lifecycle');
+      expect(ids).not.toContain('frontend/state-flow');
     });
   });
 });

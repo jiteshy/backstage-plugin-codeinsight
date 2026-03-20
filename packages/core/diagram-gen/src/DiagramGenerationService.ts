@@ -10,6 +10,7 @@ import type {
 } from '@codeinsight/types';
 
 import { createDefaultRegistry } from './DiagramRegistry';
+import { SignalDetector } from './SignalDetector';
 import type {
   CIGSnapshot,
   DiagramGenConfig,
@@ -34,6 +35,7 @@ export interface DiagramGenerator {
 
 export class DiagramGenerationService implements DiagramGenerator {
   private readonly config: Required<DiagramGenConfig>;
+  private readonly signalDetector = new SignalDetector();
 
   constructor(
     private readonly storageAdapter: StorageAdapter,
@@ -57,25 +59,38 @@ export class DiagramGenerationService implements DiagramGenerator {
    * Generate all applicable diagrams for a repository.
    *
    * @param repoId - Repository ID
-   * @param detectedSignals - Signals from ClassifierService (e.g. { orm: 'prisma', framework: 'react' })
+   * @param externalSignals - Optional signals from ClassifierService (e.g. { orm: 'prisma' }).
+   *   Must use the same 'category:value' key format as DiagramModule.triggersOn.
+   *   These are merged with AST-derived signals from SignalDetector so that diagram
+   *   modules activate even when no LLM classifier ran.
    */
   async generateDiagrams(
     repoId: string,
-    detectedSignals: Record<string, string> = {},
+    externalSignals: Record<string, string> = {},
   ): Promise<DiagramGenerationResult> {
-    this.logger.info('Starting diagram generation', { repoId, detectedSignals });
-
     const cig = await this.loadCIG(repoId);
 
-    const modules = this.registry.selectModules(detectedSignals);
+    // Merge AST-detected signals with any LLM-provided signals
+    const astSignals = this.signalDetector.detect(cig);
+    const allSignals = this.mergeSignals(astSignals, externalSignals);
+
+    this.logger.info('Starting diagram generation', {
+      repoId,
+      astSignals,
+      externalSignals,
+      totalSignals: allSignals,
+    });
+
+    const modules = this.registry.selectModules(allSignals);
     this.logger.info('Selected diagram modules', {
       repoId,
-      modules: modules.map(m => m.id),
+      selected: modules.map(m => m.id),
+      skippedCount: this.registry.getAllModules().length - modules.length,
     });
 
     // Phase 1: Pure AST diagrams (instant, parallel)
     const astModules = modules.filter(m => !m.llmNeeded);
-    // Phase 2: LLM diagrams (parallel with concurrency limit)
+    // Phase 2: LLM-assisted diagrams (parallel with concurrency limit)
     const llmModules = modules.filter(m => m.llmNeeded);
 
     const result: DiagramGenerationResult = {
@@ -86,7 +101,7 @@ export class DiagramGenerationService implements DiagramGenerator {
       errors: [],
     };
 
-    // Run AST modules in parallel (fast, no I/O)
+    // Run AST modules in parallel (fast, no external I/O)
     await Promise.all(
       astModules.map(m => this.processModule(m, repoId, cig, result)),
     );
@@ -144,7 +159,7 @@ export class DiagramGenerationService implements DiagramGenerator {
       const diagram = await module.generate(cig, this.llmClient);
 
       if (!diagram) {
-        this.logger.debug('Module returned null (not applicable)', {
+        this.logger.debug('Module returned null (not applicable to this repo)', {
           repoId,
           moduleId: module.id,
         });
@@ -161,6 +176,7 @@ export class DiagramGenerationService implements DiagramGenerator {
         diagramType: diagram.diagramType,
         mermaid: diagram.mermaid,
         title: diagram.title,
+        description: diagram.description,
       };
 
       const artifact: Artifact = {
@@ -206,14 +222,34 @@ export class DiagramGenerationService implements DiagramGenerator {
   }
 
   /**
-   * Compute a deterministic SHA over all CIG node IDs + edge IDs.
-   * Any change to the CIG produces a different inputSha → triggers regeneration.
+   * Compute a deterministic SHA over module ID + all CIG node/edge IDs.
+   *
+   * Including the module ID ensures each module has an independent inputSha —
+   * a stale mark on one module does not cascade to others.
    */
-  private computeInputSha(cig: CIGSnapshot, _module: DiagramModule): string {
+  private computeInputSha(cig: CIGSnapshot, module: DiagramModule): string {
     const nodeIds = cig.nodes.map(n => n.nodeId).sort();
     const edgeIds = cig.edges.map(e => e.edgeId).sort();
-    const payload = [...nodeIds, '---', ...edgeIds].join('\n');
+    const payload = [module.id, ...nodeIds, '---', ...edgeIds].join('\n');
     return createHash('sha256').update(payload).digest('hex').slice(0, 16);
+  }
+
+  /**
+   * Merge AST-detected signals with externally-provided signals.
+   *
+   * AST signals are in 'category:value' format. External signals
+   * (from ClassifierService) are in Record<string,string> format and
+   * are converted to the same 'category:value' strings.
+   */
+  private mergeSignals(
+    astSignals: string[],
+    external: Record<string, string>,
+  ): string[] {
+    const merged = new Set(astSignals);
+    for (const [k, v] of Object.entries(external)) {
+      merged.add(`${k}:${v}`);
+    }
+    return Array.from(merged);
   }
 
   /**

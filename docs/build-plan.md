@@ -625,6 +625,40 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
+### 3.6 — Diagram Portfolio Hardening ✅ COMPLETED
+**Goal:** Fix the root causes that resulted in only 1 diagram being shown, replace low-value LLM-guessing modules with high-value pure-AST modules, and make the diagram layer self-sufficient without an LLM.
+
+**Key problems fixed:**
+1. Signal detection was LLM-dependent: `detectedSignals = {}` without LLM → only always-on modules ran → 1 diagram
+2. `computeInputSha` was module-ID-agnostic: all modules shared the same hash → one stale artifact invalidated all diagrams
+3. `ComponentHierarchyModule` was signal-gated despite being pure AST
+4. `RequestLifecycleModule` and `StateFlowModule` produced low-value LLM hallucinations from symbol names
+5. `securityLevel: 'loose'` in Mermaid was an unnecessary attack surface
+
+| Task | Status | Description |
+|------|--------|-------------|
+| 3.6.1 | ✅ | `SignalDetector` — pure AST signal detection from file paths and CIG node types. Replaces LLM dependency for module selection. Detects React/Vue/Svelte, route nodes → express, Prisma, all major CI systems |
+| 3.6.2 | ✅ | `CircularDependencyModule` — always-on, pure AST. DFS on import edges to find cycles. High-value: shows which files form import loops, guides refactoring. Returns null for clean repos |
+| 3.6.3 | ✅ | `PackageBoundaryModule` — always-on, pure AST. Groups files by `/src/` parent dir. Shows cross-package import structure. Especially valuable for monorepos. Returns null for single-package repos |
+| 3.6.4 | ✅ | Made `ComponentHierarchyModule` always-on (`triggersOn = []`). Was pure AST but gated on LLM signal — now runs for every repo with `.tsx` files |
+| 3.6.5 | ✅ | Removed `RequestLifecycleModule` and `StateFlowModule` from default registry. Both relied on LLM guessing from symbol names without real dataflow/state analysis |
+| 3.6.6 | ✅ | Fixed `computeInputSha` to include `module.id` — each module now has an independent inputSha, preventing cross-module stale cascades |
+| 3.6.7 | ✅ | Wired `SignalDetector` into `DiagramGenerationService`. AST signals merged with any externally-provided LLM signals before module selection |
+| 3.6.8 | ✅ | Added `description` field to `DiagramContent` type, persisted through router, surfaced in `DiagramSection` API and `DiagramCard` UI |
+| 3.6.9 | ✅ | Changed Mermaid `securityLevel: 'loose'` → `'strict'` — we don't use click handlers, no reason to weaken sanitization |
+| 3.6.10 | ✅ | 41 new tests for `SignalDetector`, `CircularDependencyModule`, `PackageBoundaryModule`. Updated `DiagramRegistry` tests to match new 7-module registry. Fixed `DiagramGenerationService` test sha helper |
+
+**Acceptance:** ✅ 110 diagram-gen tests pass. All packages build clean.
+
+**New default registry (7 modules):**
+- Always-on pure AST: `dependency-graph`, `component-hierarchy`, `circular-dependencies`, `package-boundaries`
+- Signal-gated pure AST: `er-diagram` (requires `orm:prisma`)
+- Signal-gated LLM: `api-flow` (requires `framework:express/fastify/koa/nestjs`), `ci-cd-pipeline` (requires `ci:*`)
+
+**Result: repos without LLM configured now generate 1–4 meaningful diagrams instead of exactly 1.**
+
+---
+
 ## Phase 4: QnA Pipeline
 **Goal:** Chat tab where users ask questions about the repo and get grounded, sourced answers.
 
