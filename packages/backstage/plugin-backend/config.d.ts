@@ -88,5 +88,18 @@ export interface Config {
       /** Temperature for LLM calls. Default: 0.2. */
       temperature?: number;
     };
+
+    /**
+     * Diagram generation settings.
+     * @visibility backend
+     */
+    diagramGen?: {
+      /** Max concurrent LLM diagram calls. Default: 10. */
+      maxConcurrency?: number;
+      /** Max output tokens for LLM completion responses. Default: 2000. */
+      maxOutputTokens?: number;
+      /** Temperature for LLM calls. Default: 0.2. */
+      temperature?: number;
+    };
   };
 }

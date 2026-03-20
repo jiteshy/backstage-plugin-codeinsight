@@ -15,6 +15,7 @@
 ## Known Issues
 - `response.json()` returns `unknown` under strict TS — source files need explicit `as Type` casts
 - `supertest` is NOT installed — use `http` module for backend router tests (create express app, listen on port 0, use `http.request`)
+- Strict TS: importing unused types in test files causes `TS6196` compile errors — always trim import lists to only what is referenced in the file
 - Knex loads dialect drivers eagerly at construction — only use client strings whose native packages are installed in the workspace (`pg` is installed; `sqlite3`, `mysql2` are NOT). Tests that verify client pass-through must use `'pg'` only.
 
 ## CIG / TypeScriptExtractor Test Patterns

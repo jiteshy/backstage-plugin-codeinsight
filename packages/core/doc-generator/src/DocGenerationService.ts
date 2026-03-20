@@ -145,7 +145,7 @@ export class DocGenerationService {
       totalTokens: result.totalTokensUsed,
     });
 
-    return result;
+    return { ...result, detectedSignals: classifierResult.detectedSignals };
   }
 
   // ---------------------------------------------------------------------------
@@ -200,7 +200,8 @@ export class DocGenerationService {
       }
     }
 
-    return { modulesGenerated, modulesSkipped, totalTokensUsed, artifacts, errors };
+    // detectedSignals is populated by the caller (generateDocs / generateDocsWithClassification)
+    return { modulesGenerated, modulesSkipped, totalTokensUsed, artifacts, errors, detectedSignals: {} };
   }
 
   // ---------------------------------------------------------------------------

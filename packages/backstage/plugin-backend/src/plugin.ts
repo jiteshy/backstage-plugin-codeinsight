@@ -4,6 +4,8 @@ import {
   createBackendPlugin,
   coreServices,
 } from '@backstage/backend-plugin-api';
+import { DiagramGenerationService } from '@codeinsight/diagram-gen';
+import type { DiagramGenConfig } from '@codeinsight/diagram-gen';
 import { DocGenerationService } from '@codeinsight/doc-generator';
 import type { DocGenConfig } from '@codeinsight/doc-generator';
 import { InProcessJobQueue, IngestionService } from '@codeinsight/ingestion';
@@ -134,6 +136,23 @@ export const codeinsightPlugin = createBackendPlugin({
           ? new DocGenerationService(storageAdapter, llmClient, coreLogger, docGenConfig)
           : undefined;
 
+        // Diagram generation service — optional; works without LLM (pure AST diagrams)
+        const diagramGenConfig: DiagramGenConfig = {
+          maxConcurrency:
+            config.getOptionalNumber('codeinsight.diagramGen.maxConcurrency') ?? 10,
+          maxOutputTokens:
+            config.getOptionalNumber('codeinsight.diagramGen.maxOutputTokens') ?? 2000,
+          temperature:
+            config.getOptionalNumber('codeinsight.diagramGen.temperature') ?? 0.2,
+        };
+
+        const diagramGenerationService = new DiagramGenerationService(
+          storageAdapter,
+          coreLogger,
+          llmClient,
+          diagramGenConfig,
+        );
+
         const ingestionService = new IngestionService(
           repoConnector,
           storageAdapter,
@@ -142,6 +161,7 @@ export const codeinsightPlugin = createBackendPlugin({
           undefined, // cigBuilder — use default
           undefined, // stalenessService — use default
           docGenerationService,
+          diagramGenerationService,
         );
 
         const jobQueue = new InProcessJobQueue(

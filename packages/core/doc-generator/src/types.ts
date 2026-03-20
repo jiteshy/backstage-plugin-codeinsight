@@ -83,6 +83,11 @@ export interface DocGenerationResult {
   artifacts: Artifact[];
   /** Modules that failed during generation. */
   errors: Array<{ moduleId: string; error: string }>;
+  /**
+   * Detected signals from the classifier, e.g. { orm: 'prisma', framework: 'react' }.
+   * Passed downstream to DiagramGenerationService so signal-gated modules fire correctly.
+   */
+  detectedSignals: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
