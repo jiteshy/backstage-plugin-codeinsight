@@ -23,6 +23,16 @@ import { FileFilter } from './FileFilter';
 import { StalenessService } from './StalenessService';
 
 // ---------------------------------------------------------------------------
+// DocGenerator — minimal duck-type interface so IngestionService does not
+// depend on @codeinsight/doc-generator directly. DocGenerationService satisfies
+// this structurally.
+// ---------------------------------------------------------------------------
+
+interface DocGenerator {
+  generateDocs(repoId: string, cloneDir: string): Promise<{ totalTokensUsed: number }>;
+}
+
+// ---------------------------------------------------------------------------
 // Factory — builds a CIGBuilder with all Phase 1 extractors registered
 // ---------------------------------------------------------------------------
 
@@ -42,6 +52,7 @@ export class IngestionService {
   private readonly cigPersistence: CIGPersistenceService;
   private readonly fileFilter: FileFilter;
   private readonly stalenessService: StalenessService;
+  private readonly docGenerator?: DocGenerator;
 
   constructor(
     private readonly repoConnector: RepoConnector,
@@ -50,11 +61,13 @@ export class IngestionService {
     private readonly config: IngestionConfig,
     cigBuilder?: CIGBuilder,
     stalenessService?: StalenessService,
+    docGenerator?: DocGenerator,
   ) {
     this.cigBuilder = cigBuilder ?? createDefaultCIGBuilder();
     this.cigPersistence = new CIGPersistenceService(storageAdapter, logger);
     this.fileFilter = new FileFilter(config.fileFilter);
     this.stalenessService = stalenessService ?? new StalenessService(storageAdapter, logger);
+    this.docGenerator = docGenerator;
   }
 
   // ---------------------------------------------------------------------------
@@ -239,6 +252,29 @@ export class IngestionService {
         });
       }
 
+      // Run doc generation (if an LLM client is configured).
+      // Must run before the finally block that deletes cloneDir.
+      let tokensConsumed = 0;
+      if (this.docGenerator) {
+        try {
+          this.logger.info('Starting doc generation', { repoId, jobId });
+          const docResult = await this.docGenerator.generateDocs(repoId, cloneDir);
+          tokensConsumed = docResult.totalTokensUsed;
+          this.logger.info('Doc generation complete', {
+            repoId,
+            jobId,
+            tokensConsumed,
+          });
+        } catch (docErr) {
+          // Doc generation failure is non-fatal — CIG pipeline succeeded.
+          this.logger.error('Doc generation failed (non-fatal)', {
+            repoId,
+            jobId,
+            error: String(docErr),
+          });
+        }
+      }
+
       // Update repo status to ready
       await this.storageAdapter.updateRepoStatus(repoId, 'ready', headSha);
 
@@ -250,6 +286,7 @@ export class IngestionService {
         status: finalStatus,
         filesProcessed,
         filesSkipped,
+        tokensConsumed,
         completedAt: new Date(),
       });
 

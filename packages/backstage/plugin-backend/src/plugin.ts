@@ -2,6 +2,8 @@ import {
   createBackendPlugin,
   coreServices,
 } from '@backstage/backend-plugin-api';
+import { DocGenerationService } from '@codeinsight/doc-generator';
+import type { DocGenConfig } from '@codeinsight/doc-generator';
 import { InProcessJobQueue, IngestionService } from '@codeinsight/ingestion';
 import { createLLMClient } from '@codeinsight/llm';
 import { GitRepoConnector } from '@codeinsight/repo';
@@ -103,11 +105,28 @@ export const codeinsightPlugin = createBackendPlugin({
           );
         }
 
+        // Doc generation service — optional; only instantiated when llmClient is present
+        const docGenConfig: DocGenConfig = {
+          maxConcurrency:
+            config.getOptionalNumber('codeinsight.docGen.maxConcurrency') ?? 20,
+          maxOutputTokens:
+            config.getOptionalNumber('codeinsight.docGen.maxOutputTokens') ?? 2000,
+          temperature:
+            config.getOptionalNumber('codeinsight.docGen.temperature') ?? 0.2,
+        };
+
+        const docGenerationService = llmClient
+          ? new DocGenerationService(storageAdapter, llmClient, coreLogger, docGenConfig)
+          : undefined;
+
         const ingestionService = new IngestionService(
           repoConnector,
           storageAdapter,
           coreLogger,
           ingestionConfig,
+          undefined, // cigBuilder — use default
+          undefined, // stalenessService — use default
+          docGenerationService,
         );
 
         const jobQueue = new InProcessJobQueue(

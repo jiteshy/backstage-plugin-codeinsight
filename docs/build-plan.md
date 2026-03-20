@@ -459,12 +459,12 @@ Write one prompt file per section. Each declares its required CIG fields and out
 - [ ] Phase 3 (architecture): run after Phase 2 completes (deferred — no prompt modules yet)
 - [x] Track `tokens_used` per artifact and aggregate per job
 
-**Acceptance:** ✅ Doc generation pipeline implemented with parallel execution, staleness-aware skip logic, composite SHA tracking, and artifact input recording. 39 new tests (570 total unit tests pass). Phase 2/3 deferred until directory-summary and architecture prompts are written.
+**Acceptance:** ✅ Doc generation pipeline implemented with parallel execution, staleness-aware skip logic, composite SHA tracking, and artifact input recording. 39 new tests (570 total unit tests pass). Phase 2/3 deferred until directory-summary and architecture prompts are written. `DocGenerationService` is now wired into `IngestionService.runPipeline()` (called after staleness sweep, before cloneDir cleanup) and into the `plugin-backend` composition root via optional `docGenerator` constructor param.
 
 **Notes:**
 - `DocGenerationService` in `packages/core/doc-generator/src/DocGenerationService.ts`
 - `ContextBuilder` in `packages/core/doc-generator/src/ContextBuilder.ts` — builds CIG-driven prompt context for 13 modules
-- `PromptRegistry` in `packages/core/doc-generator/src/PromptRegistry.ts` — maps module IDs to system/user prompt definitions
+- `PromptRegistry` in `packages/core/doc-generator/src/PromptRegistry.ts` — maps module IDs to system/user prompt definitions; prompts are inline string constants (runtime source of truth); the `.md` files in `prompts/` are design specs only — file-based prompt loading is deferred
 - All 13 prompt modules supported: 7 core + 3 backend + 3 frontend
 - Semaphore-based concurrency control (configurable `maxConcurrency`, default 20)
 - All file reads use `readFileSafe` — graceful degradation when files unavailable

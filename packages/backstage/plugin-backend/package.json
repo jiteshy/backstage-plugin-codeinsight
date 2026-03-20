@@ -16,6 +16,7 @@
   "files": ["dist", "config.d.ts"],
   "dependencies": {
     "@backstage/backend-plugin-api": "^1.7.0",
+    "@codeinsight/doc-generator": "workspace:*",
     "@codeinsight/ingestion": "workspace:*",
     "@codeinsight/llm": "workspace:*",
     "@codeinsight/repo": "workspace:*",
