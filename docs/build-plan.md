@@ -583,7 +583,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 - [ ] `diagrams/universal/er-diagram.ts`:
   - Read `ci_cig_nodes` (schema type nodes) and their relationships
   - Serialize to `erDiagram` Mermaid syntax
-  - Support: Prisma, SQLAlchemy, TypeORM, Mongoose
+  - **v1 scope: Prisma only** — `PrismaExtractor` is the only CIG extractor that produces schema nodes. SQLAlchemy, TypeORM, and Mongoose support requires new CIG extractors (deferred to a future phase). Trigger on `detectedSignals.orm === 'prisma'`.
 - [ ] `diagrams/frontend/component-hierarchy.ts`:
   - Filter `ci_cig_edges` to component import edges only
   - Serialize to `graph TD` Mermaid syntax
