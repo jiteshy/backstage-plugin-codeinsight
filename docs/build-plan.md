@@ -523,6 +523,32 @@ Write one prompt file per section. Each declares its required CIG fields and out
 
 ---
 
+### 2.8 — UI Redesign & Hardening ✅ COMPLETED
+
+Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesign, and dev app theme fixes.
+
+- [x] Unified frontend: collapsed `EntityDocumentationTab` into `EntityCodeInsightContent` — single tab, inner `Tabs` (Documentation | Diagrams | Q&A)
+- [x] Removed separate `/docs` route from dev app; deleted `EntityDocumentationTab.tsx`
+- [x] Smart button label: "Analyze Repository" (first run, no docs) vs "Sync Changes" (delta)
+- [x] "No changes detected" inline feedback after sync with no diff
+- [x] Inline job polling inside `EntityCodeInsightContent` (replaces `JobProgressBanner` dependency)
+- [x] Header redesign: bold "Codebase Intelligence" title (1.4rem, 700 weight) + description below; right column shows last-synced timestamp + inline status + button
+- [x] CLS-free status feedback: all job progress / outcome messages rendered in fixed-height right column — no vertical layout shift
+- [x] Documentation tab: pill stats bar (sections, files, tokens), AI-generated disclaimer in italics, clickable Table of Contents (inline-block, minWidth 360, 0.8rem text), section labels (0.95rem, uppercase, primary colour), seamless section cards (no dividers, no left border), sticky back-to-top FAB (`position: sticky, bottom: 16`)
+- [x] `stripLeadingHeading()` helper removes duplicate `# Heading` from LLM markdown before `MarkdownContent` render
+- [x] Dev app `createApp` wired with explicit `UnifiedThemeProvider` for proper light/dark theme support
+
+**Acceptance:** ✅ Single unified plugin tab with inner Documentation/Diagrams/Q&A tabs. Smart button semantics. No CLS. Working dark theme in dev app. TOC scrolls smoothly to any section. Back-to-top FAB always visible at bottom of content.
+
+**Notes:**
+- `EntityDocumentationTab.tsx` deleted; `index.ts` export removed
+- `sectionId()` generates stable DOM IDs for TOC anchor scrolling via `scrollIntoView({ behavior: 'smooth' })`
+- Back-to-top uses `position: sticky` (not `position: fixed`) to work inside Backstage's non-`window` scroll container
+- `IntersectionObserver` / `window.scrollY` approaches abandoned — Backstage scrolls in its own container, not `window`
+- Dev app `UnifiedThemeProvider` fix: `themes.light`/`themes.dark` are `UnifiedTheme` objects, not components; must wrap in `<UnifiedThemeProvider theme={themes.light}>`
+
+---
+
 ## Phase 3: Diagram Generation
 **Goal:** Diagrams tab shows auto-generated visual diagrams. Pure-AST diagrams work without any LLM key configured.
 

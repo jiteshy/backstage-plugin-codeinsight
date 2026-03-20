@@ -41,7 +41,7 @@ catalog:
         filters:
           branch: main
         schedule:
-          frequency: { minutes: 1 }
+          frequency: { minutes: 30 }
           timeout: { minutes: 3 }
 
 codeinsight:

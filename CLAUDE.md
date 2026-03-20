@@ -38,7 +38,7 @@ pnpm db:migrate                       # run Knex migrations
 ## Current Progress
 
 - **Phase 1**: Foundation — ✅ COMPLETED (all 1.0–1.10 sub-phases done)
-- **Phase 2**: Documentation Generation — ✅ COMPLETED (all 2.0–2.7 sub-phases done; DocGenerationService wired end-to-end)
+- **Phase 2**: Documentation Generation — ✅ COMPLETED (all 2.0–2.8 sub-phases done)
   - 2.0 Phase 1 Hardening — ✅ COMPLETED
   - 2.1 LLM Client + Cache — ✅ COMPLETED (`@codeinsight/llm` package)
   - 2.2 Classifier Prompt — ✅ COMPLETED (`ClassifierService` in `@codeinsight/doc-generator`)
@@ -47,6 +47,7 @@ pnpm db:migrate                       # run Knex migrations
   - 2.5 Doc Generation Service — ✅ COMPLETED (`DocGenerationService` wired into `IngestionService.runPipeline()` + plugin composition root)
   - 2.6 Staleness Detection + Delta Docs — ✅ COMPLETED (`StalenessService`, `getArtifactIdsByFilePaths`, `getArtifactDependents`)
   - 2.7 Documentation Frontend Tab — ✅ COMPLETED (`EntityDocumentationTab`, `GET /repos/:repoId/docs`)
+  - 2.8 UI Redesign & Hardening — ✅ COMPLETED (unified tab, smart button labels, TOC, back-to-top FAB, dark theme fix)
 
 ## Custom Agents & Skills
 
