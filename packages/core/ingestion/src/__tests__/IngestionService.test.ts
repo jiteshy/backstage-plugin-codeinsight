@@ -647,4 +647,90 @@ describe('IngestionService', () => {
       );
     });
   });
+
+  // -------------------------------------------------------------------------
+  // pipeline — doc generation
+  // -------------------------------------------------------------------------
+
+  describe('pipeline — doc generation', () => {
+    function makeDocGenerator(overrides?: Partial<{ generateDocs: jest.Mock }>) {
+      return {
+        generateDocs: jest.fn().mockResolvedValue({ totalTokensUsed: 0 }),
+        ...overrides,
+      };
+    }
+
+    it('calls docGenerator.generateDocs after staleness sweep', async () => {
+      const buildResult = makeBuildResult({ filesProcessed: 1 });
+      setupFullRunMocks(storage, buildResult);
+
+      const docGenerator = makeDocGenerator({
+        generateDocs: jest.fn().mockResolvedValue({ totalTokensUsed: 0 }),
+      });
+      const config = makeConfig({ tempDir: '/tmp/ci-test' });
+
+      const service = new IngestionService(
+        connector, storage, logger, config, undefined, undefined, docGenerator,
+      );
+      await triggerAndWait(service, 'repo-1');
+
+      expect(docGenerator.generateDocs).toHaveBeenCalledWith(
+        'repo-1',
+        '/tmp/ci-test/repo-1',
+      );
+    });
+
+    it('records tokensConsumed from doc generation in job', async () => {
+      const buildResult = makeBuildResult({ filesProcessed: 1 });
+      setupFullRunMocks(storage, buildResult);
+
+      const docGenerator = makeDocGenerator({
+        generateDocs: jest.fn().mockResolvedValue({ totalTokensUsed: 500 }),
+      });
+
+      const service = new IngestionService(
+        connector, storage, logger, makeConfig(), undefined, undefined, docGenerator,
+      );
+      await triggerAndWait(service);
+
+      const updateCalls = storage.updateJob.mock.calls;
+      const finalCall = updateCalls[updateCalls.length - 1][1] as Partial<IngestionJob>;
+      expect(finalCall.tokensConsumed).toBe(500);
+    });
+
+    it('doc generation failure is non-fatal — pipeline completes with status "completed" and tokensConsumed 0', async () => {
+      const buildResult = makeBuildResult({ filesProcessed: 1 });
+      setupFullRunMocks(storage, buildResult);
+
+      const docGenerator = makeDocGenerator({
+        generateDocs: jest.fn().mockRejectedValue(new Error('LLM unavailable')),
+      });
+
+      const service = new IngestionService(
+        connector, storage, logger, makeConfig(), undefined, undefined, docGenerator,
+      );
+      await triggerAndWait(service);
+
+      const updateCalls = storage.updateJob.mock.calls;
+      const finalCall = updateCalls[updateCalls.length - 1][1] as Partial<IngestionJob>;
+      expect(finalCall.status).toBe('completed');
+      expect(finalCall.tokensConsumed).toBe(0);
+    });
+
+    it('skips doc generation when no docGenerator is provided', async () => {
+      const buildResult = makeBuildResult({ filesProcessed: 1 });
+      setupFullRunMocks(storage, buildResult);
+
+      // No docGenerator passed — constructor receives only 6 args
+      const service = new IngestionService(
+        connector, storage, logger, makeConfig(), undefined, undefined,
+      );
+      await triggerAndWait(service);
+
+      // Pipeline must complete normally
+      const updateCalls = storage.updateJob.mock.calls;
+      const finalCall = updateCalls[updateCalls.length - 1][1] as Partial<IngestionJob>;
+      expect(finalCall.status).toBe('completed');
+    });
+  });
 });

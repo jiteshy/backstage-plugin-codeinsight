@@ -94,10 +94,10 @@ export const codeinsightPlugin = createBackendPlugin({
           ? createLLMClient(llmConfig, coreLogger, knex)
           : undefined;
 
-        if (llmClient) {
+        if (llmConfig && llmClient) {
           coreLogger.info('LLM client initialized', {
-            provider: llmConfig!.provider,
-            model: llmConfig!.model,
+            provider: llmConfig.provider,
+            model: llmConfig.model,
           });
         } else {
           coreLogger.info(
