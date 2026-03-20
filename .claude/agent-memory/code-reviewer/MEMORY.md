@@ -164,6 +164,14 @@
 - IngestionService.test.ts: No test verifies StalenessService.sweep is called with correct arguments after full run or delta run; the sweep integration path is untested at unit level (integration tests may cover it, but unit tests use a real StalenessService with the mock storage, so sweep calls are not directly asserted).
 - StalenessService.test.ts test 9 comment mismatch: header says test 9 is "batching" but the actual test 9 is "logger called with appropriate messages". This is a documentation mismatch only — no behaviour is missing.
 
+## Known Issues Found in Phase 2 Gap Fix Review (IngestionService wiring + plugin.ts)
+- plugin.ts: `docGen.*` config keys (maxConcurrency, maxOutputTokens, temperature) are read but NOT declared in config.d.ts — Backstage schema validation will fail silently; add docGen block to config.d.ts.
+- plugin.ts line 109: `docGenConfig` object is always constructed (unconditionally), even when `llmClient` is undefined. Minor waste; harmless since it's only passed to DocGenerationService when llmClient exists.
+- IngestionService.ts: `DocGenerator` duck-type interface returns `Promise<{ totalTokensUsed: number }>` — correctly structural match to `DocGenerationResult`. This is intentional to avoid a hard dep on @codeinsight/doc-generator from core/ingestion.
+- IngestionService.ts: doc generation runs AFTER staleness sweep and BEFORE finally block (cloneDir cleanup) — correct placement.
+- IngestionService.ts: `tokensConsumed` initialized to 0 and stays 0 if docGenerator is absent or throws — correctly reflected in job record.
+- CLAUDE.md says "No tenant_id in DB tables" (corrected from earlier memory which said the opposite about the original review findings — that was the pre-2026-03-08 state).
+
 ## Known Issues Found in Phase 2.5 Review (DocGenerationService / ContextBuilder / PromptRegistry)
 - ContextBuilder.ts line 734: `path.join(cloneDir, filePath)` with no path traversal guard — filePaths come from DB/git so risk is low but `../` in a filePath escapes cloneDir silently.
 - DocGenerationService.ts line 56: `PromptRegistry` instantiated twice (once in DocGenerationService, once in ContextBuilder) — wasted allocation; no registry state but inconsistent.
