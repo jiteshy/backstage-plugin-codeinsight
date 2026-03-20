@@ -227,6 +227,9 @@ importers:
       '@backstage/backend-plugin-api':
         specifier: ^1.7.0
         version: 1.7.0(better-sqlite3@12.6.2)
+      '@codeinsight/doc-generator':
+        specifier: workspace:*
+        version: link:../../core/doc-generator
       '@codeinsight/ingestion':
         specifier: workspace:*
         version: link:../../core/ingestion

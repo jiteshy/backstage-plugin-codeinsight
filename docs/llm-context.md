@@ -525,13 +525,13 @@ ci_qna_messages (
 ### Cache Tables
 ```sql
 ci_llm_cache (
-  cache_key      TEXT NOT NULL PRIMARY KEY,  -- SHA256(prompt_version + input_sha + model_name)
+  cache_key      TEXT NOT NULL PRIMARY KEY,  -- SHA256(systemPrompt + '\x00' + userPrompt + '\x00' + modelName)
   response       TEXT NOT NULL,
   tokens_used    INTEGER NOT NULL,
   model_used     TEXT NOT NULL,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
--- Content-addressed: never expires unless prompt_version changes
+-- Content-addressed on rendered prompt text; changing a prompt auto-invalidates its cache entries
 
 ci_embedding_cache (
   content_sha    TEXT NOT NULL PRIMARY KEY,  -- SHA256(chunk_text)
@@ -587,8 +587,11 @@ input_sha = SHA256(
 
 ### LLM Cache Key
 ```
-cache_key = SHA256(prompt_file_sha + composite_input_sha + model_name)
+cache_key = SHA256(systemPrompt + '\x00' + userPrompt + '\x00' + modelName)
 ```
+Keyed on the fully-rendered prompt text (null-byte separators prevent collisions). Changing
+any part of a prompt automatically invalidates its cache entries. Prompt file SHA tracking
+is deferred to a future phase.
 
 ### Staleness Detection Flow
 ```
@@ -729,7 +732,7 @@ Phase 6: Release — Docs, contribution guide, npm publish
 7. Multi-layer QnA index — doc chunks retrieve better than raw code for conceptual queries
 8. Unified ci_artifacts table — all three features use same staleness/caching mechanism
 9. Delta run threshold at 40% — full run is cleaner above this
-10. Prompt version tracked in cache key — improving prompts auto-invalidates stale docs
+10. Prompt text content tracked in cache key — cache is keyed on rendered systemPrompt + userPrompt + modelName; improving any prompt auto-invalidates its cache entries (prompt file SHA tracking deferred)
 11. Framework-agnostic core — Backstage is a delivery adapter, not the foundation; all business logic in core packages with zero Backstage imports; SaaS path requires only new adapters + server wrapper, zero core changes
 12. No tenant_id in DB — both Backstage plugin and standalone SaaS are self-hosted (one Postgres per deployment); infrastructure isolation is sufficient; no row-level multi-tenancy needed
 13. All I/O behind interfaces — LLM, embeddings, vector store, repo, storage, job queue are interfaces in core; concrete implementations live only in adapter packages
