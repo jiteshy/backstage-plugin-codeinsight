@@ -75,5 +75,18 @@ export interface Config {
       /** Delete the cloned repo directory after each pipeline run. Default: true. */
       cleanupAfterIngestion?: boolean;
     };
+
+    /**
+     * Documentation generation settings.
+     * @visibility backend
+     */
+    docGen?: {
+      /** Max concurrent LLM calls during Phase 1 parallel module generation. Default: 20. */
+      maxConcurrency?: number;
+      /** Max output tokens for LLM completion responses. Default: 2000. */
+      maxOutputTokens?: number;
+      /** Temperature for LLM calls. Default: 0.2. */
+      temperature?: number;
+    };
   };
 }
