@@ -659,14 +659,90 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-## Phase 4: QnA Pipeline
+## Phase 4: Diagram Overhaul — Value & UX
+**Goal:** Replace low-level mechanical diagrams with high-value architecture diagrams that developers and architects actually need. Add interactive UI with zoom, fullscreen, clickable source links, and download.
+
+**Depends on:** Phase 3 (existing diagram infrastructure, CIG, SignalDetector, DiagramRegistry)
+
+---
+
+### 4.1 — Type System & Signal Detection Foundation
+
+Extend core types to support clickable node maps and new signal categories.
+
+| Task | Status | Description |
+|------|--------|-------------|
+| 4.1.1 | | Add `nodeMap?: Record<string, string>` to `MermaidDiagram` in `packages/core/diagram-gen/src/types.ts` — maps Mermaid node IDs to source file paths |
+| 4.1.2 | | Add `nodeMap?: Record<string, string>` to `DiagramContent` in `packages/core/types/src/data.ts` — persisted in DB |
+| 4.1.3 | | Add `nodeMap?: Record<string, string> \| null` to `DiagramSection` in `packages/backstage/plugin/src/api.ts` |
+| 4.1.4 | | Pass through `nodeMap` in `DiagramGenerationService` when building `DiagramContent` from `MermaidDiagram` |
+| 4.1.5 | | Add `nodeMap` to backend router's `GET /repos/:repoId/diagrams` response |
+| 4.1.6 | | Add new signals to `SignalDetector`: `state-management:redux`, `state-management:zustand`, `state-management:context`, `state-management:mobx`, `infra:docker`, `infra:kubernetes`, `infra:terraform` |
+
+**Acceptance:** Types compile. SignalDetector detects new signal categories. `nodeMap` flows from module → DB → API → frontend.
+
+---
+
+### 4.2 — New Diagram Modules
+
+Replace low-value diagrams with high-value architecture diagrams.
+
+**Portfolio changes:**
+- **NEW:** 5 modules (high-level-architecture, module-boundaries, state-management, api-entity-mapping, deployment-infra)
+- **KEEP:** 4 modules (dependency-graph, circular-dependencies, package-boundaries, er-diagram) — retrofit with `nodeMap`
+- **REMOVE from registry:** component-hierarchy (subsumed by module-boundaries)
+- **REPLACE:** api-flow → api-entity-mapping, ci-cd-pipeline → deployment-infra
+
+| Task | Status | Description |
+|------|--------|-------------|
+| 4.2.1 | | `universal/module-boundaries` (Pure AST, always-on) — groups files by domain directory under `src/` (auth/, billing/, users/, hooks/, etc.), shows cross-domain import edges. `graph LR`. Self-terminates if <3 domain groups |
+| 4.2.2 | | `universal/high-level-architecture` (LLM, always-on) — C4-style system overview: detects layers (api/, services/, models/, components/), external deps (axios, prisma, redis), routes. LLM synthesizes `flowchart TD` with subgraphs. Self-terminates if <10 source files |
+| 4.2.3 | | `frontend/state-management` (Hybrid, signal-gated) — AST detects store/context/reducer nodes by symbol name + file path heuristics (store/, stores/, state/, redux/). Traces import edges from components to state nodes. LLM refines labels if available. `graph TD` |
+| 4.2.4 | | `backend/api-entity-mapping` (Hybrid, replaces api-flow) — AST collects route nodes (httpMethod, routePath) + schema nodes (Prisma models). Traces call edges: route → handler → service → model. `graph LR` showing Routes → Services → Entities. LLM synthesis if available |
+| 4.2.5 | | `universal/deployment-infra` (LLM, replaces ci-cd-pipeline) — collects CI nodes + Docker/k8s/terraform file paths. LLM synthesizes `flowchart LR` showing build → test → containerize → deploy → infra topology |
+| 4.2.6 | | Retrofit `nodeMap` on 4 existing modules: `DependencyGraphModule`, `CircularDependencyModule`, `PackageBoundaryModule`, `ErDiagramModule` — each populates `nodeMap[nodeId] = filePath` during generation |
+
+**Acceptance:** Each new module generates meaningful diagrams for appropriate repos. Returns null when not applicable. All modules populate `nodeMap`. Existing 110 tests still pass + new module tests.
+
+---
+
+### 4.3 — Registry & Wiring
+
+| Task | Status | Description |
+|------|--------|-------------|
+| 4.3.1 | | Update `createDefaultRegistry()` in `DiagramRegistry.ts` with new 9-module portfolio: always-on AST (dependency-graph, module-boundaries, circular-dependencies, package-boundaries), always-on LLM (high-level-architecture), signal-gated AST (er-diagram), signal-gated hybrid/LLM (state-management, api-entity-mapping, deployment-infra) |
+| 4.3.2 | | Remove `ComponentHierarchyModule`, `ApiFlowModule`, `CiCdPipelineModule` from default registry (keep files for backward compat) |
+| 4.3.3 | | Update `index.ts` exports to include new modules |
+| 4.3.4 | | Update `DiagramRegistry` tests for 9-module default registry |
+
+**Acceptance:** Registry selects correct modules for different repo signals. Build and all tests pass.
+
+---
+
+### 4.4 — Frontend UI Overhaul — Control Panel, Zoom, Fullscreen
+
+| Task | Status | Description |
+|------|--------|-------------|
+| 4.4.1 | | Extract `MermaidDiagramViewer` into `packages/backstage/plugin/src/components/MermaidDiagramViewer.tsx` — handles rendering, zoom/pan state, control panel, fullscreen, click handlers. Props: `{ id, mermaid, nodeMap?, onNodeClick? }` |
+| 4.4.2 | | Zoom & Pan via CSS `transform: scale() translate()` — wheel zoom (`onWheel`), drag-to-pan (`onMouseDown/Move/Up`), scale clamped [0.3, 3.0]. No new deps |
+| 4.4.3 | | Control panel toolbar per diagram: `[+] [-] [Reset] [Fullscreen] [Download SVG]` — MUI `IconButton` + `Tooltip` |
+| 4.4.4 | | Fullscreen mode via MUI `<Dialog fullScreen>` — standalone viewer with its own zoom/pan state, close button, title bar with AI/AST badge |
+| 4.4.5 | | Clickable nodes — after SVG render, query `.node` elements, match IDs against `nodeMap`, add `cursor: pointer` + hover highlight + click handler (copies file path to clipboard with toast). Works despite `securityLevel: 'strict'` since listeners are post-render DOM manipulation |
+| 4.4.6 | | Download SVG — serialize via `XMLSerializer`, create Blob, trigger download as `{title}-{timestamp}.svg` |
+| 4.4.7 | | Update `DiagramCard` and `DiagramsContent` to use new `MermaidDiagramViewer` component |
+
+**Acceptance:** Each diagram has a control panel with working zoom/pan, fullscreen expands to full viewport, nodes are clickable (show file path toast), SVG download works. Dark/light theme compatible.
+
+---
+
+## Phase 5: QnA Pipeline
 **Goal:** Chat tab where users ask questions about the repo and get grounded, sourced answers.
 
 **Depends on:** Phase 1 (CIG), Phase 2 (doc sections to index), Phase 3 (diagram descriptions to index)
 
 ---
 
-### 4.1 — Embedding Client + Cache
+### 5.1 — Embedding Client + Cache
 
 - [ ] Create `EmbeddingClient` abstraction
 - [ ] Implement with OpenAI `text-embedding-3-small`
@@ -679,7 +755,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 4.2 — Chunking Service
+### 5.2 — Chunking Service
 
 - [ ] Create `ChunkingService` using CIG:
   - For each symbol in `ci_cig_nodes`: create code chunk with full metadata
@@ -693,7 +769,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 4.3 — Indexing Service
+### 5.3 — Indexing Service
 
 - [ ] Create `IndexingService`:
   - `indexRepo(repoId)` — chunks all layers, embeds, upserts to `ci_qna_embeddings`
@@ -706,7 +782,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 4.4 — Retrieval Service
+### 5.4 — Retrieval Service
 
 - [ ] Create `RetrievalService`:
   - `retrieve(repoId, query, queryEmbedding)` → top chunks
@@ -721,7 +797,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 4.5 — Context Assembly Service
+### 5.5 — Context Assembly Service
 
 - [ ] Create `ContextAssemblyService`:
   - For each retrieved chunk, expand with CIG data:
@@ -736,7 +812,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 4.6 — QnA Service
+### 5.6 — QnA Service
 
 - [ ] Create `QnAService`:
   - `ask(sessionId, question)` → structured response
@@ -757,7 +833,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 4.7 — QnA Frontend Tab
+### 5.7 — QnA Frontend Tab
 
 - [ ] Create `EntityQnATab` component:
   - Chat UI: message list + input box
@@ -774,14 +850,14 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-## Phase 5: Integration & Cross-Feature Enrichment
+## Phase 6: Integration & Cross-Feature Enrichment
 **Goal:** The three features work together. Webhooks keep everything fresh automatically.
 
-**Depends on:** Phases 1-4 complete
+**Depends on:** Phases 1-5 complete
 
 ---
 
-### 5.1 — Webhook Endpoints
+### 6.1 — Webhook Endpoints
 
 - [ ] `POST /api/codeinsight/webhooks/github` — verify HMAC signature + trigger ingestion
 - [ ] `POST /api/codeinsight/webhooks/gitlab` — verify token + trigger ingestion
@@ -793,7 +869,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 5.2 — Cross-Feature QnA Enrichment
+### 6.2 — Cross-Feature QnA Enrichment
 
 - [ ] When QnA query mentions a diagram: include diagram description in context
 - [ ] When QnA query has generative intent ("show me", "diagram", "flow of"):
@@ -809,7 +885,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 5.3 — Token Usage Dashboard
+### 6.3 — Token Usage Dashboard
 
 - [ ] Aggregate `tokens_used` from `ci_ingestion_jobs` and `ci_qna_messages`
 - [ ] Show in Backstage: "This month: X tokens used, estimated cost $Y"
@@ -820,7 +896,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 5.4 — Error Handling + Resilience
+### 6.4 — Error Handling + Resilience
 
 - [ ] LLM call failures: retry with exponential backoff (max 3 retries)
 - [ ] If LLM call fails after retries: mark artifact with `error` status, don't block other artifacts
@@ -831,14 +907,14 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-## Phase 6: Open Source Release
+## Phase 7: Open Source Release
 **Goal:** Plugin is installable by anyone from npm. Contribution-ready.
 
-**Depends on:** Phases 1-5 complete and stable
+**Depends on:** Phases 1-6 complete and stable
 
 ---
 
-### 6.1 — Configuration
+### 7.1 — Configuration
 
 - [ ] All settings configurable via Backstage `app-config.yaml`:
   ```yaml
@@ -864,7 +940,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 6.2 — Package Structure
+### 7.2 — Package Structure
 
 - [ ] `@codeinsight/backstage-plugin` — frontend plugin
 - [ ] `@codeinsight/backstage-plugin-backend` — backend plugin
@@ -874,7 +950,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 6.3 — Documentation
+### 7.3 — Documentation
 
 - [ ] `README.md` — installation, quick start, configuration reference
 - [ ] `CONTRIBUTING.md` — how to add new prompt modules, diagram modules, language support
@@ -883,7 +959,7 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 6.4 — CI/CD for the Plugin
+### 7.4 — CI/CD for the Plugin
 
 - [ ] GitHub Actions: test, lint, build on PR
 - [ ] Automated npm publish on tag
@@ -898,8 +974,9 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 | 1 | CIG built and stored | Clone, parse, structure any repo |
 | 2 | Docs tab working | AI docs, delta cache, token efficiency |
 | 3 | Diagrams tab working | Pure-AST + LLM diagrams, Mermaid render |
-| 4 | QnA tab working | RAG pipeline, grounded answers, sources |
-| 5 | Webhooks + enrichment | Automated freshness, cross-feature links |
-| 6 | npm release | Open source installable plugin |
+| 4 | Diagram overhaul | High-value architecture diagrams, interactive UI with zoom/fullscreen/clickable nodes |
+| 5 | QnA tab working | RAG pipeline, grounded answers, sources |
+| 6 | Webhooks + enrichment | Automated freshness, cross-feature links |
+| 7 | npm release | Open source installable plugin |
 
 Each phase is a shippable increment. Phase 2 alone is useful without diagrams or QnA. Phase 3 alone (with pure-AST diagrams) is useful without an LLM key.
