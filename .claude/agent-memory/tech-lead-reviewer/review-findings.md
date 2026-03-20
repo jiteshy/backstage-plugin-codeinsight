@@ -24,7 +24,7 @@ Verdict: YELLOW (approve with 2 must-fix issues)
 
 ---
 
-## Phase 2 Documentation Generation Review (2026-03-20)
+## Phase 2 Documentation Generation Review (2026-03-20) — First Pass
 Verdict: YELLOW (1 critical gap, proceed after fix)
 
 ### Critical
@@ -45,6 +45,30 @@ Verdict: YELLOW (1 critical gap, proceed after fix)
 - InProcessJobQueue with semaphore-based concurrency
 - Frontend: proper annotation-driven, polling, stale indicators
 - Config always injected, no process.env in core/adapters
+
+---
+
+## Phase 2 Completion Review / Phase 3 Readiness (2026-03-20) — Second Pass
+Verdict: GREEN (ready to proceed to Phase 3)
+
+All previous YELLOW issues resolved. DocGenerationService wired. RetryingLLMClient added. UI redesigned into unified tab.
+
+### Carried Debt (non-blocking)
+1. No ErrorApi/AlertApi in frontend -- errors shown inline (functional, not idiomatic)
+2. deleteRepoFilesNotIn defined in StorageAdapter but never called -- orphan file cleanup missing
+3. GET /repos/:repoId/docs has N+1 query (getArtifactInputs per artifact)
+4. No frontend component tests (only API client tests)
+5. 35 lint warnings in test files (all no-explicit-any)
+6. promptVersion always null
+
+### Phase 3 Readiness Assessment
+- DiagramContent discriminated union already defined in data.ts
+- getArtifactsByType('diagram') already implemented in KnexStorageAdapter
+- CIG nodes/edges available (dependency graph, schema nodes, route nodes)
+- LLM client + cache + retry chain ready for LLM-assisted diagrams
+- Unified frontend already has Diagrams tab placeholder ("Coming soon")
+- Phase 3 build plan (3.1-3.5) is well-scoped and has clear acceptance criteria
+- Phase 3 can reuse DocGenerationService patterns: Semaphore, ContextBuilder, PromptRegistry
 
 ---
 

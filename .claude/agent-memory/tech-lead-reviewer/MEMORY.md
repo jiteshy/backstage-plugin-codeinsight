@@ -2,8 +2,9 @@
 
 ## Project Status
 - Phase 1 COMPLETE (all 11 sub-phases 1.0-1.10)
-- Phase 2 YELLOW verdict (2026-03-20): 1 critical gap (DocGenerationService not wired)
-- All Phase 2 sub-phases 2.0-2.7 code exists but end-to-end not functional
+- Phase 2 COMPLETE (all 2.0-2.8 sub-phases done) -- GREEN verdict 2026-03-20
+- Previous YELLOW issues all resolved: DocGenService wired, RetryingLLMClient added, UI redesigned
+- Phase 3 (Diagram Generation) ready to start
 - See `review-findings.md` for detailed review history
 
 ## Key Files
@@ -12,18 +13,20 @@
 - `docs/architecture-guide.md` -- onboarding doc for newcomers
 - `CLAUDE.md` -- project instructions and hard rules
 
-## Phase 2 Outstanding Issues
-1. **CRITICAL**: DocGenerationService not wired into backend/ingestion pipeline -- docs never generated
-2. **IMPORTANT**: LLM cache key diverges from spec (actual: SHA256(sysPrompt+userPrompt+model), spec: SHA256(prompt_file_sha+input_sha+model))
-3. Prompts hardcoded in PromptRegistry.ts, not loaded from prompts/*.md files at runtime
-4. EntityDocumentationTab not registered as Backstage extension (just exported component)
-5. promptVersion always null -- prompt versioning deferred
-6. No LLM retry logic (deferred to Phase 5.4)
+## Phase 2 Resolved Items
+- DocGenerationService wired into IngestionService.runPipeline() + plugin.ts composition root
+- RetryingLLMClient added (rate-limit backoff, 10s/20s/40s + jitter, retry-after header support)
+- EntityDocumentationTab collapsed into unified EntityCodeInsightContent (single tab, inner tabs)
+- LLM cache key: rendered prompt text, not prompt_file_sha (spec updated to match)
+- Prompts hardcoded in PromptRegistry.ts (design spec .md files kept separately)
+- promptVersion always null -- deferred, acceptable for v1
 
-## Phase 2 Test Status
-- 604 unit tests pass (24 suites)
-- 3 integration test suites fail (need Postgres on port 5433, expected)
-- Key test files: DocGenerationService.test.ts (8), ClassifierService.test.ts (20), ContextBuilder.test.ts (8), PromptRegistry.test.ts (7), StalenessService.test.ts (12), CachingLLMClient.test.ts, router.test.ts (18)
+## Known Debt Entering Phase 3
+1. No ErrorApi/AlertApi usage in frontend (errors shown inline, functional but not Backstage-idiomatic)
+2. deleteRepoFilesNotIn defined in interface but not called from IngestionService (orphan file cleanup missing)
+3. GET /repos/:repoId/docs has N+1 query pattern (getArtifactInputs per artifact)
+4. Frontend tests missing (only API client tests, no component tests)
+5. 35 lint warnings in test files (all `no-explicit-any`, no errors)
 
 ## Architectural Decisions (Established -- Do Not Re-litigate)
 - CIG built via Tree-sitter AST, zero LLM, shared by all 3 features
