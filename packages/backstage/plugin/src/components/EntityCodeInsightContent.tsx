@@ -475,10 +475,7 @@ function MermaidDiagram({ id, mermaid: mermaidSrc }: { id: string; mermaid: stri
         const mermaidInstance = mermaidLib.default;
 
         if (!mermaidInitialized) {
-          // securityLevel: 'loose' — allows mermaid to attach click handlers on nodes.
-          // Safe here because diagrams are produced by our own controlled pipeline,
-          // not from direct user input.
-          mermaidInstance.initialize({ startOnLoad: false, securityLevel: 'loose' });
+          mermaidInstance.initialize({ startOnLoad: false, securityLevel: 'strict' });
           mermaidInitialized = true;
         }
 
@@ -514,7 +511,7 @@ function MermaidDiagram({ id, mermaid: mermaidSrc }: { id: string; mermaid: stri
     );
   }
 
-  return <Box ref={containerRef} className={classes.diagramMermaidContainer} />;
+  return <div ref={containerRef} className={classes.diagramMermaidContainer} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -544,9 +541,14 @@ function DiagramCard({ diagram }: { diagram: DiagramSection }) {
           />
         </Box>
       </Box>
-      <Typography className={classes.diagramMeta} style={{ marginBottom: 8 }}>
+      <Typography className={classes.diagramMeta} style={{ marginBottom: diagram.description ? 4 : 8 }}>
         {diagram.diagramType} · {diagram.artifactId}
       </Typography>
+      {diagram.description && (
+        <Typography variant="body2" color="textSecondary" style={{ fontSize: '0.78rem', marginBottom: 8 }}>
+          {diagram.description}
+        </Typography>
+      )}
       {diagram.mermaid ? (
         <MermaidDiagram id={diagram.artifactId} mermaid={diagram.mermaid} />
       ) : (

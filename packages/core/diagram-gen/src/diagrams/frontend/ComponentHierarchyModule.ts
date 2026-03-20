@@ -10,7 +10,7 @@ import type { CIGSnapshot, DiagramModule, MermaidDiagram } from '../../types';
 export class ComponentHierarchyModule implements DiagramModule {
   readonly id = 'frontend/component-hierarchy';
   readonly requires = ['nodes', 'edges'] as const;
-  readonly triggersOn = ['framework:react', 'framework:angular'] as const;
+  readonly triggersOn: readonly string[] = [];
   readonly llmNeeded = false;
 
   private static readonly MAX_EDGES = 80;

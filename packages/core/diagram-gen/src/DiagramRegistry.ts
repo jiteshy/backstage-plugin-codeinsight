@@ -1,10 +1,10 @@
 import { ApiFlowModule } from './diagrams/backend/ApiFlowModule';
-import { RequestLifecycleModule } from './diagrams/backend/RequestLifecycleModule';
 import { ComponentHierarchyModule } from './diagrams/frontend/ComponentHierarchyModule';
-import { StateFlowModule } from './diagrams/frontend/StateFlowModule';
 import { CiCdPipelineModule } from './diagrams/universal/CiCdPipelineModule';
+import { CircularDependencyModule } from './diagrams/universal/CircularDependencyModule';
 import { DependencyGraphModule } from './diagrams/universal/DependencyGraphModule';
 import { ErDiagramModule } from './diagrams/universal/ErDiagramModule';
+import { PackageBoundaryModule } from './diagrams/universal/PackageBoundaryModule';
 import type { DiagramModule } from './types';
 
 /**
@@ -28,13 +28,11 @@ export class DiagramRegistry {
    * Return modules applicable for the given set of detected signals.
    * Modules are returned in registration order.
    *
-   * @param detectedSignals - e.g. { orm: 'prisma', framework: 'react' }
+   * @param signals - Array of 'category:value' strings, e.g. ['framework:react', 'orm:prisma'].
+   *   Produced by SignalDetector (AST-based) and/or ClassifierService (LLM-based).
    */
-  selectModules(detectedSignals: Record<string, string>): DiagramModule[] {
-    const signalSet = new Set<string>();
-    for (const [category, value] of Object.entries(detectedSignals)) {
-      signalSet.add(`${category}:${value}`);
-    }
+  selectModules(signals: string[]): DiagramModule[] {
+    const signalSet = new Set(signals);
 
     const selected: DiagramModule[] = [];
     for (const module of this.modules.values()) {
@@ -63,15 +61,23 @@ export class DiagramRegistry {
 
 export function createDefaultRegistry(): DiagramRegistry {
   const registry = new DiagramRegistry();
-  // Pure AST (always-on)
+
+  // ── Always-on, pure AST ──────────────────────────────────────────────────
+  // These run for every repo. Each module self-terminates (returns null) if
+  // it has nothing meaningful to show (e.g. no cycles, single package, etc.)
   registry.register(new DependencyGraphModule());
   registry.register(new ComponentHierarchyModule());
-  // Pure AST (signal-gated)
-  registry.register(new ErDiagramModule());
-  // LLM-assisted
-  registry.register(new ApiFlowModule());
-  registry.register(new RequestLifecycleModule());
-  registry.register(new CiCdPipelineModule());
-  registry.register(new StateFlowModule());
+  registry.register(new CircularDependencyModule());
+  registry.register(new PackageBoundaryModule());
+
+  // ── Signal-gated, pure AST ───────────────────────────────────────────────
+  // Run when the relevant technology is detected — no LLM required.
+  registry.register(new ErDiagramModule()); // triggers on orm:prisma
+
+  // ── Signal-gated, LLM-assisted ───────────────────────────────────────────
+  // Only run when (a) the relevant signal is present AND (b) an LLM is configured.
+  registry.register(new ApiFlowModule());    // triggers on framework:express/fastify/koa/nestjs
+  registry.register(new CiCdPipelineModule()); // triggers on ci:github-actions/gitlab-ci/etc.
+
   return registry;
 }

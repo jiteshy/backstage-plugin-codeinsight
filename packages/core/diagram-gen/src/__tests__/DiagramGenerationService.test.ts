@@ -175,11 +175,13 @@ function makeFreshArtifact(moduleId: string, inputSha: string): Artifact {
 /**
  * Compute the same 16-char SHA that DiagramGenerationService uses, so tests
  * can match the exact inputSha value.
+ * Must include the moduleId since DiagramGenerationService now prefixes hashes
+ * with the module ID to ensure per-module independence.
  */
-function computeInputSha(nodes: CIGNode[], edges: CIGEdge[]): string {
+function computeInputSha(nodes: CIGNode[], edges: CIGEdge[], moduleId: string): string {
   const nodeIds = nodes.map(n => n.nodeId).sort();
   const edgeIds = edges.map(e => e.edgeId).sort();
-  const payload = [...nodeIds, '---', ...edgeIds].join('\n');
+  const payload = [moduleId, ...nodeIds, '---', ...edgeIds].join('\n');
   return createHash('sha256').update(payload).digest('hex').slice(0, 16);
 }
 
@@ -212,7 +214,7 @@ describe('DiagramGenerationService', () => {
     });
 
     it('skips a module when existing artifact is fresh and inputSha matches', async () => {
-      const sha = computeInputSha(CIG_NODES, CIG_EDGES);
+      const sha = computeInputSha(CIG_NODES, CIG_EDGES, 'universal/dep-graph');
       const freshArtifact = makeFreshArtifact('universal/dep-graph', sha);
       const storage = makeStorageAdapter({ existingArtifact: freshArtifact });
       const mod = makeAstModule('universal/dep-graph');
@@ -232,7 +234,7 @@ describe('DiagramGenerationService', () => {
     });
 
     it('regenerates when existing artifact is stale (even if inputSha matches)', async () => {
-      const sha = computeInputSha(CIG_NODES, CIG_EDGES);
+      const sha = computeInputSha(CIG_NODES, CIG_EDGES, 'universal/dep-graph');
       const staleArtifact: Artifact = {
         ...makeFreshArtifact('universal/dep-graph', sha),
         isStale: true,

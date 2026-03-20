@@ -51,9 +51,8 @@ describe('ComponentHierarchyModule', () => {
   it('has the expected static properties', () => {
     expect(module.id).toBe('frontend/component-hierarchy');
     expect(module.llmNeeded).toBe(false);
-    // Signal-gated on framework signals
-    expect(module.triggersOn).toContain('framework:react');
-    expect(module.triggersOn).toContain('framework:angular');
+    // Always-on — runs for every repo, self-terminates when no component files found
+    expect(module.triggersOn).toHaveLength(0);
   });
 
   describe('generate()', () => {
