@@ -20,12 +20,25 @@ auth:
   providers:
     guest: {}
 
+integrations:
+  github:
+    - host: github.com
+      token: ${GITHUB_TOKEN}
+
 catalog:
   rules:
     - allow: [Component, API, Resource, System, Domain, Location]
-  locations:
-    - type: file
-      target: ../catalog-info.yaml
+  providers:
+    github:
+      jiteshy:
+        organization: jiteshy
+        catalogPath: /catalog-info.yaml
+        filters:
+          branch: main
+        validateLocationsExist: false
+        schedule:
+          frequency: { minutes: 30 }
+          timeout: { minutes: 3 }
 
 codeinsight:
   cloneTempDir: /tmp/codeinsight-clones
