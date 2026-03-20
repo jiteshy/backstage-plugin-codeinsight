@@ -10,6 +10,18 @@ export interface DocSection {
   tokensUsed: number;
 }
 
+export interface DiagramSection {
+  artifactId: string;
+  title: string;
+  diagramType: string;
+  mermaid: string;
+  isStale: boolean;
+  staleReason?: string | null;
+  llmUsed: boolean;
+  generatedAt: string;
+  tokensUsed: number;
+}
+
 export interface CodeInsightApi {
   triggerIngestion(repoId: string, repoUrl: string): Promise<{ jobId: string }>;
   getJobStatus(
@@ -20,6 +32,7 @@ export interface CodeInsightApi {
     repoId: string,
   ): Promise<{ status: string; lastCommitSha?: string; updatedAt?: string }>;
   getDocs(repoId: string): Promise<DocSection[]>;
+  getDiagrams(repoId: string): Promise<DiagramSection[]>;
 }
 
 export const codeInsightApiRef = createApiRef<CodeInsightApi>({

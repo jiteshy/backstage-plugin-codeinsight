@@ -25,9 +25,9 @@ import Tab from '@material-ui/core/Tab';
 import Tabs from '@material-ui/core/Tabs';
 import Tooltip from '@material-ui/core/Tooltip';
 import Typography from '@material-ui/core/Typography';
-import { useCallback, useEffect, useRef, useState } from 'react'; // useEffect/useState still used by main component
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { codeInsightApiRef, DocSection } from '../api';
+import { codeInsightApiRef, DiagramSection, DocSection } from '../api';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -285,6 +285,62 @@ const useStyles = makeStyles(theme => ({
     '& > *': { pointerEvents: 'all' as const },
   },
   errorText: { color: theme.palette.error.main },
+
+  // ── Diagrams tab ──────────────────────────────────────────────────────────
+  diagramsGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))',
+    gap: theme.spacing(3),
+    marginTop: theme.spacing(2),
+  },
+  diagramCard: {
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: 6,
+    padding: theme.spacing(2),
+    backgroundColor: theme.palette.background.paper,
+    overflow: 'hidden',
+  },
+  diagramCardHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing(1),
+  },
+  diagramTitle: {
+    fontWeight: 600,
+    fontSize: '0.9rem',
+  },
+  diagramMeta: {
+    fontSize: '0.72rem',
+    color: theme.palette.text.disabled,
+  },
+  diagramMermaidContainer: {
+    overflow: 'auto',
+    background: theme.palette.type === 'dark' ? '#1e1e1e' : '#fafafa',
+    borderRadius: 4,
+    padding: theme.spacing(1),
+    minHeight: 120,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    '& svg': {
+      maxWidth: '100%',
+    },
+  },
+  diagramError: {
+    fontFamily: 'monospace',
+    fontSize: '0.7rem',
+    color: theme.palette.error.main,
+    whiteSpace: 'pre-wrap' as const,
+    wordBreak: 'break-all' as const,
+  },
+  diagramStatsBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing(0.5),
+    flexWrap: 'wrap' as const,
+    marginBottom: theme.spacing(2),
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -396,6 +452,196 @@ function DocSectionCard({ section }: { section: DocSection }) {
         </Typography>
       )}
     </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MermaidDiagram — renders a single Mermaid diagram via mermaid.js
+// ---------------------------------------------------------------------------
+
+let mermaidInitialized = false;
+
+function MermaidDiagram({ id, mermaid: mermaidSrc }: { id: string; mermaid: string }) {
+  const classes = useStyles();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function render() {
+      try {
+        const mermaidLib = await import('mermaid');
+        const mermaidInstance = mermaidLib.default;
+
+        if (!mermaidInitialized) {
+          // securityLevel: 'loose' — allows mermaid to attach click handlers on nodes.
+          // Safe here because diagrams are produced by our own controlled pipeline,
+          // not from direct user input.
+          mermaidInstance.initialize({ startOnLoad: false, securityLevel: 'loose' });
+          mermaidInitialized = true;
+        }
+
+        if (!containerRef.current || cancelled) return;
+
+        const svgId = `mermaid-${id.replaceAll(/[^a-zA-Z0-9]/g, '-')}`;
+        const { svg } = await mermaidInstance.render(svgId, mermaidSrc);
+
+        if (!containerRef.current || cancelled) return;
+        containerRef.current.innerHTML = svg;
+        setRenderError(null);
+      } catch (err) {
+        if (!cancelled) {
+          setRenderError(String(err));
+        }
+      }
+    }
+
+    render();
+    return () => { cancelled = true; };
+  }, [id, mermaidSrc]);
+
+  if (renderError) {
+    return (
+      <Box className={classes.diagramMermaidContainer}>
+        <Box>
+          <Typography variant="body2" className={classes.errorText} style={{ marginBottom: 4 }}>
+            Failed to render diagram
+          </Typography>
+          <Typography className={classes.diagramError}>{mermaidSrc}</Typography>
+        </Box>
+      </Box>
+    );
+  }
+
+  return <Box ref={containerRef} className={classes.diagramMermaidContainer} />;
+}
+
+// ---------------------------------------------------------------------------
+// DiagramCard
+// ---------------------------------------------------------------------------
+
+function DiagramCard({ diagram }: { diagram: DiagramSection }) {
+  const classes = useStyles();
+
+  return (
+    <Box className={classes.diagramCard}>
+      <Box className={classes.diagramCardHeader}>
+        <Typography className={classes.diagramTitle}>{diagram.title}</Typography>
+        <Box display="flex" alignItems="center" style={{ gap: 6 }}>
+          {diagram.isStale && (
+            <Chip
+              size="small"
+              label="Stale"
+              className={classes.staleChip}
+              title={`Stale reason: ${diagram.staleReason ?? 'unknown'}`}
+            />
+          )}
+          <Chip
+            size="small"
+            label={diagram.llmUsed ? 'AI' : 'AST'}
+            title={diagram.llmUsed ? 'Generated with LLM assistance' : 'Generated from AST — no LLM required'}
+          />
+        </Box>
+      </Box>
+      <Typography className={classes.diagramMeta} style={{ marginBottom: 8 }}>
+        {diagram.diagramType} · {diagram.artifactId}
+      </Typography>
+      {diagram.mermaid ? (
+        <MermaidDiagram id={diagram.artifactId} mermaid={diagram.mermaid} />
+      ) : (
+        <Box className={classes.diagramMermaidContainer}>
+          <Typography variant="body2" color="textSecondary">No diagram content available.</Typography>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DiagramsContent
+// ---------------------------------------------------------------------------
+
+function DiagramsContent({
+  diagrams,
+  loadError,
+  isFirstRun,
+}: {
+  diagrams: DiagramSection[] | null;
+  loadError: string | null;
+  isFirstRun: boolean;
+}) {
+  const classes = useStyles();
+
+  if (loadError) {
+    return (
+      <Typography variant="body2" className={classes.errorText}>
+        Failed to load diagrams: {loadError}
+      </Typography>
+    );
+  }
+
+  if (!diagrams) {
+    return (
+      <Box display="flex" alignItems="center" style={{ gap: 8 }}>
+        <CircularProgress size={16} />
+        <Typography variant="body2">Loading diagrams...</Typography>
+      </Box>
+    );
+  }
+
+  if (diagrams.length === 0) {
+    return (
+      <Box className={classes.emptyState}>
+        <Typography variant="h6">No diagrams yet</Typography>
+        <Typography variant="body2">
+          {isFirstRun
+            ? 'Click "Analyze Repository" above to generate diagrams for this repository.'
+            : 'No diagrams found. Try clicking "Sync Changes" to refresh.'}
+        </Typography>
+      </Box>
+    );
+  }
+
+  const astCount = diagrams.filter(d => !d.llmUsed).length;
+  const llmCount = diagrams.filter(d => d.llmUsed).length;
+  const staleCount = diagrams.filter(d => d.isStale).length;
+
+  return (
+    <div>
+      <Box className={classes.diagramStatsBar}>
+        <Box component="span" className={classes.docStatsBadge}>
+          {diagrams.length} {diagrams.length === 1 ? 'diagram' : 'diagrams'}
+        </Box>
+        {astCount > 0 && (
+          <>
+            <Typography className={classes.docStatsSep}>·</Typography>
+            <Box component="span" className={classes.docStatsBadge}>
+              {astCount} AST
+            </Box>
+          </>
+        )}
+        {llmCount > 0 && (
+          <>
+            <Typography className={classes.docStatsSep}>·</Typography>
+            <Box component="span" className={classes.docStatsBadge}>
+              {llmCount} AI-assisted
+            </Box>
+          </>
+        )}
+        {staleCount > 0 && (
+          <>
+            <Typography className={classes.docStatsSep}>·</Typography>
+            <Chip size="small" label={`${staleCount} stale`} className={classes.staleChip} />
+          </>
+        )}
+      </Box>
+      <Box className={classes.diagramsGrid}>
+        {diagrams.map(diagram => (
+          <DiagramCard key={diagram.artifactId} diagram={diagram} />
+        ))}
+      </Box>
+    </div>
   );
 }
 
@@ -549,6 +795,8 @@ function CodeInsightContentInner() {
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [docs, setDocs] = useState<DocSection[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [diagrams, setDiagrams] = useState<DiagramSection[] | null>(null);
+  const [diagramLoadError, setDiagramLoadError] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
   // Job lifecycle
@@ -580,6 +828,18 @@ function CodeInsightContentInner() {
     api.getDocs(repoId).then(
       result => { if (!cancelled) setDocs(result); },
       err => { if (!cancelled) setLoadError(String(err)); },
+    );
+    return () => { cancelled = true; };
+  }, [api, repoId, refreshToken]);
+
+  // Load diagrams on mount and after each completed job
+  useEffect(() => {
+    if (!repoId) return undefined;
+    let cancelled = false;
+    setDiagramLoadError(null);
+    api.getDiagrams(repoId).then(
+      result => { if (!cancelled) setDiagrams(result); },
+      err => { if (!cancelled) setDiagramLoadError(String(err)); },
     );
     return () => { cancelled = true; };
   }, [api, repoId, refreshToken]);
@@ -752,9 +1012,10 @@ function CodeInsightContentInner() {
           <DocumentationContent docs={docs} loadError={loadError} isFirstRun={isFirstRun} />
         )}
         {activeTab === 'diagrams' && (
-          <ComingSoonContent
-            feature="Diagrams"
-            description="Architecture diagrams, sequence diagrams, and entity-relationship diagrams will appear here once generated."
+          <DiagramsContent
+            diagrams={diagrams}
+            loadError={diagramLoadError}
+            isFirstRun={isFirstRun}
           />
         )}
         {activeTab === 'qna' && (

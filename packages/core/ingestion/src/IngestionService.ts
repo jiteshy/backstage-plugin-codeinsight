@@ -29,7 +29,23 @@ import { StalenessService } from './StalenessService';
 // ---------------------------------------------------------------------------
 
 interface DocGenerator {
-  generateDocs(repoId: string, cloneDir: string): Promise<{ totalTokensUsed: number }>;
+  generateDocs(
+    repoId: string,
+    cloneDir: string,
+  ): Promise<{ totalTokensUsed: number; detectedSignals: Record<string, string> }>;
+}
+
+// ---------------------------------------------------------------------------
+// DiagramGenerator — minimal duck-type interface so IngestionService does not
+// depend on @codeinsight/diagram-gen directly. DiagramGenerationService satisfies
+// this structurally.
+// ---------------------------------------------------------------------------
+
+interface DiagramGenerator {
+  generateDiagrams(
+    repoId: string,
+    detectedSignals?: Record<string, string>,
+  ): Promise<{ totalTokensUsed: number }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -53,6 +69,7 @@ export class IngestionService {
   private readonly fileFilter: FileFilter;
   private readonly stalenessService: StalenessService;
   private readonly docGenerator?: DocGenerator;
+  private readonly diagramGenerator?: DiagramGenerator;
 
   constructor(
     private readonly repoConnector: RepoConnector,
@@ -62,12 +79,14 @@ export class IngestionService {
     cigBuilder?: CIGBuilder,
     stalenessService?: StalenessService,
     docGenerator?: DocGenerator,
+    diagramGenerator?: DiagramGenerator,
   ) {
     this.cigBuilder = cigBuilder ?? createDefaultCIGBuilder();
     this.cigPersistence = new CIGPersistenceService(storageAdapter, logger);
     this.fileFilter = new FileFilter(config.fileFilter);
     this.stalenessService = stalenessService ?? new StalenessService(storageAdapter, logger);
     this.docGenerator = docGenerator;
+    this.diagramGenerator = diagramGenerator;
   }
 
   // ---------------------------------------------------------------------------
@@ -261,11 +280,13 @@ export class IngestionService {
       // Run doc generation (if an LLM client is configured).
       // Must run before the finally block that deletes cloneDir.
       let tokensConsumed = 0;
+      let detectedSignals: Record<string, string> = {};
       if (this.docGenerator) {
         try {
           this.logger.info('Starting doc generation', { repoId, jobId });
           const docResult = await this.docGenerator.generateDocs(repoId, cloneDir);
           tokensConsumed = docResult.totalTokensUsed;
+          detectedSignals = docResult.detectedSignals;
           this.logger.info('Doc generation complete', {
             repoId,
             jobId,
@@ -277,6 +298,27 @@ export class IngestionService {
             repoId,
             jobId,
             error: String(docErr),
+          });
+        }
+      }
+
+      // Run diagram generation (after CIG is persisted; uses CIG from DB).
+      // Non-fatal — CIG + doc pipeline already succeeded.
+      if (this.diagramGenerator) {
+        try {
+          this.logger.info('Starting diagram generation', { repoId, jobId });
+          const diagramResult = await this.diagramGenerator.generateDiagrams(repoId, detectedSignals);
+          tokensConsumed += diagramResult.totalTokensUsed;
+          this.logger.info('Diagram generation complete', {
+            repoId,
+            jobId,
+            tokensConsumed: diagramResult.totalTokensUsed,
+          });
+        } catch (diagErr) {
+          this.logger.error('Diagram generation failed (non-fatal)', {
+            repoId,
+            jobId,
+            error: String(diagErr),
           });
         }
       }

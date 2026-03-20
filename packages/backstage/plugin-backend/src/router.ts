@@ -3,7 +3,7 @@ import {
   LoggerService,
   RootConfigService,
 } from '@backstage/backend-plugin-api';
-import type { DocContent, JobQueue, StorageAdapter } from '@codeinsight/types';
+import type { DiagramContent, DocContent, JobQueue, StorageAdapter } from '@codeinsight/types';
 import express from 'express';
 import Router from 'express-promise-router';
 
@@ -143,6 +143,43 @@ export async function createRouter(
     docs.sort((a, b) => a.artifactId.localeCompare(b.artifactId));
 
     res.json(docs);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 3.5 — Get diagram artifacts
+  // GET /repos/:repoId/diagrams
+  // Returns all diagram artifacts for the repo
+  // ---------------------------------------------------------------------------
+
+  router.get('/repos/:repoId/diagrams', async (req, res) => {
+    const { repoId } = req.params;
+
+    const repo = await storageAdapter.getRepo(repoId);
+    if (!repo) {
+      res.status(404).json({ error: 'Repo not found' });
+      return;
+    }
+
+    const artifacts = await storageAdapter.getArtifactsByType(repoId, 'diagram');
+
+    const diagrams = artifacts.map(artifact => {
+      const content = artifact.content as DiagramContent | undefined | null;
+      return {
+        artifactId: artifact.artifactId,
+        title: content?.title ?? artifact.artifactId,
+        diagramType: content?.diagramType ?? 'unknown',
+        mermaid: content?.mermaid ?? '',
+        isStale: artifact.isStale,
+        staleReason: artifact.staleReason ?? null,
+        llmUsed: artifact.llmUsed,
+        generatedAt: artifact.generatedAt,
+        tokensUsed: artifact.tokensUsed,
+      };
+    });
+
+    diagrams.sort((a, b) => a.artifactId.localeCompare(b.artifactId));
+
+    res.json(diagrams);
   });
 
   return router;

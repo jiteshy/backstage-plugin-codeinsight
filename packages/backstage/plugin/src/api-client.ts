@@ -1,6 +1,6 @@
 import { DiscoveryApi, FetchApi } from '@backstage/core-plugin-api';
 
-import { CodeInsightApi, DocSection } from './api';
+import { CodeInsightApi, DiagramSection, DocSection } from './api';
 
 export class CodeInsightClient implements CodeInsightApi {
   private readonly discoveryApi: DiscoveryApi;
@@ -70,5 +70,16 @@ export class CodeInsightClient implements CodeInsightApi {
       throw new Error(`Failed to get docs: ${response.statusText}`);
     }
     return (await response.json()) as DocSection[];
+  }
+
+  async getDiagrams(repoId: string): Promise<DiagramSection[]> {
+    const base = await this.baseUrl();
+    const response = await this.fetchApi.fetch(
+      `${base}/repos/${encodeURIComponent(repoId)}/diagrams`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to get diagrams: ${response.statusText}`);
+    }
+    return (await response.json()) as DiagramSection[];
   }
 }
