@@ -24,10 +24,11 @@ export class DependencyGraphModule implements DiagramModule {
     }
 
     // Build a file-level graph: collapse symbol-level edges to file-level
+    const nodeById = new Map(cig.nodes.map(n => [n.nodeId, n]));
     const fileEdges = new Set<string>();
     for (const edge of importEdges) {
-      const fromNode = cig.nodes.find(n => n.nodeId === edge.fromNodeId);
-      const toNode = cig.nodes.find(n => n.nodeId === edge.toNodeId);
+      const fromNode = nodeById.get(edge.fromNodeId);
+      const toNode = nodeById.get(edge.toNodeId);
       if (!fromNode || !toNode) continue;
       if (fromNode.filePath === toNode.filePath) continue;
       fileEdges.add(`${fromNode.filePath}|||${toNode.filePath}`);
@@ -45,6 +46,8 @@ export class DependencyGraphModule implements DiagramModule {
     const useDirectoryCollapse = allFiles.size > DependencyGraphModule.MAX_NODES;
     const lines: string[] = ['graph TD'];
 
+    const nodeMap: Record<string, string> = {};
+
     if (useDirectoryCollapse) {
       const dirEdges = new Set<string>();
       for (const key of fileEdges) {
@@ -61,6 +64,9 @@ export class DependencyGraphModule implements DiagramModule {
         if (edgeCount >= DependencyGraphModule.MAX_EDGES) break;
         const [from, to] = key.split('|||');
         lines.push(`  ${this.nodeId(from)}["${from}"] --> ${this.nodeId(to)}["${to}"]`);
+        // For directory-collapse mode, map dir node ID to the dir path itself
+        nodeMap[this.nodeId(from)] = from;
+        nodeMap[this.nodeId(to)] = to;
         edgeCount++;
       }
     } else {
@@ -71,6 +77,8 @@ export class DependencyGraphModule implements DiagramModule {
         const fromLabel = this.shortName(from);
         const toLabel = this.shortName(to);
         lines.push(`  ${this.nodeId(from)}["${fromLabel}"] --> ${this.nodeId(to)}["${toLabel}"]`);
+        nodeMap[this.nodeId(from)] = from;
+        nodeMap[this.nodeId(to)] = to;
         edgeCount++;
       }
     }
@@ -87,6 +95,7 @@ export class DependencyGraphModule implements DiagramModule {
         ? 'Directory-level import dependencies (collapsed for large repo)'
         : 'File-level import dependencies',
       llmUsed: false,
+      nodeMap,
     };
   }
 

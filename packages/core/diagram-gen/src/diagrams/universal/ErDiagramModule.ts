@@ -26,9 +26,11 @@ export class ErDiagramModule implements DiagramModule {
     }
 
     const lines: string[] = ['erDiagram'];
+    const nodeMap: Record<string, string> = {};
 
     // Emit entity blocks with their fields
     for (const node of schemaNodes) {
+      nodeMap[this.safeName(node.symbolName)] = node.filePath;
       const fields = this.extractFields(node.metadata);
       if (fields.length === 0) {
         lines.push(`  ${this.safeName(node.symbolName)} {`);
@@ -76,6 +78,7 @@ export class ErDiagramModule implements DiagramModule {
       title: 'Entity Relationship Diagram',
       description: 'Database schema derived from Prisma models',
       llmUsed: false,
+      nodeMap,
     };
   }
 
