@@ -173,26 +173,28 @@ describe('DiagramRegistry', () => {
   // -------------------------------------------------------------------------
 
   describe('createDefaultRegistry()', () => {
-    it('registers exactly 7 built-in modules', () => {
+    it('registers exactly 9 built-in modules', () => {
       const defaultRegistry = createDefaultRegistry();
-      expect(defaultRegistry.getAllModules()).toHaveLength(7);
+      expect(defaultRegistry.getAllModules()).toHaveLength(9);
     });
 
-    it('includes all 4 always-on modules', () => {
+    it('includes 5 always-on modules (4 AST + 1 LLM)', () => {
       const defaultRegistry = createDefaultRegistry();
       const alwaysOn = defaultRegistry.getAllModules().filter(m => m.triggersOn.length === 0);
+      expect(alwaysOn).toHaveLength(5);
       expect(alwaysOn.map(m => m.id)).toEqual(expect.arrayContaining([
         'universal/dependency-graph',
-        'frontend/component-hierarchy',
+        'universal/module-boundaries',
         'universal/circular-dependencies',
         'universal/package-boundaries',
+        'universal/high-level-architecture',
       ]));
     });
 
-    it('selects all 4 always-on modules when signal list is empty', () => {
+    it('selects all 5 always-on modules when signal list is empty', () => {
       const defaultRegistry = createDefaultRegistry();
       const selected = defaultRegistry.selectModules([]);
-      expect(selected).toHaveLength(4);
+      expect(selected).toHaveLength(5);
     });
 
     it('adds ErDiagramModule when orm:prisma is detected', () => {
@@ -202,25 +204,58 @@ describe('DiagramRegistry', () => {
       expect(ids).toContain('universal/er-diagram');
     });
 
-    it('adds ApiFlowModule when framework:express is detected', () => {
+    it('adds ApiEntityMappingModule when framework:express is detected', () => {
       const defaultRegistry = createDefaultRegistry();
       const selected = defaultRegistry.selectModules(['framework:express']);
       const ids = selected.map(m => m.id);
-      expect(ids).toContain('backend/api-flow');
+      expect(ids).toContain('backend/api-entity-mapping');
     });
 
-    it('adds CiCdPipelineModule when ci:github-actions is detected', () => {
+    it('adds DeploymentInfraModule when ci:github-actions is detected', () => {
       const defaultRegistry = createDefaultRegistry();
       const selected = defaultRegistry.selectModules(['ci:github-actions']);
       const ids = selected.map(m => m.id);
-      expect(ids).toContain('universal/ci-cd-pipeline');
+      expect(ids).toContain('universal/deployment-infra');
     });
 
-    it('does not include removed modules (RequestLifecycle, StateFlow)', () => {
+    it('adds DeploymentInfraModule when infra:kubernetes is detected', () => {
+      const defaultRegistry = createDefaultRegistry();
+      const selected = defaultRegistry.selectModules(['infra:kubernetes']);
+      const ids = selected.map(m => m.id);
+      expect(ids).toContain('universal/deployment-infra');
+    });
+
+    it('adds StateManagementModule when state-management:redux is detected', () => {
+      const defaultRegistry = createDefaultRegistry();
+      const selected = defaultRegistry.selectModules(['state-management:redux']);
+      const ids = selected.map(m => m.id);
+      expect(ids).toContain('frontend/state-management');
+    });
+
+    it('does not include removed modules (ComponentHierarchy, ApiFlow, CiCdPipeline, RequestLifecycle, StateFlow)', () => {
       const defaultRegistry = createDefaultRegistry();
       const ids = defaultRegistry.getAllModules().map(m => m.id);
+      expect(ids).not.toContain('frontend/component-hierarchy');
+      expect(ids).not.toContain('backend/api-flow');
+      expect(ids).not.toContain('universal/ci-cd-pipeline');
       expect(ids).not.toContain('backend/request-lifecycle');
       expect(ids).not.toContain('frontend/state-flow');
+    });
+
+    it('registers modules in the correct order', () => {
+      const defaultRegistry = createDefaultRegistry();
+      const ids = defaultRegistry.getAllModules().map(m => m.id);
+      expect(ids).toEqual([
+        'universal/dependency-graph',
+        'universal/module-boundaries',
+        'universal/circular-dependencies',
+        'universal/package-boundaries',
+        'universal/high-level-architecture',
+        'universal/er-diagram',
+        'frontend/state-management',
+        'backend/api-entity-mapping',
+        'universal/deployment-infra',
+      ]);
     });
   });
 });

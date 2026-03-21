@@ -720,16 +720,20 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 4.3 — Registry & Wiring
+### 4.3 — Registry & Wiring ✅ COMPLETED
 
 | Task | Status | Description |
 |------|--------|-------------|
-| 4.3.1 | | Update `createDefaultRegistry()` in `DiagramRegistry.ts` with new 9-module portfolio: always-on AST (dependency-graph, module-boundaries, circular-dependencies, package-boundaries), always-on LLM (high-level-architecture), signal-gated AST (er-diagram), signal-gated hybrid/LLM (state-management, api-entity-mapping, deployment-infra) |
-| 4.3.2 | | Remove `ComponentHierarchyModule`, `ApiFlowModule`, `CiCdPipelineModule` from default registry (keep files for backward compat) |
-| 4.3.3 | | Update `index.ts` exports to include new modules |
-| 4.3.4 | | Update `DiagramRegistry` tests for 9-module default registry |
+| 4.3.1 | ✅ | Update `createDefaultRegistry()` in `DiagramRegistry.ts` with new 9-module portfolio: always-on AST (dependency-graph, module-boundaries, circular-dependencies, package-boundaries), always-on LLM (high-level-architecture), signal-gated AST (er-diagram), signal-gated hybrid/LLM (state-management, api-entity-mapping, deployment-infra) |
+| 4.3.2 | ✅ | Remove `ComponentHierarchyModule`, `ApiFlowModule`, `CiCdPipelineModule` from default registry (kept files for backward compat, re-exported under "not in default registry" comment) |
+| 4.3.3 | ✅ | Update `index.ts` exports — grouped by category with comments, all 9 default + 5 legacy modules exported |
+| 4.3.4 | ✅ | Updated `DiagramRegistry` tests for 9-module default registry (24 tests pass, 229 total) |
 
-**Acceptance:** Registry selects correct modules for different repo signals. Build and all tests pass.
+**Acceptance:** ✅ Registry selects correct modules for different repo signals. Build and all tests pass.
+
+**Notes:**
+- Old modules (ComponentHierarchy, ApiFlow, CiCdPipeline, StateFlow, RequestLifecycle) kept in files and re-exported for backward compat but not registered
+- HighLevelArchitectureModule is now always-on LLM (5th always-on module alongside 4 AST ones)
 
 ---
 

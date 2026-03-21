@@ -12,18 +12,22 @@ export type {
 export { extractMermaid } from './utils';
 
 // Diagram modules (re-exported for testing/extension)
+// ── Always-on, pure AST ──────────────────────────────────────────────────
 export { DependencyGraphModule } from './diagrams/universal/DependencyGraphModule';
-export { ErDiagramModule } from './diagrams/universal/ErDiagramModule';
-export { CiCdPipelineModule } from './diagrams/universal/CiCdPipelineModule';
+export { ModuleBoundariesModule } from './diagrams/universal/ModuleBoundariesModule';
 export { CircularDependencyModule } from './diagrams/universal/CircularDependencyModule';
 export { PackageBoundaryModule } from './diagrams/universal/PackageBoundaryModule';
-export { ModuleBoundariesModule } from './diagrams/universal/ModuleBoundariesModule';
+// ── Always-on, LLM-assisted ──────────────────────────────────────────────
 export { HighLevelArchitectureModule } from './diagrams/universal/HighLevelArchitectureModule';
-export { DeploymentInfraModule } from './diagrams/universal/DeploymentInfraModule';
-export { ComponentHierarchyModule } from './diagrams/frontend/ComponentHierarchyModule';
+// ── Signal-gated, pure AST ───────────────────────────────────────────────
+export { ErDiagramModule } from './diagrams/universal/ErDiagramModule';
+// ── Signal-gated, hybrid/LLM ─────────────────────────────────────────────
 export { StateManagementModule } from './diagrams/frontend/StateManagementModule';
-export { ApiFlowModule } from './diagrams/backend/ApiFlowModule';
 export { ApiEntityMappingModule } from './diagrams/backend/ApiEntityMappingModule';
-// Kept for potential future use but not registered by default:
+export { DeploymentInfraModule } from './diagrams/universal/DeploymentInfraModule';
+// ── Kept for backward compat / potential future use, not in default registry ─
+export { ComponentHierarchyModule } from './diagrams/frontend/ComponentHierarchyModule';
+export { ApiFlowModule } from './diagrams/backend/ApiFlowModule';
+export { CiCdPipelineModule } from './diagrams/universal/CiCdPipelineModule';
 export { StateFlowModule } from './diagrams/frontend/StateFlowModule';
 export { RequestLifecycleModule } from './diagrams/backend/RequestLifecycleModule';
