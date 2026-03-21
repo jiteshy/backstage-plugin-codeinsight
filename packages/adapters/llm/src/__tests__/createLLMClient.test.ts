@@ -15,11 +15,13 @@ import type { LLMConfig } from '@codeinsight/types';
 jest.mock('../AnthropicLLMClient');
 jest.mock('../OpenAILLMClient');
 jest.mock('../CachingLLMClient');
+jest.mock('../RetryingLLMClient');
 
 import { AnthropicLLMClient } from '../AnthropicLLMClient';
 import { CachingLLMClient } from '../CachingLLMClient';
 import { createLLMClient } from '../createLLMClient';
 import { OpenAILLMClient } from '../OpenAILLMClient';
+import { RetryingLLMClient } from '../RetryingLLMClient';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -99,9 +101,9 @@ describe('createLLMClient', () => {
       const result = createLLMClient(config, undefined, knex);
 
       expect(CachingLLMClient).toHaveBeenCalledTimes(1);
-      // First arg is the AnthropicLLMClient instance, second is knex, third is model name
+      // First arg is the RetryingLLMClient wrapping AnthropicLLMClient, second is knex, third is model name
       const [innerArg, knexArg, modelArg] = (CachingLLMClient as jest.Mock).mock.calls[0] as [unknown, unknown, string, unknown];
-      expect(innerArg).toBeInstanceOf(AnthropicLLMClient);
+      expect(innerArg).toBeInstanceOf(RetryingLLMClient);
       expect(knexArg).toBe(knex);
       expect(modelArg).toBe(config.model);
       // The returned value should be the CachingLLMClient instance
@@ -127,7 +129,7 @@ describe('createLLMClient', () => {
       const result = createLLMClient(config);
 
       expect(CachingLLMClient).not.toHaveBeenCalled();
-      expect(result).toBeInstanceOf(AnthropicLLMClient);
+      expect(result).toBeInstanceOf(RetryingLLMClient);
     });
 
     it('does NOT wrap in CachingLLMClient when knex is undefined', () => {
@@ -136,7 +138,7 @@ describe('createLLMClient', () => {
       const result = createLLMClient(config, undefined, undefined);
 
       expect(CachingLLMClient).not.toHaveBeenCalled();
-      expect(result).toBeInstanceOf(OpenAILLMClient);
+      expect(result).toBeInstanceOf(RetryingLLMClient);
     });
 
     it('uses config.model as the modelName argument to CachingLLMClient', () => {
@@ -155,14 +157,14 @@ describe('createLLMClient', () => {
   // -------------------------------------------------------------------------
 
   describe('return value', () => {
-    it('returns an AnthropicLLMClient instance (no caching) for anthropic without knex', () => {
+    it('returns a RetryingLLMClient instance (no caching) for anthropic without knex', () => {
       const result = createLLMClient(buildAnthropicConfig());
-      expect(result).toBeInstanceOf(AnthropicLLMClient);
+      expect(result).toBeInstanceOf(RetryingLLMClient);
     });
 
-    it('returns an OpenAILLMClient instance (no caching) for openai without knex', () => {
+    it('returns a RetryingLLMClient instance (no caching) for openai without knex', () => {
       const result = createLLMClient(buildOpenAIConfig());
-      expect(result).toBeInstanceOf(OpenAILLMClient);
+      expect(result).toBeInstanceOf(RetryingLLMClient);
     });
 
     it('returns a CachingLLMClient instance when knex is provided', () => {

@@ -387,8 +387,8 @@ Total:                  ~13,800 tokens
 ## DATABASE SCHEMA (PostgreSQL + pgvector)
 
 No `tenant_id` on any table — deployment is always self-hosted (one Postgres per deployment), so infrastructure isolation is sufficient.
-QnA tables (`ci_qna_*`) are created in Phase 4 migrations. All other tables are created in Phase 1.
-pgvector extension is optional until Phase 4 — `ci_embedding_cache` migration wraps `CREATE EXTENSION` in try-catch.
+QnA tables (`ci_qna_*`) are created in Phase 5 migrations. All other tables are created in Phase 1.
+pgvector extension is optional until Phase 5 — `ci_embedding_cache` migration wraps `CREATE EXTENSION` in try-catch.
 
 ### Core Tables
 ```sql
@@ -485,7 +485,7 @@ ci_artifact_dependencies (
 );
 ```
 
-### QnA Tables (Phase 4 migrations — not created in Phase 1)
+### QnA Tables (Phase 5 migrations — not created in Phase 1)
 ```sql
 ci_qna_embeddings (
   repo_id        TEXT NOT NULL,
@@ -715,9 +715,10 @@ User triggers "Analyze Repository"
 Phase 1: Foundation — Infra, clone, CIG, DB, job scaffold
 Phase 2: Documentation — Classifier, prompt modules, section gen, delta cache, frontend tab
 Phase 3: Diagrams — Pure AST diagrams, LLM diagrams, diagram tab with Mermaid
-Phase 4: QnA — Embeddings, vector search, chat UI, session management
-Phase 5: Integration — Webhooks, cross-feature enrichment, on-demand diagrams
-Phase 6: Release — Docs, contribution guide, npm publish
+Phase 4: Diagram Overhaul — Value & UX improvements, new modules, zoom/pan, clickable nodes
+Phase 5: QnA — Embeddings, vector search, chat UI, session management
+Phase 6: Integration — Webhooks, cross-feature enrichment, on-demand diagrams
+Phase 7: Open Source Release — Docs, contribution guide, npm publish
 
 ---
 
