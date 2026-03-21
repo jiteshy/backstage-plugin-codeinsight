@@ -29,6 +29,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { codeInsightApiRef, DiagramSection, DocSection } from '../api';
 
+import { MermaidDiagramViewer } from './MermaidDiagramViewer';
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -315,24 +317,12 @@ const useStyles = makeStyles(theme => ({
     color: theme.palette.text.disabled,
   },
   diagramMermaidContainer: {
-    overflow: 'auto',
-    background: theme.palette.type === 'dark' ? '#1e1e1e' : '#fafafa',
+    overflow: 'hidden',
     borderRadius: 4,
-    padding: theme.spacing(1),
     minHeight: 120,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    '& svg': {
-      maxWidth: '100%',
-    },
-  },
-  diagramError: {
-    fontFamily: 'monospace',
-    fontSize: '0.7rem',
-    color: theme.palette.error.main,
-    whiteSpace: 'pre-wrap' as const,
-    wordBreak: 'break-all' as const,
   },
   diagramStatsBar: {
     display: 'flex',
@@ -456,65 +446,6 @@ function DocSectionCard({ section }: { section: DocSection }) {
 }
 
 // ---------------------------------------------------------------------------
-// MermaidDiagram — renders a single Mermaid diagram via mermaid.js
-// ---------------------------------------------------------------------------
-
-let mermaidInitialized = false;
-
-function MermaidDiagram({ id, mermaid: mermaidSrc }: { id: string; mermaid: string }) {
-  const classes = useStyles();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [renderError, setRenderError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function render() {
-      try {
-        const mermaidLib = await import('mermaid');
-        const mermaidInstance = mermaidLib.default;
-
-        if (!mermaidInitialized) {
-          mermaidInstance.initialize({ startOnLoad: false, securityLevel: 'strict' });
-          mermaidInitialized = true;
-        }
-
-        if (!containerRef.current || cancelled) return;
-
-        const svgId = `mermaid-${id.replaceAll(/[^a-zA-Z0-9]/g, '-')}`;
-        const { svg } = await mermaidInstance.render(svgId, mermaidSrc);
-
-        if (!containerRef.current || cancelled) return;
-        containerRef.current.innerHTML = svg;
-        setRenderError(null);
-      } catch (err) {
-        if (!cancelled) {
-          setRenderError(String(err));
-        }
-      }
-    }
-
-    render();
-    return () => { cancelled = true; };
-  }, [id, mermaidSrc]);
-
-  if (renderError) {
-    return (
-      <Box className={classes.diagramMermaidContainer}>
-        <Box>
-          <Typography variant="body2" className={classes.errorText} style={{ marginBottom: 4 }}>
-            Failed to render diagram
-          </Typography>
-          <Typography className={classes.diagramError}>{mermaidSrc}</Typography>
-        </Box>
-      </Box>
-    );
-  }
-
-  return <div ref={containerRef} className={classes.diagramMermaidContainer} />;
-}
-
-// ---------------------------------------------------------------------------
 // DiagramCard
 // ---------------------------------------------------------------------------
 
@@ -550,7 +481,13 @@ function DiagramCard({ diagram }: { diagram: DiagramSection }) {
         </Typography>
       )}
       {diagram.mermaid ? (
-        <MermaidDiagram id={diagram.artifactId} mermaid={diagram.mermaid} />
+        <MermaidDiagramViewer
+          id={diagram.artifactId}
+          mermaid={diagram.mermaid}
+          nodeMap={diagram.nodeMap}
+          title={diagram.title}
+          llmUsed={diagram.llmUsed}
+        />
       ) : (
         <Box className={classes.diagramMermaidContainer}>
           <Typography variant="body2" color="textSecondary">No diagram content available.</Typography>

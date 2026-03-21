@@ -3,7 +3,7 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/packages'],
-  testMatch: ['**/*.test.ts', '**/*.spec.ts'],
+  testMatch: ['**/*.test.ts', '**/*.test.tsx', '**/*.spec.ts', '**/*.spec.tsx'],
   moduleNameMapper: {
     '^@codeinsight/types$': '<rootDir>/packages/core/types/src',
     '^@codeinsight/cig$': '<rootDir>/packages/core/cig/src',
@@ -19,6 +19,7 @@ module.exports = {
   },
   collectCoverageFrom: [
     'packages/**/src/**/*.ts',
+    'packages/**/src/**/*.tsx',
     '!packages/**/src/**/index.ts',
     '!**/*.d.ts',
   ],
@@ -28,7 +29,15 @@ module.exports = {
     '^.+\\.tsx?$': [
       'ts-jest',
       {
-        tsconfig: 'tsconfig.json',
+        tsconfig: {
+          // Extend from the root tsconfig but add JSX and DOM lib support needed
+          // for React component tests in packages/backstage/plugin/
+          jsx: 'react-jsx',
+          lib: ['ES2021', 'DOM', 'DOM.Iterable'],
+          // Relax strictness for test files where unused vars are common
+          noUnusedLocals: false,
+          noUnusedParameters: false,
+        },
       },
     ],
   },
