@@ -745,7 +745,7 @@ Replace low-value diagrams with high-value architecture diagrams.
 | 4.4.2 | ✅ | Zoom & Pan via CSS `transform: translate() scale()` — wheel zoom (multiplicative 10%/tick, clamped [0.3, 3.0]) attached as non-passive DOM listener; drag-to-pan via `onMouseDown/Move/Up` React handlers |
 | 4.4.3 | ✅ | Control panel toolbar per diagram: `[+] [−] [zoom%] [↺] [⛶] [↓]` — MUI `IconButton` + `Tooltip`, separator between reset/fullscreen and download |
 | 4.4.4 | ✅ | Fullscreen mode via MUI `<Dialog fullScreen>` — fresh `MermaidDiagramViewer` instance with own zoom/pan, title + AI/AST Chip in header, close button (✕) |
-| 4.4.5 | ✅ | Clickable nodes — post-render DOM: queries `.node` elements, matches text content against `nodeMap`, adds `cursor: pointer` + `brightness(1.2)` hover + click copies file path to clipboard with auto-dismiss toast |
+| 4.4.5 | ✅ | Clickable nodes — post-render DOM: queries `.node` elements, matches SVG id attribute (strip `flowchart-` prefix + `-N` counter) against `nodeMap` first, falls back to label text; adds `cursor: pointer` + `brightness(1.2)` hover + click copies file path to clipboard with auto-dismiss toast |
 | 4.4.6 | ✅ | Download SVG via `XMLSerializer`, Blob URL, anchor click; filename `{safeName}-{timestamp}.svg` |
 | 4.4.7 | ✅ | `DiagramCard` updated to use `MermaidDiagramViewer` with `nodeMap`/`title`/`llmUsed` props; old `MermaidDiagram` component and `mermaidInitialized` flag removed from `EntityCodeInsightContent.tsx` |
 
@@ -756,6 +756,8 @@ Replace low-value diagrams with high-value architecture diagrams.
 - Wheel events attached via `el.addEventListener('wheel', fn, { passive: false })` to allow `preventDefault()` (React synthetic `onWheel` is passive in newer browsers)
 - Fullscreen dialog spawns a second `MermaidDiagramViewer` with `id="${id}-fs"` to avoid mermaid SVG ID collisions; `showFullscreenButton={false}` prevents recursion
 - No new runtime dependencies — MUI Dialog/IconButton/Tooltip already in scope
+- **Post-completion fix (f380eb1):** nodeMap click handler now extracts Mermaid SVG element id (e.g. `flowchart-src_auth_controller_ts-0`) to derive the sanitized key before falling back to label text — fixes click-to-copy for all AST modules
+- **Post-completion fix (f380eb1):** `DiagramGenerationService` token estimation switched from `module.llmNeeded` → `diagram.llmUsed` to correctly count tokens for hybrid modules (`StateManagementModule`, `ApiEntityMappingModule`)
 
 ---
 
