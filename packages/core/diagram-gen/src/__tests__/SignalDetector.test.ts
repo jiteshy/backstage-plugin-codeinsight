@@ -7,12 +7,17 @@ import type { CIGSnapshot } from '../types';
 // Fixture helpers
 // ---------------------------------------------------------------------------
 
-function makeNode(nodeId: string, filePath: string, symbolType: CIGNode['symbolType'] = 'function'): CIGNode {
+function makeNode(
+  nodeId: string,
+  filePath: string,
+  symbolType: CIGNode['symbolType'] = 'function',
+  symbolName?: string,
+): CIGNode {
   return {
     nodeId,
     repoId: 'repo',
     filePath,
-    symbolName: nodeId,
+    symbolName: symbolName ?? nodeId,
     symbolType,
     startLine: 1,
     endLine: 5,
@@ -109,6 +114,87 @@ describe('SignalDetector', () => {
     it('detects ci:azure-devops', () => {
       const signals = detector.detect(snap([makeNode('n1', 'azure-pipelines.yml')]));
       expect(signals).toContain('ci:azure-devops');
+    });
+  });
+
+  describe('state-management detection', () => {
+    it('detects state-management:redux from /redux/ path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/redux/store.ts')]));
+      expect(signals).toContain('state-management:redux');
+    });
+
+    it('detects state-management:redux from reducer symbolName', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/state.ts', 'function', 'userReducer')]));
+      expect(signals).toContain('state-management:redux');
+    });
+
+    it('detects state-management:redux from createSlice symbolName', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/slices/auth.ts', 'function', 'createSlice')]));
+      expect(signals).toContain('state-management:redux');
+    });
+
+    it('detects state-management:zustand from zustand path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/zustand/store.ts')]));
+      expect(signals).toContain('state-management:zustand');
+    });
+
+    it('detects state-management:context from createContext symbolName', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/auth.tsx', 'function', 'createContext')]));
+      expect(signals).toContain('state-management:context');
+    });
+
+    it('detects state-management:context from /contexts/ path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/contexts/AuthContext.tsx')]));
+      expect(signals).toContain('state-management:context');
+    });
+
+    it('detects state-management:context from Context.tsx filename', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/ThemeContext.tsx')]));
+      expect(signals).toContain('state-management:context');
+    });
+
+    it('detects state-management:mobx from makeObservable symbolName', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/store.ts', 'function', 'makeObservable')]));
+      expect(signals).toContain('state-management:mobx');
+    });
+
+    it('detects state-management:mobx from mobx path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/mobx/store.ts')]));
+      expect(signals).toContain('state-management:mobx');
+    });
+  });
+
+  describe('infrastructure detection', () => {
+    it('detects infra:docker from Dockerfile', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'Dockerfile')]));
+      expect(signals).toContain('infra:docker');
+    });
+
+    it('detects infra:docker from docker-compose.yml', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'docker-compose.yml')]));
+      expect(signals).toContain('infra:docker');
+    });
+
+    it('detects infra:kubernetes from k8s/ directory', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'k8s/deployment.yml')]));
+      expect(signals).toContain('infra:kubernetes');
+    });
+
+    it('detects infra:kubernetes from helm Chart.yaml', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'charts/app/Chart.yaml')]));
+      expect(signals).toContain('infra:kubernetes');
+    });
+
+    it('detects infra:terraform from .tf files', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'infra/main.tf')]));
+      expect(signals).toContain('infra:terraform');
+    });
+
+    it('does not detect infra signals for plain source files', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/index.ts')]));
+      expect(signals).not.toContain('infra:docker');
+      expect(signals).not.toContain('infra:kubernetes');
+      expect(signals).not.toContain('infra:terraform');
     });
   });
 

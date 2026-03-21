@@ -420,6 +420,155 @@ describe('createRouter', () => {
   });
 
   // -------------------------------------------------------------------------
+  // GET /repos/:repoId/diagrams
+  // -------------------------------------------------------------------------
+
+  describe('GET /repos/:repoId/diagrams', () => {
+    it('returns sorted diagram sections including nodeMap when present', async () => {
+      storageAdapter.getRepo.mockResolvedValue({ repoId: 'repo-1', status: 'ready' });
+      storageAdapter.getArtifactsByType.mockResolvedValue([
+        {
+          repoId: 'repo-1',
+          artifactId: 'universal/dependency-graph',
+          artifactType: 'diagram',
+          content: {
+            kind: 'diagram',
+            diagramType: 'graph',
+            mermaid: 'graph TD\n  A --> B',
+            title: 'Dependency Graph',
+            description: 'Module import structure',
+            nodeMap: { A: 'src/a.ts', B: 'src/b.ts' },
+          },
+          inputSha: 'sha-dg',
+          isStale: false,
+          staleReason: null,
+          tokensUsed: 0,
+          llmUsed: false,
+          generatedAt: new Date('2024-07-01T10:00:00Z'),
+        },
+        {
+          repoId: 'repo-1',
+          artifactId: 'backend/api-flow',
+          artifactType: 'diagram',
+          content: {
+            kind: 'diagram',
+            diagramType: 'sequenceDiagram',
+            mermaid: 'sequenceDiagram\n  A->>B: call',
+            title: 'API Flow',
+            description: null,
+            nodeMap: undefined,
+          },
+          inputSha: 'sha-af',
+          isStale: true,
+          staleReason: 'file_changed',
+          tokensUsed: 512,
+          llmUsed: true,
+          generatedAt: new Date('2024-07-01T09:00:00Z'),
+        },
+      ]);
+
+      const res = await request(server, 'GET', '/repos/repo-1/diagrams');
+
+      expect(res.status).toBe(200);
+      const body = res.body as Array<Record<string, unknown>>;
+      // Sorted by artifactId: backend/api-flow < universal/dependency-graph
+      expect(body[0].artifactId).toBe('backend/api-flow');
+      expect(body[0].diagramType).toBe('sequenceDiagram');
+      expect(body[0].mermaid).toBe('sequenceDiagram\n  A->>B: call');
+      expect(body[0].isStale).toBe(true);
+      expect(body[0].staleReason).toBe('file_changed');
+      expect(body[0].llmUsed).toBe(true);
+      expect(body[0].tokensUsed).toBe(512);
+      expect(body[0].nodeMap).toBeNull(); // undefined → null via ?? null
+      expect(typeof body[0].generatedAt).toBe('string');
+
+      expect(body[1].artifactId).toBe('universal/dependency-graph');
+      expect(body[1].diagramType).toBe('graph');
+      expect(body[1].title).toBe('Dependency Graph');
+      expect(body[1].description).toBe('Module import structure');
+      expect(body[1].isStale).toBe(false);
+      expect(body[1].llmUsed).toBe(false);
+      expect(body[1].tokensUsed).toBe(0);
+      expect(body[1].nodeMap).toEqual({ A: 'src/a.ts', B: 'src/b.ts' });
+    });
+
+    it('returns null for nodeMap when artifact content has no nodeMap', async () => {
+      storageAdapter.getRepo.mockResolvedValue({ repoId: 'repo-1', status: 'ready' });
+      storageAdapter.getArtifactsByType.mockResolvedValue([
+        {
+          repoId: 'repo-1',
+          artifactId: 'universal/er-diagram',
+          artifactType: 'diagram',
+          content: {
+            kind: 'diagram',
+            diagramType: 'erDiagram',
+            mermaid: 'erDiagram\n  User { int id }',
+            title: 'ER Diagram',
+          },
+          inputSha: 'sha-er',
+          isStale: false,
+          staleReason: null,
+          tokensUsed: 0,
+          llmUsed: false,
+          generatedAt: new Date('2024-07-01T11:00:00Z'),
+        },
+      ]);
+
+      const res = await request(server, 'GET', '/repos/repo-1/diagrams');
+
+      expect(res.status).toBe(200);
+      const body = res.body as Array<Record<string, unknown>>;
+      expect(body[0].nodeMap).toBeNull();
+    });
+
+    it('returns empty array when no diagram artifacts exist', async () => {
+      storageAdapter.getRepo.mockResolvedValue({ repoId: 'repo-1', status: 'ready' });
+      storageAdapter.getArtifactsByType.mockResolvedValue([]);
+
+      const res = await request(server, 'GET', '/repos/repo-1/diagrams');
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([]);
+    });
+
+    it('returns 404 when repo does not exist', async () => {
+      storageAdapter.getRepo.mockResolvedValue(null);
+
+      const res = await request(server, 'GET', '/repos/unknown-repo/diagrams');
+
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ error: expect.stringContaining('Repo not found') });
+    });
+
+    it('falls back to artifactId as title and "unknown" as diagramType when content is null', async () => {
+      storageAdapter.getRepo.mockResolvedValue({ repoId: 'repo-1', status: 'ready' });
+      storageAdapter.getArtifactsByType.mockResolvedValue([
+        {
+          repoId: 'repo-1',
+          artifactId: 'universal/dependency-graph',
+          artifactType: 'diagram',
+          content: null,
+          inputSha: 'sha-null',
+          isStale: false,
+          staleReason: null,
+          tokensUsed: 0,
+          llmUsed: false,
+          generatedAt: new Date('2024-07-01T10:00:00Z'),
+        },
+      ]);
+
+      const res = await request(server, 'GET', '/repos/repo-1/diagrams');
+
+      expect(res.status).toBe(200);
+      const body = res.body as Array<Record<string, unknown>>;
+      expect(body[0].title).toBe('universal/dependency-graph');
+      expect(body[0].diagramType).toBe('unknown');
+      expect(body[0].mermaid).toBe('');
+      expect(body[0].nodeMap).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // GET /repos/:repoId/status
   // -------------------------------------------------------------------------
 

@@ -666,20 +666,26 @@ Post-Phase 2 refinements covering LLM call hardening, a full frontend UI redesig
 
 ---
 
-### 4.1 — Type System & Signal Detection Foundation
+### 4.1 — Type System & Signal Detection Foundation ✅ COMPLETED
 
 Extend core types to support clickable node maps and new signal categories.
 
 | Task | Status | Description |
 |------|--------|-------------|
-| 4.1.1 | | Add `nodeMap?: Record<string, string>` to `MermaidDiagram` in `packages/core/diagram-gen/src/types.ts` — maps Mermaid node IDs to source file paths |
-| 4.1.2 | | Add `nodeMap?: Record<string, string>` to `DiagramContent` in `packages/core/types/src/data.ts` — persisted in DB |
-| 4.1.3 | | Add `nodeMap?: Record<string, string> \| null` to `DiagramSection` in `packages/backstage/plugin/src/api.ts` |
-| 4.1.4 | | Pass through `nodeMap` in `DiagramGenerationService` when building `DiagramContent` from `MermaidDiagram` |
-| 4.1.5 | | Add `nodeMap` to backend router's `GET /repos/:repoId/diagrams` response |
-| 4.1.6 | | Add new signals to `SignalDetector`: `state-management:redux`, `state-management:zustand`, `state-management:context`, `state-management:mobx`, `infra:docker`, `infra:kubernetes`, `infra:terraform` |
+| 4.1.1 | ✅ | Add `nodeMap?: Record<string, string>` to `MermaidDiagram` in `packages/core/diagram-gen/src/types.ts` — maps Mermaid node IDs to source file paths |
+| 4.1.2 | ✅ | Add `nodeMap?: Record<string, string>` to `DiagramContent` in `packages/core/types/src/data.ts` — persisted in DB |
+| 4.1.3 | ✅ | Add `nodeMap?: Record<string, string> \| null` to `DiagramSection` in `packages/backstage/plugin/src/api.ts` |
+| 4.1.4 | ✅ | Pass through `nodeMap` in `DiagramGenerationService` when building `DiagramContent` from `MermaidDiagram` |
+| 4.1.5 | ✅ | Add `nodeMap` to backend router's `GET /repos/:repoId/diagrams` response |
+| 4.1.6 | ✅ | Add new signals to `SignalDetector`: `state-management:redux`, `state-management:zustand`, `state-management:context`, `state-management:mobx`, `infra:docker`, `infra:kubernetes`, `infra:terraform` |
 
-**Acceptance:** Types compile. SignalDetector detects new signal categories. `nodeMap` flows from module → DB → API → frontend.
+**Acceptance:** ✅ Types compile. SignalDetector detects new signal categories. `nodeMap` flows from module → DB → API → frontend. 127 tests pass (110 existing + 17 new).
+
+**Notes:**
+- `nodeMap` is optional at every layer — omitted from DiagramContent when module returns empty/no nodeMap
+- SignalDetector state-management detection uses both file path heuristics and symbol name matching
+- Infrastructure signals detect Docker, Kubernetes (k8s/, helm/, Chart.yaml), and Terraform (.tf) files
+- No DB migration needed — `nodeMap` is stored inside `content` JSONB column
 
 ---
 

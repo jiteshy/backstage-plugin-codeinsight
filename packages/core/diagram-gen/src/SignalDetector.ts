@@ -60,6 +60,48 @@ export class SignalDetector {
       signals.add('ci:azure-devops');
     }
 
+    // ── State management ─────────────────────────────────────────────────────
+    const symbolNames = cig.nodes.map(n => n.symbolName.toLowerCase());
+    const allPaths = filePaths.map(fp => fp.toLowerCase());
+
+    if (
+      filePaths.some(fp => /\/redux\/|\/store\/.*reducer|\/slices\//.test(fp)) ||
+      symbolNames.some(s => /reducer|createslice|configurestore/.test(s))
+    ) {
+      signals.add('state-management:redux');
+    }
+    if (allPaths.some(fp => fp.includes('zustand'))) {
+      signals.add('state-management:zustand');
+    }
+    if (
+      symbolNames.some(s => /createcontext|usecontext|contextprovider/.test(s)) ||
+      filePaths.some(fp => /\/context\/|\/contexts\/|Context\.(tsx?|jsx?)$/.test(fp))
+    ) {
+      signals.add('state-management:context');
+    }
+    if (
+      allPaths.some(fp => fp.includes('mobx')) ||
+      symbolNames.some(s => /makeobservable|makeautoobservable|observable/.test(s))
+    ) {
+      signals.add('state-management:mobx');
+    }
+
+    // ── Infrastructure ───────────────────────────────────────────────────────
+    if (filePaths.some(fp => /Dockerfile|docker-compose\.ya?ml$|\.dockerignore$/.test(fp))) {
+      signals.add('infra:docker');
+    }
+    if (
+      filePaths.some(
+        fp => /\.ya?ml$/.test(fp) && (fp.includes('k8s/') || fp.includes('kubernetes/') || fp.includes('helm/')),
+      ) ||
+      filePaths.some(fp => /Chart\.ya?ml$/.test(fp))
+    ) {
+      signals.add('infra:kubernetes');
+    }
+    if (filePaths.some(fp => fp.endsWith('.tf') || fp.endsWith('.tf.json'))) {
+      signals.add('infra:terraform');
+    }
+
     return Array.from(signals);
   }
 }

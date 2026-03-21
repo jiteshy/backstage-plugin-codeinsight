@@ -94,6 +94,7 @@ export interface DiagramContent {
   mermaid: string;      // raw Mermaid DSL
   title?: string;
   description?: string; // short human-readable description shown in the UI
+  nodeMap?: Record<string, string>; // maps Mermaid node IDs → source file paths
 }
 
 export interface QnAChunkContent {
