@@ -59,6 +59,10 @@ export class DiagramRegistry {
 // createDefaultRegistry — registers all built-in diagram modules
 // ---------------------------------------------------------------------------
 
+// TODO(phase-4.3): Replace this registry with the 9-module portfolio defined in Phase 4.3.
+// New modules (ModuleBoundariesModule, HighLevelArchitectureModule, StateManagementModule,
+// ApiEntityMappingModule, DeploymentInfraModule) are implemented but not yet registered here.
+// ApiFlowModule and CiCdPipelineModule will be removed in Phase 4.3.
 export function createDefaultRegistry(): DiagramRegistry {
   const registry = new DiagramRegistry();
 

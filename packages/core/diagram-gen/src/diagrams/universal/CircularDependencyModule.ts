@@ -22,12 +22,12 @@ export class CircularDependencyModule implements DiagramModule {
     if (importEdges.length === 0) return null;
 
     // Build file-level adjacency map from node IDs → file paths
-    const nodeMap = new Map(cig.nodes.map(n => [n.nodeId, n]));
+    const nodeById = new Map(cig.nodes.map(n => [n.nodeId, n]));
     const adj = new Map<string, Set<string>>();
 
     for (const edge of importEdges) {
-      const from = nodeMap.get(edge.fromNodeId);
-      const to = nodeMap.get(edge.toNodeId);
+      const from = nodeById.get(edge.fromNodeId);
+      const to = nodeById.get(edge.toNodeId);
       if (!from || !to || from.filePath === to.filePath) continue;
       if (!adj.has(from.filePath)) adj.set(from.filePath, new Set());
       adj.get(from.filePath)!.add(to.filePath);
@@ -45,11 +45,14 @@ export class CircularDependencyModule implements DiagramModule {
     }
 
     const lines: string[] = ['graph TD'];
+    const nodeMap: Record<string, string> = {};
     for (const key of cycleEdges) {
       const [from, to] = key.split('|||');
       lines.push(
         `  ${this.nodeId(from)}["${this.shortName(from)}"] -->|cycle| ${this.nodeId(to)}["${this.shortName(to)}"]`,
       );
+      nodeMap[this.nodeId(from)] = from;
+      nodeMap[this.nodeId(to)] = to;
     }
 
     const cycleCount = cycles.length;
@@ -61,6 +64,7 @@ export class CircularDependencyModule implements DiagramModule {
         `${cycleCount} circular import ${cycleCount === 1 ? 'cycle' : 'cycles'} detected — ` +
         'these files create import loops that complicate refactoring and testing',
       llmUsed: false,
+      nodeMap,
     };
   }
 

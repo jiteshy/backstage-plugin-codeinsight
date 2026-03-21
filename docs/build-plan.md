@@ -689,7 +689,7 @@ Extend core types to support clickable node maps and new signal categories.
 
 ---
 
-### 4.2 — New Diagram Modules
+### 4.2 — New Diagram Modules ✅ COMPLETED
 
 Replace low-value diagrams with high-value architecture diagrams.
 
@@ -701,14 +701,22 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 | Task | Status | Description |
 |------|--------|-------------|
-| 4.2.1 | | `universal/module-boundaries` (Pure AST, always-on) — groups files by domain directory under `src/` (auth/, billing/, users/, hooks/, etc.), shows cross-domain import edges. `graph LR`. Self-terminates if <3 domain groups |
-| 4.2.2 | | `universal/high-level-architecture` (LLM, always-on) — C4-style system overview: detects layers (api/, services/, models/, components/), external deps (axios, prisma, redis), routes. LLM synthesizes `flowchart TD` with subgraphs. Self-terminates if <10 source files |
-| 4.2.3 | | `frontend/state-management` (Hybrid, signal-gated) — AST detects store/context/reducer nodes by symbol name + file path heuristics (store/, stores/, state/, redux/). Traces import edges from components to state nodes. LLM refines labels if available. `graph TD` |
-| 4.2.4 | | `backend/api-entity-mapping` (Hybrid, replaces api-flow) — AST collects route nodes (httpMethod, routePath) + schema nodes (Prisma models). Traces call edges: route → handler → service → model. `graph LR` showing Routes → Services → Entities. LLM synthesis if available |
-| 4.2.5 | | `universal/deployment-infra` (LLM, replaces ci-cd-pipeline) — collects CI nodes + Docker/k8s/terraform file paths. LLM synthesizes `flowchart LR` showing build → test → containerize → deploy → infra topology |
-| 4.2.6 | | Retrofit `nodeMap` on 4 existing modules: `DependencyGraphModule`, `CircularDependencyModule`, `PackageBoundaryModule`, `ErDiagramModule` — each populates `nodeMap[nodeId] = filePath` during generation |
+| 4.2.1 | ✅ | `universal/module-boundaries` (Pure AST, always-on) — groups files by domain directory under `src/` (auth/, billing/, users/, hooks/, etc.), shows cross-domain import edges. `graph LR`. Self-terminates if <3 domain groups |
+| 4.2.2 | ✅ | `universal/high-level-architecture` (LLM, always-on) — C4-style system overview: detects layers (api/, services/, models/, components/), external deps (axios, prisma, redis), routes. LLM synthesizes `flowchart TD` with subgraphs. Self-terminates if <10 source files |
+| 4.2.3 | ✅ | `frontend/state-management` (Hybrid, signal-gated) — AST detects store/context/reducer nodes by symbol name + file path heuristics (store/, stores/, state/, redux/). Traces import edges from components to state nodes. LLM refines labels if available. `graph TD` |
+| 4.2.4 | ✅ | `backend/api-entity-mapping` (Hybrid, replaces api-flow) — AST collects route nodes (httpMethod, routePath) + schema nodes (Prisma models). Traces call edges: route → handler → service → model. `graph LR` showing Routes → Services → Entities. LLM synthesis if available |
+| 4.2.5 | ✅ | `universal/deployment-infra` (LLM, replaces ci-cd-pipeline) — collects CI nodes + Docker/k8s/terraform file paths. LLM synthesizes `flowchart LR` showing build → test → containerize → deploy → infra topology |
+| 4.2.6 | ✅ | Retrofit `nodeMap` on 4 existing modules: `DependencyGraphModule`, `CircularDependencyModule`, `PackageBoundaryModule`, `ErDiagramModule` — each populates `nodeMap[nodeId] = filePath` during generation |
 
-**Acceptance:** Each new module generates meaningful diagrams for appropriate repos. Returns null when not applicable. All modules populate `nodeMap`. Existing 110 tests still pass + new module tests.
+**Acceptance:** ✅ Build clean. 127 tests pass. Each new module generates meaningful diagrams for appropriate repos. Returns null when not applicable. All modules populate `nodeMap`. index.ts exports updated.
+
+**Notes:**
+- `ModuleBoundariesModule`: domain detection via regex on first path segment after `src/`/`lib/`/`app/`; excludes generic segments (index, utils, types, shared, common); self-terminates if <3 domain groups
+- `HighLevelArchitectureModule`: layer detection via path patterns; 15 external dep patterns; self-terminates if <10 source files
+- `StateManagementModule`: hybrid — AST-only fallback if no LLM; detects Redux/Zustand/Context/MobX by symbol name + path heuristics; traces component→state import edges
+- `ApiEntityMappingModule`: hybrid — AST-only fallback if no LLM; 2-hop call edge traversal (route→service→entity); groups routes by resource prefix
+- `DeploymentInfraModule`: LLM-only; returns null without LLM; combines CI + Docker + k8s + Terraform into holistic deployment topology
+- nodeMap retrofit: renamed existing `nodeMap` local vars to `nodeById` in CircularDependencyModule and PackageBoundaryModule to avoid name conflicts
 
 ---
 

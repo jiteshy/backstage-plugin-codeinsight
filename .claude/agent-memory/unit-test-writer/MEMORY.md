@@ -57,6 +57,15 @@
 - Token injection verified by asserting the URL arg (`mockGitClone.mock.calls[0][0]`) contains the token string
 - Clone args (depth, branch) verified via `mockGitClone.mock.calls[0][2]`
 
+## DiagramModule Unit Test Patterns
+- LLM mock: `{ complete: jest.fn().mockResolvedValue(str), stream: jest.fn() } as unknown as jest.Mocked<LLMClient>`
+- Valid mermaid starters for `extractMermaid`: `flowchart TD`, `graph TD`, `graph LR` — always use one of these in LLM mock return values
+- LLM call verification: `(llm.complete as jest.Mock).mock.calls[0]` gives `[systemPrompt, userPrompt, opts]`
+- Null-return pattern: always test (a) no llmClient, (b) too few items, (c) LLM returns non-mermaid text
+- Pure-AST modules: `triggersOn.toHaveLength(0)` for always-on, signal-gated modules list specific signals
+- nodeMap verification: `Object.values(result.nodeMap!)` should contain actual file paths from the fixture
+- `makeMockLLM(returnValue)` factory pattern keeps tests DRY when most tests need a valid LLM mock
+
 ## Project Structure (test-relevant)
 - `packages/backstage/plugin-backend/` — backend plugin, uses `@backstage/*` (OK here)
 - `packages/backstage/plugin/` — frontend plugin, uses `@backstage/*` (OK here)

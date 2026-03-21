@@ -22,7 +22,7 @@ export class PackageBoundaryModule implements DiagramModule {
   private static readonly MAX_EDGES = 60;
 
   async generate(cig: CIGSnapshot): Promise<MermaidDiagram | null> {
-    const nodeMap = new Map(cig.nodes.map(n => [n.nodeId, n]));
+    const nodeById = new Map(cig.nodes.map(n => [n.nodeId, n]));
 
     // Map each file path to its package root
     const filePackage = new Map<string, string>();
@@ -38,8 +38,8 @@ export class PackageBoundaryModule implements DiagramModule {
     const crossEdges = new Set<string>();
     for (const edge of cig.edges) {
       if (edge.edgeType !== 'imports') continue;
-      const from = nodeMap.get(edge.fromNodeId);
-      const to = nodeMap.get(edge.toNodeId);
+      const from = nodeById.get(edge.fromNodeId);
+      const to = nodeById.get(edge.toNodeId);
       if (!from || !to) continue;
 
       const fromPkg = filePackage.get(from.filePath);
@@ -51,6 +51,16 @@ export class PackageBoundaryModule implements DiagramModule {
 
     if (crossEdges.size === 0) return null;
 
+    // Build nodeMap: package node ID → one representative file path from that package
+    const pkgRepFile = new Map<string, string>();
+    for (const node of cig.nodes) {
+      const pkg = filePackage.get(node.filePath);
+      if (pkg && !pkgRepFile.has(pkg)) {
+        pkgRepFile.set(pkg, node.filePath);
+      }
+    }
+
+    const nodeMap: Record<string, string> = {};
     const lines: string[] = ['graph LR'];
     let count = 0;
     for (const key of crossEdges) {
@@ -61,6 +71,11 @@ export class PackageBoundaryModule implements DiagramModule {
       lines.push(
         `  ${this.nodeId(from)}["${fromLabel}"] --> ${this.nodeId(to)}["${toLabel}"]`,
       );
+      // Map package node ID to a representative file in that package
+      const fromFile = pkgRepFile.get(from);
+      const toFile = pkgRepFile.get(to);
+      if (fromFile) nodeMap[this.nodeId(from)] = fromFile;
+      if (toFile) nodeMap[this.nodeId(to)] = toFile;
       count++;
     }
 
@@ -72,6 +87,7 @@ export class PackageBoundaryModule implements DiagramModule {
         `${packages.size} packages with ${crossEdges.size} cross-boundary ` +
         `import${crossEdges.size === 1 ? '' : 's'} — shows inter-package dependency structure`,
       llmUsed: false,
+      nodeMap,
     };
   }
 
