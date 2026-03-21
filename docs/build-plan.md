@@ -737,19 +737,25 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 4.4 — Frontend UI Overhaul — Control Panel, Zoom, Fullscreen
+### 4.4 — Frontend UI Overhaul — Control Panel, Zoom, Fullscreen ✅ COMPLETED
 
 | Task | Status | Description |
 |------|--------|-------------|
-| 4.4.1 | | Extract `MermaidDiagramViewer` into `packages/backstage/plugin/src/components/MermaidDiagramViewer.tsx` — handles rendering, zoom/pan state, control panel, fullscreen, click handlers. Props: `{ id, mermaid, nodeMap?, onNodeClick? }` |
-| 4.4.2 | | Zoom & Pan via CSS `transform: scale() translate()` — wheel zoom (`onWheel`), drag-to-pan (`onMouseDown/Move/Up`), scale clamped [0.3, 3.0]. No new deps |
-| 4.4.3 | | Control panel toolbar per diagram: `[+] [-] [Reset] [Fullscreen] [Download SVG]` — MUI `IconButton` + `Tooltip` |
-| 4.4.4 | | Fullscreen mode via MUI `<Dialog fullScreen>` — standalone viewer with its own zoom/pan state, close button, title bar with AI/AST badge |
-| 4.4.5 | | Clickable nodes — after SVG render, query `.node` elements, match IDs against `nodeMap`, add `cursor: pointer` + hover highlight + click handler (copies file path to clipboard with toast). Works despite `securityLevel: 'strict'` since listeners are post-render DOM manipulation |
-| 4.4.6 | | Download SVG — serialize via `XMLSerializer`, create Blob, trigger download as `{title}-{timestamp}.svg` |
-| 4.4.7 | | Update `DiagramCard` and `DiagramsContent` to use new `MermaidDiagramViewer` component |
+| 4.4.1 | ✅ | Extract `MermaidDiagramViewer` into `packages/backstage/plugin/src/components/MermaidDiagramViewer.tsx` — handles rendering, zoom/pan state, control panel, fullscreen, click handlers. Props: `{ id, mermaid, nodeMap?, title?, llmUsed?, showFullscreenButton?, fullHeight? }` |
+| 4.4.2 | ✅ | Zoom & Pan via CSS `transform: translate() scale()` — wheel zoom (multiplicative 10%/tick, clamped [0.3, 3.0]) attached as non-passive DOM listener; drag-to-pan via `onMouseDown/Move/Up` React handlers |
+| 4.4.3 | ✅ | Control panel toolbar per diagram: `[+] [−] [zoom%] [↺] [⛶] [↓]` — MUI `IconButton` + `Tooltip`, separator between reset/fullscreen and download |
+| 4.4.4 | ✅ | Fullscreen mode via MUI `<Dialog fullScreen>` — fresh `MermaidDiagramViewer` instance with own zoom/pan, title + AI/AST Chip in header, close button (✕) |
+| 4.4.5 | ✅ | Clickable nodes — post-render DOM: queries `.node` elements, matches text content against `nodeMap`, adds `cursor: pointer` + `brightness(1.2)` hover + click copies file path to clipboard with auto-dismiss toast |
+| 4.4.6 | ✅ | Download SVG via `XMLSerializer`, Blob URL, anchor click; filename `{safeName}-{timestamp}.svg` |
+| 4.4.7 | ✅ | `DiagramCard` updated to use `MermaidDiagramViewer` with `nodeMap`/`title`/`llmUsed` props; old `MermaidDiagram` component and `mermaidInitialized` flag removed from `EntityCodeInsightContent.tsx` |
 
 **Acceptance:** Each diagram has a control panel with working zoom/pan, fullscreen expands to full viewport, nodes are clickable (show file path toast), SVG download works. Dark/light theme compatible.
+
+**Notes:**
+- `MermaidDiagramViewer` lives in its own file; `mermaidInitialized` module flag moved there
+- Wheel events attached via `el.addEventListener('wheel', fn, { passive: false })` to allow `preventDefault()` (React synthetic `onWheel` is passive in newer browsers)
+- Fullscreen dialog spawns a second `MermaidDiagramViewer` with `id="${id}-fs"` to avoid mermaid SVG ID collisions; `showFullscreenButton={false}` prevents recursion
+- No new runtime dependencies — MUI Dialog/IconButton/Tooltip already in scope
 
 ---
 
