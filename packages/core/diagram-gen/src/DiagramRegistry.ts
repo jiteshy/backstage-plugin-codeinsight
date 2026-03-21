@@ -1,9 +1,11 @@
-import { ApiFlowModule } from './diagrams/backend/ApiFlowModule';
-import { ComponentHierarchyModule } from './diagrams/frontend/ComponentHierarchyModule';
-import { CiCdPipelineModule } from './diagrams/universal/CiCdPipelineModule';
+import { ApiEntityMappingModule } from './diagrams/backend/ApiEntityMappingModule';
+import { StateManagementModule } from './diagrams/frontend/StateManagementModule';
 import { CircularDependencyModule } from './diagrams/universal/CircularDependencyModule';
 import { DependencyGraphModule } from './diagrams/universal/DependencyGraphModule';
+import { DeploymentInfraModule } from './diagrams/universal/DeploymentInfraModule';
 import { ErDiagramModule } from './diagrams/universal/ErDiagramModule';
+import { HighLevelArchitectureModule } from './diagrams/universal/HighLevelArchitectureModule';
+import { ModuleBoundariesModule } from './diagrams/universal/ModuleBoundariesModule';
 import { PackageBoundaryModule } from './diagrams/universal/PackageBoundaryModule';
 import type { DiagramModule } from './types';
 
@@ -59,29 +61,25 @@ export class DiagramRegistry {
 // createDefaultRegistry — registers all built-in diagram modules
 // ---------------------------------------------------------------------------
 
-// TODO(phase-4.3): Replace this registry with the 9-module portfolio defined in Phase 4.3.
-// New modules (ModuleBoundariesModule, HighLevelArchitectureModule, StateManagementModule,
-// ApiEntityMappingModule, DeploymentInfraModule) are implemented but not yet registered here.
-// ApiFlowModule and CiCdPipelineModule will be removed in Phase 4.3.
 export function createDefaultRegistry(): DiagramRegistry {
   const registry = new DiagramRegistry();
 
   // ── Always-on, pure AST ──────────────────────────────────────────────────
-  // These run for every repo. Each module self-terminates (returns null) if
-  // it has nothing meaningful to show (e.g. no cycles, single package, etc.)
   registry.register(new DependencyGraphModule());
-  registry.register(new ComponentHierarchyModule());
+  registry.register(new ModuleBoundariesModule());
   registry.register(new CircularDependencyModule());
   registry.register(new PackageBoundaryModule());
 
+  // ── Always-on, LLM-assisted ──────────────────────────────────────────────
+  registry.register(new HighLevelArchitectureModule());
+
   // ── Signal-gated, pure AST ───────────────────────────────────────────────
-  // Run when the relevant technology is detected — no LLM required.
   registry.register(new ErDiagramModule()); // triggers on orm:prisma
 
-  // ── Signal-gated, LLM-assisted ───────────────────────────────────────────
-  // Only run when (a) the relevant signal is present AND (b) an LLM is configured.
-  registry.register(new ApiFlowModule());    // triggers on framework:express/fastify/koa/nestjs
-  registry.register(new CiCdPipelineModule()); // triggers on ci:github-actions/gitlab-ci/etc.
+  // ── Signal-gated, AST or hybrid/LLM ─────────────────────────────────────
+  registry.register(new StateManagementModule()); // state-management:* — hybrid
+  registry.register(new ApiEntityMappingModule()); // framework:express/fastify/koa/nestjs/hapi — pure AST
+  registry.register(new DeploymentInfraModule()); // ci:github-actions/gitlab-ci/etc. — LLM
 
   return registry;
 }
