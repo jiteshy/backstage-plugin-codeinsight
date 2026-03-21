@@ -97,6 +97,8 @@ function makeStorageAdapter(overrides?: {
     getStaleArtifacts: jest.fn().mockResolvedValue([]),
     markArtifactsStale: jest.fn().mockResolvedValue(undefined),
     getArtifactInputs: jest.fn().mockResolvedValue([]),
+    getArtifactIdsByFilePaths: jest.fn().mockResolvedValue([]),
+    getArtifactDependents: jest.fn().mockResolvedValue([]),
     createJob: jest.fn().mockResolvedValue('job-id'),
     updateJob: jest.fn().mockResolvedValue(undefined),
     getJob: jest.fn().mockResolvedValue(null),
@@ -505,6 +507,47 @@ describe('DiagramGenerationService', () => {
       const withoutSignal = await service.generateDiagrams(REPO_ID, {});
       expect(withoutSignal.diagramsGenerated).toBe(0);
       expect(withoutSignal.diagramsSkipped).toBe(0); // not even selected
+    });
+
+    it('passes nodeMap from MermaidDiagram through to DiagramContent', async () => {
+      const nodeMap = { A: 'src/a.ts', B: 'src/b.ts' };
+      const mod = makeAstModule('universal/dep-graph', {
+        diagramType: 'graph',
+        mermaid: 'graph TD\n  A --> B',
+        title: 'Dep Graph',
+        llmUsed: false,
+        nodeMap,
+      });
+      const storage = makeStorageAdapter();
+      const service = new DiagramGenerationService(
+        storage,
+        makeLogger(),
+        undefined,
+        {},
+        makeRegistry(mod),
+      );
+
+      await service.generateDiagrams(REPO_ID);
+
+      const artifact: Artifact = (storage.upsertArtifact as jest.Mock).mock.calls[0][0];
+      expect(artifact.content).toMatchObject({ kind: 'diagram', nodeMap });
+    });
+
+    it('omits nodeMap from DiagramContent when module returns no nodeMap', async () => {
+      const mod = makeAstModule('universal/dep-graph');
+      const storage = makeStorageAdapter();
+      const service = new DiagramGenerationService(
+        storage,
+        makeLogger(),
+        undefined,
+        {},
+        makeRegistry(mod),
+      );
+
+      await service.generateDiagrams(REPO_ID);
+
+      const artifact: Artifact = (storage.upsertArtifact as jest.Mock).mock.calls[0][0];
+      expect((artifact.content as any).nodeMap).toBeUndefined();
     });
 
     it('uses config defaults when no config is supplied', async () => {

@@ -173,6 +173,7 @@ export async function createRouter(
         isStale: artifact.isStale,
         staleReason: artifact.staleReason ?? null,
         llmUsed: artifact.llmUsed,
+        nodeMap: content?.nodeMap ?? null,
         generatedAt: artifact.generatedAt,
         tokensUsed: artifact.tokensUsed,
       };

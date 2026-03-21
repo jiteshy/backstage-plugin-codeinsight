@@ -19,6 +19,7 @@ export interface DiagramSection {
   isStale: boolean;
   staleReason?: string | null;
   llmUsed: boolean;
+  nodeMap?: Record<string, string> | null;
   generatedAt: string;
   tokensUsed: number;
 }

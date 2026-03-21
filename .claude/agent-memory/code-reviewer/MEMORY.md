@@ -1,6 +1,6 @@
 # Code Reviewer Agent Memory
 
-## Project State (as of 2026-03-19)
+## Project State (as of 2026-03-20)
 - Phase 1.0 (scaffold), 1.1 (types), 1.2 (plugin scaffold) implemented
 - Phase 1.3 (DB migrations) implemented, reviewed — 3 fixes required before merge (see Known Issues)
 - Phase 1.4 (storage adapter) implemented (KnexStorageAdapter)
@@ -211,6 +211,15 @@
 - PackageBoundaryModule.ts (MINOR): Root-level files (no /src/ segment, no /path/) resolve to 'root' pseudo-package, producing a misleading 'root' node in the diagram when root-level files import from packages. Not a crash.
 - CircularDependencyModule.test.ts (MINOR): "plural description" test only asserts contains('cycles'), not the exact count. Regression-resilient assertion would be contains('2 circular import cycles').
 - No test covering AST-detected signals activating a signal-gated module end-to-end through DiagramGenerationService (SignalDetector → selectModules path untested at service level).
+
+## Known Issues Found in Phase 4.1 Review (Type System & Signal Detection Foundation)
+- DiagramGenerationService.test.ts makeStorageAdapter() (MAJOR): Missing `getArtifactIdsByFilePaths` and `getArtifactDependents` stubs — cast with `as unknown as StorageAdapter` hides the gap. Fix: add `jest.fn().mockResolvedValue([])` for both.
+- SignalDetector.ts line 73-77 (MAJOR): Zustand symbol-name heuristic `/\bcreate\b/.test(s) && /\bstore\b/.test(s)` fires on any compound name like `createTokenStore` or `createReduxStore`. Remove the symbol-name branch; keep path-based detection only.
+- SignalDetector.ts line 93 (MINOR): `Dockerfile` match has no anchor — matches `src/parseDockerfile.ts`, `docs/Dockerfile-notes.md`. Fix: anchor to filename component.
+- SignalDetector.ts line 81 (MINOR): `Context\.(tsx?|jsx?)$` path suffix is over-broad — any file ending in Context.tsx triggers state-management:context. Narrow to directory patterns only.
+- SignalDetector.ts line 68 (MINOR): `/store\/.*reducer/` clause in redux regex is over-specific and untested. Simplify to `/\/redux\/|\/slices\/|\.reducer\.(ts|js)x?$/`.
+- DiagramGenerationService.ts lines 180-183 (MINOR): `Object.keys(diagram.nodeMap).length > 0` redundant alongside `diagram.nodeMap &&`. Simplify to `diagram.nodeMap ? { nodeMap: diagram.nodeMap } : {}`.
+- config.d.ts (STILL OPEN): diagramGen block missing — keys maxConcurrency/maxOutputTokens/temperature read in plugin.ts but undeclared. Must fix before Phase 4 ships publicly.
 
 ## Phase 3 Pattern Notes
 - DiagramGenerator duck-type interface correctly defined in IngestionService.ts (not importing @codeinsight/diagram-gen directly) — good pattern.

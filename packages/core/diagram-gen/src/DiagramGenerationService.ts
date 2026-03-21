@@ -177,6 +177,9 @@ export class DiagramGenerationService implements DiagramGenerator {
         mermaid: diagram.mermaid,
         title: diagram.title,
         description: diagram.description,
+        ...(diagram.nodeMap && Object.keys(diagram.nodeMap).length > 0
+          ? { nodeMap: diagram.nodeMap }
+          : {}),
       };
 
       const artifact: Artifact = {

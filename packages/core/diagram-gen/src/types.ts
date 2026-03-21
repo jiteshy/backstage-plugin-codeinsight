@@ -28,6 +28,8 @@ export interface MermaidDiagram {
   description?: string;
   /** True if an LLM was used to produce this diagram. */
   llmUsed: boolean;
+  /** Maps Mermaid node IDs to source file paths (for clickable nodes in the UI). */
+  nodeMap?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
