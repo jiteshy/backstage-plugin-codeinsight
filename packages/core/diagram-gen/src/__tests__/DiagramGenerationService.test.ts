@@ -143,6 +143,28 @@ function makeLlmModule(
   };
 }
 
+/**
+ * Hybrid module: llmNeeded is false (can run AST-only) but generate() returns
+ * llmUsed: true because it chose to call the LLM at runtime.
+ */
+function makeHybridModule(
+  id: string,
+  diagram: MermaidDiagram | null = {
+    diagramType: 'graph',
+    mermaid: 'graph TD\n  P --> Q',
+    title: 'Hybrid Diagram',
+    llmUsed: true,
+  },
+): DiagramModule {
+  return {
+    id,
+    requires: ['nodes', 'edges'],
+    triggersOn: [],
+    llmNeeded: false, // does not *require* LLM — but may still use it
+    generate: jest.fn().mockResolvedValue(diagram),
+  };
+}
+
 /** Create a registry containing only the supplied modules. */
 function makeRegistry(...modules: DiagramModule[]): DiagramRegistry {
   const registry = new DiagramRegistry();
@@ -342,6 +364,34 @@ describe('DiagramGenerationService', () => {
       const astArtifact = result.artifacts.find(a => a.artifactId === 'universal/dep-graph');
       expect(llmArtifact?.tokensUsed).toBeGreaterThan(0);
       expect(astArtifact?.tokensUsed).toBe(0);
+    });
+
+    it('counts tokens for a hybrid module when llmNeeded is false but llmUsed is true', async () => {
+      // Regression guard: token estimation must key off diagram.llmUsed, not module.llmNeeded.
+      // A hybrid module (llmNeeded: false) that actually called the LLM at runtime must still
+      // have its output tokens counted; the old bug always produced 0 for such modules.
+      const mermaidContent = 'graph TD\n  P --> Q --> R';
+      const hybridMod = makeHybridModule('universal/module-boundaries', {
+        diagramType: 'graph',
+        mermaid: mermaidContent,
+        title: 'Module Boundaries',
+        llmUsed: true, // runtime decision to use LLM despite llmNeeded: false
+      });
+      const storage = makeStorageAdapter();
+      const service = new DiagramGenerationService(
+        storage,
+        makeLogger(),
+        makeLLMClient(),
+        {},
+        makeRegistry(hybridMod),
+      );
+
+      const result = await service.generateDiagrams(REPO_ID);
+
+      expect(result.diagramsGenerated).toBe(1);
+      const artifact = result.artifacts.find(a => a.artifactId === 'universal/module-boundaries');
+      expect(artifact?.tokensUsed).toBeGreaterThan(0);
+      expect(result.totalTokensUsed).toBeGreaterThan(0);
     });
 
     it('accumulates totalTokensUsed across multiple LLM modules', async () => {

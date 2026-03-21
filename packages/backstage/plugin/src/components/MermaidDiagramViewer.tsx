@@ -256,7 +256,13 @@ export function MermaidDiagramViewer({
         node.querySelector('foreignObject .label') ??
         node.querySelector('text');
       const label = labelEl?.textContent?.trim() ?? '';
-      const filePath = label ? nodeMap[label] : undefined;
+      // Mermaid assigns SVG node ids like "flowchart-src_auth_controller_ts-0".
+      // AST modules key nodeMap by the sanitized id (e.g. "src_auth_controller_ts"),
+      // not the human-readable label, so try the id-derived key first.
+      const rawId = node.getAttribute('id') ?? '';
+      const idKey = rawId.replace(/^flowchart-/, '').replace(/-\d+$/, '');
+      // id-derived key first (AST modules); label text as fallback (LLM diagrams with short human-readable ids).
+      const filePath = (idKey && nodeMap[idKey]) || (label && nodeMap[label]) || undefined;
       if (!filePath) return;
 
       const el = node as HTMLElement;
