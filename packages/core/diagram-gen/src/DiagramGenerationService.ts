@@ -167,7 +167,7 @@ export class DiagramGenerationService implements DiagramGenerator {
         return;
       }
 
-      const tokensUsed = module.llmNeeded
+      const tokensUsed = diagram.llmUsed
         ? this.estimateTokens(diagram.mermaid)
         : 0;
 
