@@ -62,11 +62,14 @@ export class IndexingService {
     const existing = await this.vectorStore.listChunks(repoId);
     const existingMap = new Map(existing.map(c => [c.chunkId, c.contentSha]));
 
-    // 3. Identify chunks to embed (new or changed content)
-    const toIndex = chunks.filter(chunk => {
-      const sha = computeContentSha(chunk.content);
-      return existingMap.get(chunk.chunkId) !== sha;
-    });
+    // 3. Compute contentSha for each chunk once, then identify which need (re-)embedding
+    const chunksWithSha = chunks.map(chunk => ({
+      chunk,
+      contentSha: computeContentSha(chunk.content),
+    }));
+    const toIndex = chunksWithSha.filter(
+      ({ chunk, contentSha }) => existingMap.get(chunk.chunkId) !== contentSha,
+    );
 
     // 4. Identify stale chunks (chunks no longer produced by ChunkingService)
     const currentIds = new Set(chunks.map(c => c.chunkId));
@@ -83,15 +86,15 @@ export class IndexingService {
     let indexed = 0;
     for (let i = 0; i < toIndex.length; i += IndexingService.EMBED_BATCH_SIZE) {
       const batch = toIndex.slice(i, i + IndexingService.EMBED_BATCH_SIZE);
-      const texts = batch.map(c => c.content);
+      const texts = batch.map(({ chunk }) => chunk.content);
 
       const embeddings = await this.embeddingClient.embed(texts);
 
-      const vectorChunks: VectorChunk[] = batch.map((chunk, j) => ({
+      const vectorChunks: VectorChunk[] = batch.map(({ chunk, contentSha }, j) => ({
         chunkId: chunk.chunkId,
         repoId: chunk.repoId,
         content: chunk.content,
-        contentSha: computeContentSha(chunk.content),
+        contentSha,
         embedding: embeddings[j],
         layer: chunk.layer,
         metadata: chunk.metadata as Record<string, unknown> | undefined,
@@ -104,7 +107,7 @@ export class IndexingService {
     const result: IndexingResult = {
       chunksTotal: chunks.length,
       chunksIndexed: indexed,
-      chunksSkipped: chunks.length - indexed,
+      chunksSkipped: chunks.length - toIndex.length,
       chunksDeleted: deletedIds.length,
     };
 

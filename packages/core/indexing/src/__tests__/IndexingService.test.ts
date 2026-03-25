@@ -258,6 +258,80 @@ describe('IndexingService', () => {
     expect(embeddingClient.embed).not.toHaveBeenCalled();
   });
 
+  it('handles split-chunk delta: old single chunk deleted, new sub-chunks indexed fresh', async () => {
+    // Scenario: ChunkingService previously produced one chunk for a doc artifact
+    // (chunkId = `${REPO_ID}:core/big-module:overview:doc`).
+    // After the artifact markdown grew beyond maxChunkTokens, ChunkingService now
+    // splits it into two sub-chunks: ':0' and ':1'.
+    // The old un-suffixed entry must be deleted and both sub-chunks must be
+    // embedded + upserted as new.
+    //
+    // We simulate this by having the vector store report the old chunk ID while
+    // the storage mock returns an artifact whose markdown is large enough to
+    // trigger splitting (> 1000 tokens ~ 4000 chars at 4 chars/token).
+
+    const oldChunkId = `${REPO_ID}:core/big-module:overview:doc`;
+    const subChunkId0 = `${REPO_ID}:core/big-module:overview:doc:0`;
+    const subChunkId1 = `${REPO_ID}:core/big-module:overview:doc:1`;
+
+    // Each paragraph is ~600 tokens (2400 chars). Two paragraphs = 1200 tokens > 1000 limit.
+    const para1 = 'A'.repeat(2400);
+    const para2 = 'B'.repeat(2400);
+    const oversizedMarkdown = `${para1}\n\n${para2}`;
+
+    const docArtifact = {
+      repoId: REPO_ID,
+      artifactId: 'core/big-module',
+      artifactType: 'doc',
+      content: { kind: 'doc', module: 'overview', markdown: oversizedMarkdown },
+      inputSha: computeContentSha(oversizedMarkdown),
+      promptVersion: null,
+      isStale: false,
+      staleReason: null,
+      tokensUsed: 0,
+      llmUsed: false,
+      generatedAt: new Date(),
+    };
+
+    const storage = makeStorage({
+      getArtifactsByType: jest.fn().mockImplementation(async (_repoId: string, type: string) => {
+        if (type === 'doc') return [docArtifact];
+        return [];
+      }),
+    });
+
+    const embeddingClient = makeEmbeddingClient();
+    // Vector store has the OLD un-suffixed chunk ID (pre-split state)
+    const vectorStore = makeVectorStore([
+      { chunkId: oldChunkId, contentSha: 'stale-sha-from-before-split' },
+    ]);
+
+    const service = new IndexingService(embeddingClient, vectorStore, storage);
+    const result = await service.indexRepo(REPO_ID, CLONE_DIR);
+
+    // ChunkingService splits the oversized artifact into 2 sub-chunks
+    expect(result.chunksTotal).toBe(2);
+
+    // Both sub-chunks are new (not in the existing map) → both indexed
+    expect(result.chunksIndexed).toBe(2);
+    expect(result.chunksSkipped).toBe(0);
+
+    // The old un-suffixed chunk ID is no longer produced → deleted
+    expect(result.chunksDeleted).toBe(1);
+    expect(vectorStore.deleteChunks).toHaveBeenCalledWith(REPO_ID, [oldChunkId]);
+
+    // Both sub-chunk IDs appear in the upserted output
+    const allUpserted = vectorStore.upsertCalls.flat();
+    const upsertedIds = allUpserted.map(c => c.chunkId);
+    expect(upsertedIds).toContain(subChunkId0);
+    expect(upsertedIds).toContain(subChunkId1);
+
+    // Embeddings were requested for both sub-chunks in one batch
+    expect(embeddingClient.embed).toHaveBeenCalledTimes(1);
+    const [embeddedTexts] = (embeddingClient.embed as jest.Mock).mock.calls[0];
+    expect(embeddedTexts).toHaveLength(2);
+  });
+
   it('batches embed calls at 100 chunks per batch', async () => {
     // Create 250 distinct doc artifacts
     const artifacts = Array.from({ length: 250 }, (_, i) => ({
