@@ -66,6 +66,7 @@ export class CodeInsightClient implements CodeInsightApi {
     const response = await this.fetchApi.fetch(
       `${base}/repos/${encodeURIComponent(repoId)}/docs`,
     );
+    if (response.status === 404) return [];
     if (!response.ok) {
       throw new Error(`Failed to get docs: ${response.statusText}`);
     }
@@ -77,6 +78,7 @@ export class CodeInsightClient implements CodeInsightApi {
     const response = await this.fetchApi.fetch(
       `${base}/repos/${encodeURIComponent(repoId)}/diagrams`,
     );
+    if (response.status === 404) return [];
     if (!response.ok) {
       throw new Error(`Failed to get diagrams: ${response.statusText}`);
     }
