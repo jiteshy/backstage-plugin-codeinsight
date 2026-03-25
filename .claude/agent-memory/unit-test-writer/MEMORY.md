@@ -91,6 +91,14 @@
 - `buildSvgWithNodes(labels)` helper pattern: construct SVG string with `.node` > `.label` > `text` structure to match Mermaid's DOM output
 - Pass mermaid source as a JS variable, never as a JSX string literal with `\n` — JSX template strings interpret escape sequences differently than JS strings
 
+## PgVectorStore / Knex Query-Builder Mock Pattern
+- Adapter packages that have no test infrastructure yet need `jest.config.ts` + devDependencies (`@types/jest`, `jest`, `ts-jest`) + `"test": "jest"` script added to `package.json`
+- Copy `jest.config.ts` from `packages/core/chunking/jest.config.ts` — only change is the `root` path relative to `__dirname`
+- Knex mock factory for `PgVectorStore`: use a `makeKnex()` that returns a `tableResult` (has `where`, `insert`), `whereResult` (returned by `where()`), and `whereInResult` (returned by `whereIn()`). For `listChunks`, `whereResult.select` resolves directly with DB rows.
+- For `search()` tests, override `whereResult.select` to be chainable (`mockReturnValue(whereResult)`), then build `orderByRawResult = { limit, whereIn, whereRaw }` where `whereIn`/`whereRaw` return a `filterResult = { limit }`. The actual chain is: `.where().select().orderByRaw()[.whereIn(...)][.whereRaw(...)].limit(topK)` — `limit` is always last.
+- `makeSearchKnex(resolvedRows)` factory returns `{ knex, tableResult, whereResult, orderByRawResult, filterResult }`. Assertions for `whereIn`/`whereRaw` filter calls go against `orderByRawResult`; for limit call in base case use `orderByRawResult.limit`; for limit in filter cases use `filterResult.limit`.
+- Linter (ESLint + Prettier) in this project aggressively rewrites diffs on save — if an Edit fails with "file modified since read", always re-read before editing again.
+
 ## Project Structure (test-relevant)
 - `packages/backstage/plugin-backend/` — backend plugin, uses `@backstage/*` (OK here)
 - `packages/backstage/plugin/` — frontend plugin, uses `@backstage/*` (OK here)

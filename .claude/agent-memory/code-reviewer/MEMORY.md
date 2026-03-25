@@ -186,6 +186,20 @@
 - ContextBuilder.ts: `readFile()` private method is defined but never called externally — only `readFileSafe()` is used. `readFile()` is an implementation detail that could be inlined.
 - CIGPersistenceService.test.ts: Updated mock adds all Phase 2.5 StorageAdapter methods — good maintenance.
 
+## Known Issues Found in Phase 5.3 Review (IndexingService / PgVectorStore / Migration 011)
+- IndexingService.ts line 67 (MAJOR): Delta filter computes `computeContentSha(chunk.content)` on-the-fly but never attaches it to the `Chunk` object before step 5. Step 5 recomputes it a second time via `computeContentSha(chunk.content)` for the VectorChunk. Double computation is wasteful but not a bug. More importantly: `Chunk` has no `contentSha` field — the SHA used for comparison in step 3 is never stored on the filtered chunks, so step 5 can't read it back; it must recompute. This is a minor inefficiency, not a correctness issue.
+- IndexingService.ts (MAJOR): `ChunkingService` is directly instantiated inside `IndexingService` constructor (`new ChunkingService(storageAdapter, logger)`). This violates the "All I/O behind interfaces" rule — `ChunkingService` reads from `StorageAdapter` and disk. For v1 this is acceptable since both live in `core/`, but the coupling means `IndexingService` cannot be tested without a `StorageAdapter` mock AND a `cloneDir` on disk. Tests work around this by providing a real `ChunkingService` backed by a mock storage returning empty data.
+- IndexingService.ts line 97 (MINOR): `chunk.metadata as Record<string, unknown> | undefined` — `ChunkMetadata` from `@codeinsight/chunking` is not exported from `@codeinsight/types`, so the cast is necessary. But `ChunkMetadata` fields are all optional scalars/arrays — the cast is safe. Consider exporting `ChunkMetadata` from types or re-using `VectorChunk.metadata` shape.
+- PgVectorStore.ts line 50 (MAJOR): `metadata: c.metadata ? JSON.stringify(c.metadata) : null` — double-serialization risk. Knex+pg auto-serializes JS objects to jsonb; wrapping in JSON.stringify produces a JSON string of a string in the DB, breaking `metadata->>'filePath'` extractions in search(). Pass the object directly: `metadata: c.metadata ?? null`.
+- PgVectorStore.ts line 40 (MINOR): upsert batch size is 50, not 100. The `EMBED_BATCH_SIZE` in `IndexingService` is 100. These are different things (DB param limit vs embed API limit) and the different values are defensible, but the constant is not named and lives inline. Extract as `UPSERT_BATCH_SIZE = 50` private static.
+- vector-store/tsconfig.json (MINOR): Missing `"references"` block for `../../core/types` — incremental builds will not propagate type changes from `@codeinsight/types` to this adapter. Contrast: indexing/tsconfig.json correctly has references.
+- PgVectorStore.ts line 99 (MINOR): `metadata->>'filePath' = ANY(?)` passes `filter.filePaths` as a plain JS array to Knex's `whereRaw`. Knex converts this to a Postgres array literal. Works in pg driver but is not parameterized in the standard sense — relies on Knex's internal binding for array parameters. Low risk but worth a comment.
+- Migration 011 line 45 (MINOR): IVFFlat index created without `WITH (lists = N)`. Default is 100. For small repos (<10k chunks) this is fine; for large ones IVFFlat needs tuning. Add a comment documenting this.
+- Migration 011 (NO-ISSUE): pgvector graceful fallback is correctly implemented — `CREATE EXTENSION IF NOT EXISTS vector` in a try/catch, then a probe query to detect success before conditionally adding the VECTOR column. Table is always created; embedding column is optional. This is a sound approach.
+- Test coverage (MINOR): No test for the case where `embeddingClient.embed` throws partway through the batch loop — the error propagates up and the job is marked failed, but chunksIndexed would be partially counted. The partial-progress state is not tested.
+- Test coverage (MINOR): No test for `deleteChunks` batching (BATCH_SIZE = 500) in PgVectorStore — not unit-testable without a real DB, but worth noting for integration test phase.
+- IngestionService.ts (GOOD): Indexer duck-type interface correctly omits `chunksTotal` from its return type (callers only log the three deltas). Non-fatal try/catch around `indexer.indexRepo` is correctly placed after diagrams and before `updateRepoStatus`. cloneDir is still alive at this point (finally block runs after).
+
 ## File Structure Reference
 - Types: `packages/core/types/src/{data,interfaces,config,index}.ts`
 - Backend plugin: `packages/backstage/plugin-backend/src/{plugin,router,index}.ts`
@@ -196,6 +210,9 @@
 - Migration CLI: knexfile.ts at package root, run via `NODE_OPTIONS='--require ts-node/register' knex`
 - Migration table name: `ci_knex_migrations` (scoped prefix avoids collision)
 - Diagram-gen package: `packages/core/diagram-gen/src/{types,utils,DiagramRegistry,DiagramGenerationService,index}.ts`, modules under `diagrams/{universal,frontend,backend}/`
+- Vector store adapter: `packages/adapters/vector-store/src/{PgVectorStore,index}.ts`
+- Indexing service: `packages/core/indexing/src/{IndexingService,index}.ts`, tests under `__tests__/`
+- Chunking service: `packages/core/chunking/src/{ChunkingService,types,index}.ts`
 
 ## Known Issues Found in Phase 3 Review (Diagram Generation)
 - config.d.ts MISSING diagramGen block: plugin.ts reads `codeinsight.diagramGen.{maxConcurrency,maxOutputTokens,temperature}` but none of these keys are declared in config.d.ts. Backstage schema validation silently rejects them. Fix: add a `diagramGen?` block to config.d.ts. STILL OPEN after Phase 3.6.
