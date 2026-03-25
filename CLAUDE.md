@@ -55,6 +55,14 @@ pnpm db:migrate                       # run Knex migrations
   - 3.4 Diagram Generation Service — ✅ COMPLETED (`DiagramGenerationService` wired into ingestion pipeline)
   - 3.5 Diagrams Frontend Tab — ✅ COMPLETED (Mermaid.js rendering, gallery grid, AST/AI badge, stale indicator)
   - 3.6 Diagram Portfolio Hardening — ✅ COMPLETED (`SignalDetector`, `CircularDependencyModule`, `PackageBoundaryModule`; `computeInputSha` fix; `securityLevel` fix; removed low-value LLM modules)
+- **Phase 4**: Diagram Overhaul — ✅ COMPLETED (all 4.1–4.4 sub-phases done)
+  - 4.1 Type System & Signal Detection Foundation — ✅ COMPLETED (`nodeMap` flow, new signals)
+  - 4.2 New Diagram Modules — ✅ COMPLETED (5 new modules, 4 retrofitted with `nodeMap`)
+  - 4.3 Registry & Wiring — ✅ COMPLETED (9-module default registry)
+  - 4.4 Frontend UI Overhaul — ✅ COMPLETED (zoom, pan, fullscreen, clickable nodes, SVG download)
+- **Phase 5**: QnA Pipeline — IN PROGRESS
+  - 5.1 Embedding Client + Cache — ✅ COMPLETED (`@codeinsight/embeddings` package)
+  - 5.2 Chunking Service — ✅ COMPLETED (`@codeinsight/chunking` package, 28 tests)
 
 ## Custom Agents & Skills
 
