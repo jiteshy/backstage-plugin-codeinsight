@@ -818,16 +818,26 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 5.3 — Indexing Service
+### 5.3 — Indexing Service ✅ COMPLETED
 
-- [ ] Create `IndexingService`:
+- [x] Create `IndexingService`:
   - `indexRepo(repoId)` — chunks all layers, embeds, upserts to `ci_qna_embeddings`
-  - Delta: only re-embed chunks where `file_sha` changed
-  - Batch embed calls (OpenAI supports batch of 100)
-  - Store each embedding with `content_sha` for cache lookup
-- [ ] Run indexing as part of ingestion job, after doc generation (so doc chunks exist)
+  - Delta: only re-embed chunks where `content_sha` changed
+  - Batch embed calls (100 per batch — OpenAI limit)
+  - Store each embedding with `content_sha` for content-addressed cache lookup
+- [x] Run indexing as part of ingestion job, after doc generation (so doc chunks exist)
 
-**Acceptance:** Full index built for a 100-file repo. Delta re-index after one file change only re-embeds that file's chunks.
+**Acceptance:** ✅ Full index built for a 100-file repo. Delta re-index after one file change only re-embeds that file's chunks.
+
+**Notes:**
+- `@codeinsight/indexing` package: `IndexingService`, `IndexingResult`, `computeContentSha`
+- Delta detection: `VectorStore.listChunks(repoId)` returns existing `chunkId → contentSha`; chunks with matching SHA are skipped
+- Stale chunk cleanup: chunks no longer produced by `ChunkingService` are deleted via `VectorStore.deleteChunks()`
+- `@codeinsight/vector-store` adapter: `PgVectorStore` — implements full `VectorStore` interface against `ci_qna_embeddings` table
+- `VectorStore` interface extended: added `listChunks()` + `deleteChunks()` methods
+- Migration 011: creates `ci_qna_embeddings` (pgvector VECTOR(3072)), `ci_qna_sessions`, `ci_qna_messages`
+- `IngestionService` wired: `Indexer` duck-type interface; `indexRepo()` called after diagram generation (non-fatal)
+- 9 unit tests — all pass
 
 ---
 

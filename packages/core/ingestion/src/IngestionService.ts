@@ -49,6 +49,18 @@ interface DiagramGenerator {
 }
 
 // ---------------------------------------------------------------------------
+// Indexer — minimal duck-type interface so IngestionService does not depend on
+// @codeinsight/indexing directly. IndexingService satisfies this structurally.
+// ---------------------------------------------------------------------------
+
+interface Indexer {
+  indexRepo(
+    repoId: string,
+    cloneDir: string,
+  ): Promise<{ chunksIndexed: number; chunksSkipped: number; chunksDeleted: number }>;
+}
+
+// ---------------------------------------------------------------------------
 // Factory — builds a CIGBuilder with all Phase 1 extractors registered
 // ---------------------------------------------------------------------------
 
@@ -70,6 +82,7 @@ export class IngestionService {
   private readonly stalenessService: StalenessService;
   private readonly docGenerator?: DocGenerator;
   private readonly diagramGenerator?: DiagramGenerator;
+  private readonly indexer?: Indexer;
 
   constructor(
     private readonly repoConnector: RepoConnector,
@@ -80,6 +93,7 @@ export class IngestionService {
     stalenessService?: StalenessService,
     docGenerator?: DocGenerator,
     diagramGenerator?: DiagramGenerator,
+    indexer?: Indexer,
   ) {
     this.cigBuilder = cigBuilder ?? createDefaultCIGBuilder();
     this.cigPersistence = new CIGPersistenceService(storageAdapter, logger);
@@ -87,6 +101,7 @@ export class IngestionService {
     this.stalenessService = stalenessService ?? new StalenessService(storageAdapter, logger);
     this.docGenerator = docGenerator;
     this.diagramGenerator = diagramGenerator;
+    this.indexer = indexer;
   }
 
   // ---------------------------------------------------------------------------
@@ -319,6 +334,28 @@ export class IngestionService {
             repoId,
             jobId,
             error: String(diagErr),
+          });
+        }
+      }
+
+      // Run QnA indexing (after doc + diagram generation so all layers exist).
+      // Non-fatal — CIG + doc + diagram pipeline already succeeded.
+      if (this.indexer) {
+        try {
+          this.logger.info('Starting QnA indexing', { repoId, jobId });
+          const indexResult = await this.indexer.indexRepo(repoId, cloneDir);
+          this.logger.info('QnA indexing complete', {
+            repoId,
+            jobId,
+            chunksIndexed: indexResult.chunksIndexed,
+            chunksSkipped: indexResult.chunksSkipped,
+            chunksDeleted: indexResult.chunksDeleted,
+          });
+        } catch (indexErr) {
+          this.logger.error('QnA indexing failed (non-fatal)', {
+            repoId,
+            jobId,
+            error: String(indexErr),
           });
         }
       }

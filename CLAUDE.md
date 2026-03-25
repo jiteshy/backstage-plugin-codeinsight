@@ -63,6 +63,7 @@ pnpm db:migrate                       # run Knex migrations
 - **Phase 5**: QnA Pipeline — IN PROGRESS
   - 5.1 Embedding Client + Cache — ✅ COMPLETED (`@codeinsight/embeddings` package)
   - 5.2 Chunking Service — ✅ COMPLETED (`@codeinsight/chunking` package, 28 tests)
+  - 5.3 Indexing Service — ✅ COMPLETED (`@codeinsight/indexing` package, `@codeinsight/vector-store` adapter, migration 011, 9 tests)
 
 ## Custom Agents & Skills
 

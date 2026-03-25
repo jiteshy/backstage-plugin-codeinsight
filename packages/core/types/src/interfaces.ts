@@ -58,6 +58,10 @@ export interface VectorFilter {
 export interface VectorStore {
   upsert(chunks: VectorChunk[]): Promise<void>;
   search(embedding: number[], filter: VectorFilter, topK: number): Promise<VectorChunk[]>;
+  /** Return existing chunk IDs + content SHAs for delta detection. */
+  listChunks(repoId: string): Promise<Array<{ chunkId: string; contentSha: string }>>;
+  /** Remove specific chunks by ID (used when source chunks are deleted). */
+  deleteChunks(repoId: string, chunkIds: string[]): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
