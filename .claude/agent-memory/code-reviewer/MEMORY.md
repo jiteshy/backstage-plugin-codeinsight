@@ -250,3 +250,14 @@
 - selectModules() changed from Record<string,string> to string[] in Phase 3.6 — cleaner API, all callers updated.
 - DiagramContent.description field added in Phase 3.6 — optional, flows correctly through all 4 layers (DiagramModule → DiagramContent → router → api.ts → frontend).
 - computeInputSha now includes module.id prefix — ensures per-module cache independence.
+
+## Phase 5.1 Review Notes (Embedding Client + Cache)
+See `phase5-embeddings.md` for full details.
+- Package: `packages/adapters/embeddings/` — mirrors @codeinsight/llm, framework-agnostic, config injected. Clean.
+- MAJOR: CachingEmbeddingClient cache reads missing `model_used` filter — wrong-dimension embeddings returned when model changes. Fix: add `.andWhere('model_used', this.modelName)` + composite PK.
+- MAJOR: migration 007_ci_cache.ts VECTOR(1536) hardcoded — breaks any non-default dimensions config. Fix: use VECTOR(3072).
+- MAJOR: config.d.ts missing `dimensions` field for `codeinsight.embeddings` block.
+- MINOR: No test script or jest devDependencies in package.json (same gap as @codeinsight/llm).
+- MINOR: tsconfig.json doesn't exclude __tests__ (same gap as @codeinsight/llm).
+- Key pattern: cache key is SHA256(text) only (not model-bound) — requires model filter on reads. Contrast with LLM cache which bakes model into key.
+- Still-open from prior phases: config.d.ts diagramGen block still undeclared.
