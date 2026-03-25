@@ -87,8 +87,7 @@ export class PgVectorStore implements VectorStore {
         'metadata',
       )
       // Use pgvector cosine distance operator (<=>)
-      .orderByRaw(`embedding <=> ?::vector`, [embeddingLiteral])
-      .limit(topK);
+      .orderByRaw(`embedding <=> ?::vector`, [embeddingLiteral]);
 
     if (filter.layers && filter.layers.length > 0) {
       query = query.whereIn('layer', filter.layers);
@@ -101,7 +100,7 @@ export class PgVectorStore implements VectorStore {
       );
     }
 
-    const rows = await query;
+    const rows = await query.limit(topK);
 
     return rows.map(row => this.rowToVectorChunk(row));
   }
