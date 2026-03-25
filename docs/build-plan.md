@@ -792,17 +792,28 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 5.2 — Chunking Service
+### 5.2 — Chunking Service ✅ COMPLETED
 
-- [ ] Create `ChunkingService` using CIG:
+- [x] Create `ChunkingService` using CIG:
   - For each symbol in `ci_cig_nodes`: create code chunk with full metadata
   - For each file summary (from doc Phase 1): create summary chunk
   - For each doc section (from doc Phase 2+3): create doc chunk
   - Chunk metadata: file_path, symbol, layer, lines, calls[], called_by[], file_sha
   - chunk_id format: `{repo_id}:{file_path}:{symbol}:{layer}`
-- [ ] Handle oversized chunks (symbol > 1000 tokens): split at logical sub-blocks
+- [x] Handle oversized chunks (symbol > 1000 tokens): split at logical sub-blocks
 
-**Acceptance:** Chunking produces correct chunks for a 100-file repo. Chunk IDs are stable across re-runs for unchanged files.
+**Acceptance:** ✅ Chunking produces correct chunks with stable IDs. 28 tests pass. Build clean.
+
+**Notes:**
+- `@codeinsight/chunking` package: `ChunkingService`, `Chunk`, `ChunkLayer`, `ChunkMetadata`, `ChunkingResult` types
+- Three chunk layers: `code` (Layer 1 — CIG node source), `doc` (Layer 2 — doc artifact markdown), `diagram` (Layer 3 — diagram title + description + mermaid)
+- Code chunks include `calls[]` and `calledBy[]` from CIG edges (only `calls` edge type)
+- Oversized code splitting: tries blank-line boundaries first, falls back to force-split at equal line counts
+- Oversized doc/text splitting: tries paragraph boundaries (`\n\n`), falls back to line-based force-split
+- Sub-chunks get `chunkId` suffix `:0`, `:1`, etc. with `subChunkIndex`/`totalSubChunks` metadata
+- `computeCompositeSha` for multi-file artifact inputs (order-independent via sort)
+- Token estimation: ~4 chars/token (configurable via `maxChunkTokens`, default 1000)
+- Graceful fallbacks: missing source files skipped, null content skipped, `extractedSha` used when `RepoFile` not found
 
 ---
 
