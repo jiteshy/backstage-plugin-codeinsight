@@ -372,3 +372,169 @@ describe('PgVectorStore.search', () => {
     expect(results).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// searchKeyword()
+//
+// The knex query chain for searchKeyword is:
+//   knex('ci_qna_embeddings')
+//     .where('repo_id', repoId)                           ← tableResult.where → whereResult
+//     .whereRaw('to_tsvector(...) @@ plainto_tsquery(?)') ← whereResult.whereRaw → whereRawResult
+//     .select(columns)                                    ← whereRawResult.select → selectResult
+//     .orderByRaw('ts_rank(...) DESC')                    ← selectResult.orderByRaw → orderByRawResult
+//     .limit(topK)                                        ← orderByRawResult.limit → limitResult
+//     [.whereIn('layer', layers)]                         ← limitResult.whereIn → resolved rows
+// ---------------------------------------------------------------------------
+
+describe('PgVectorStore.searchKeyword', () => {
+  const REPO = 'repo-1';
+
+  function makeKeywordKnex(resolvedRows: object[] = []) {
+    // Terminal mock for the no-layer path: limit() returns a thenable.
+    // For the with-layer path: limit() returns a chainable with whereIn().
+    const actualRows = resolvedRows;
+    const limitResult = {
+      whereIn: jest.fn().mockResolvedValue(actualRows),
+      // Also thenable for the no-layer path: await limitResult resolves rows
+      then: (res: (v: object[]) => void) => Promise.resolve(actualRows).then(res),
+    };
+
+    const orderByRawResult = {
+      limit: jest.fn().mockReturnValue(limitResult),
+    };
+
+    const selectResult = {
+      orderByRaw: jest.fn().mockReturnValue(orderByRawResult),
+    };
+
+    const whereRawResult = {
+      select: jest.fn().mockReturnValue(selectResult),
+    };
+
+    const whereResult = {
+      whereRaw: jest.fn().mockReturnValue(whereRawResult),
+    };
+
+    const tableResult = {
+      where: jest.fn().mockReturnValue(whereResult),
+    };
+
+    const knex = jest.fn().mockReturnValue(tableResult);
+    return {
+      knex,
+      tableResult,
+      whereResult,
+      whereRawResult,
+      selectResult,
+      orderByRawResult,
+      limitResult,
+    };
+  }
+
+  it('queries with correct repo_id filter, tsvector condition, ts_rank ordering, and limit', async () => {
+    const { knex, tableResult, whereResult, whereRawResult, selectResult, orderByRawResult, limitResult } =
+      makeKeywordKnex();
+    const store = new PgVectorStore(knex as never);
+
+    await store.searchKeyword(REPO, 'login flow', 5);
+
+    expect(knex).toHaveBeenCalledWith('ci_qna_embeddings');
+    expect(tableResult.where).toHaveBeenCalledWith('repo_id', REPO);
+    expect(whereResult.whereRaw).toHaveBeenCalledWith(
+      `to_tsvector('english', content) @@ plainto_tsquery('english', ?)`,
+      ['login flow'],
+    );
+    expect(whereRawResult.select).toHaveBeenCalledWith(
+      'repo_id', 'chunk_id', 'content', 'content_sha', 'layer', 'metadata',
+    );
+    expect(selectResult.orderByRaw).toHaveBeenCalledWith(
+      `ts_rank(to_tsvector('english', content), plainto_tsquery('english', ?)) DESC`,
+      ['login flow'],
+    );
+    expect(orderByRawResult.limit).toHaveBeenCalledWith(5);
+    // No layer filter — whereIn not called
+    expect(limitResult.whereIn).not.toHaveBeenCalled();
+  });
+
+  it('applies whereIn layer filter when layers array is non-empty', async () => {
+    const { knex, limitResult } = makeKeywordKnex();
+    const store = new PgVectorStore(knex as never);
+
+    await store.searchKeyword(REPO, 'auth', 8, ['code', 'doc_section']);
+
+    expect(limitResult.whereIn).toHaveBeenCalledWith('layer', ['code', 'doc_section']);
+  });
+
+  it('skips whereIn when layers array is empty', async () => {
+    const { knex, limitResult } = makeKeywordKnex();
+    const store = new PgVectorStore(knex as never);
+
+    await store.searchKeyword(REPO, 'auth', 8, []);
+
+    expect(limitResult.whereIn).not.toHaveBeenCalled();
+  });
+
+  it('skips whereIn when layers is undefined', async () => {
+    const { knex, limitResult } = makeKeywordKnex();
+    const store = new PgVectorStore(knex as never);
+
+    await store.searchKeyword(REPO, 'auth', 8);
+
+    expect(limitResult.whereIn).not.toHaveBeenCalled();
+  });
+
+  it('maps DB rows to VectorChunk objects (snake_case → camelCase)', async () => {
+    const dbRows = [
+      {
+        repo_id: REPO,
+        chunk_id: `${REPO}:src/auth.ts:loginUser:code`,
+        content: 'function loginUser() {}',
+        content_sha: 'sha-login',
+        layer: 'code',
+        metadata: { filePath: 'src/auth.ts', symbol: 'loginUser' },
+      },
+    ];
+    const { knex } = makeKeywordKnex(dbRows);
+    const store = new PgVectorStore(knex as never);
+
+    const results = await store.searchKeyword(REPO, 'loginUser', 5);
+
+    expect(results).toHaveLength(1);
+    const chunk = results[0];
+    expect(chunk.chunkId).toBe(`${REPO}:src/auth.ts:loginUser:code`);
+    expect(chunk.repoId).toBe(REPO);
+    expect(chunk.content).toBe('function loginUser() {}');
+    expect(chunk.contentSha).toBe('sha-login');
+    expect(chunk.layer).toBe('code');
+    expect(chunk.metadata).toEqual({ filePath: 'src/auth.ts', symbol: 'loginUser' });
+    expect(chunk.embedding).toBeUndefined();
+  });
+
+  it('sets chunk.metadata to undefined when DB row has null metadata', async () => {
+    const dbRows = [
+      {
+        repo_id: REPO,
+        chunk_id: `${REPO}:src/a.ts:fnA:code`,
+        content: 'fnA docs',
+        content_sha: 'sha-a',
+        layer: 'doc_section',
+        metadata: null,
+      },
+    ];
+    const { knex } = makeKeywordKnex(dbRows);
+    const store = new PgVectorStore(knex as never);
+
+    const results = await store.searchKeyword(REPO, 'fnA', 5);
+
+    expect(results[0].metadata).toBeUndefined();
+  });
+
+  it('returns an empty array when no rows match', async () => {
+    const { knex } = makeKeywordKnex([]);
+    const store = new PgVectorStore(knex as never);
+
+    const results = await store.searchKeyword(REPO, 'nonexistent term xyz', 5);
+
+    expect(results).toEqual([]);
+  });
+});
