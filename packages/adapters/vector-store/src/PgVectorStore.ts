@@ -47,7 +47,7 @@ export class PgVectorStore implements VectorStore {
         content: c.content,
         content_sha: c.contentSha,
         layer: c.layer,
-        metadata: c.metadata ? JSON.stringify(c.metadata) : null,
+        metadata: c.metadata ?? null,
       }));
 
       await this.knex('ci_qna_embeddings')
