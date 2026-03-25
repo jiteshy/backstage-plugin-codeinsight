@@ -173,28 +173,25 @@ describe('DiagramRegistry', () => {
   // -------------------------------------------------------------------------
 
   describe('createDefaultRegistry()', () => {
-    it('registers exactly 9 built-in modules', () => {
+    it('registers exactly 7 built-in modules', () => {
       const defaultRegistry = createDefaultRegistry();
-      expect(defaultRegistry.getAllModules()).toHaveLength(9);
+      expect(defaultRegistry.getAllModules()).toHaveLength(7);
     });
 
-    it('includes 5 always-on modules (4 AST + 1 LLM)', () => {
+    it('includes 2 always-on modules (1 AST + 1 LLM)', () => {
       const defaultRegistry = createDefaultRegistry();
       const alwaysOn = defaultRegistry.getAllModules().filter(m => m.triggersOn.length === 0);
-      expect(alwaysOn).toHaveLength(5);
+      expect(alwaysOn).toHaveLength(2);
       expect(alwaysOn.map(m => m.id)).toEqual(expect.arrayContaining([
-        'universal/dependency-graph',
-        'universal/module-boundaries',
         'universal/circular-dependencies',
-        'universal/package-boundaries',
         'universal/high-level-architecture',
       ]));
     });
 
-    it('selects all 5 always-on modules when signal list is empty', () => {
+    it('selects 2 always-on modules when signal list is empty', () => {
       const defaultRegistry = createDefaultRegistry();
       const selected = defaultRegistry.selectModules([]);
-      expect(selected).toHaveLength(5);
+      expect(selected).toHaveLength(2);
     });
 
     it('adds ErDiagramModule when orm:prisma is detected', () => {
@@ -232,7 +229,7 @@ describe('DiagramRegistry', () => {
       expect(ids).toContain('frontend/state-management');
     });
 
-    it('does not include removed modules (ComponentHierarchy, ApiFlow, CiCdPipeline, RequestLifecycle, StateFlow)', () => {
+    it('does not include removed or deprecated modules', () => {
       const defaultRegistry = createDefaultRegistry();
       const ids = defaultRegistry.getAllModules().map(m => m.id);
       expect(ids).not.toContain('frontend/component-hierarchy');
@@ -240,21 +237,36 @@ describe('DiagramRegistry', () => {
       expect(ids).not.toContain('universal/ci-cd-pipeline');
       expect(ids).not.toContain('backend/request-lifecycle');
       expect(ids).not.toContain('frontend/state-flow');
+      expect(ids).not.toContain('universal/dependency-graph');
+      expect(ids).not.toContain('universal/module-boundaries');
+      expect(ids).not.toContain('universal/package-boundaries');
+    });
+
+    it('adds AuthFlowModule when auth:jwt is detected', () => {
+      const defaultRegistry = createDefaultRegistry();
+      const selected = defaultRegistry.selectModules(['auth:jwt']);
+      const ids = selected.map(m => m.id);
+      expect(ids).toContain('universal/auth-flow');
+    });
+
+    it('adds AuthFlowModule when auth:middleware is detected', () => {
+      const defaultRegistry = createDefaultRegistry();
+      const selected = defaultRegistry.selectModules(['auth:middleware']);
+      const ids = selected.map(m => m.id);
+      expect(ids).toContain('universal/auth-flow');
     });
 
     it('registers modules in the correct order', () => {
       const defaultRegistry = createDefaultRegistry();
       const ids = defaultRegistry.getAllModules().map(m => m.id);
       expect(ids).toEqual([
-        'universal/dependency-graph',
-        'universal/module-boundaries',
-        'universal/circular-dependencies',
-        'universal/package-boundaries',
         'universal/high-level-architecture',
+        'universal/circular-dependencies',
         'universal/er-diagram',
-        'frontend/state-management',
         'backend/api-entity-mapping',
+        'frontend/state-management',
         'universal/deployment-infra',
+        'universal/auth-flow',
       ]);
     });
   });

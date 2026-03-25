@@ -763,6 +763,36 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
+### 4.5 — Diagram Portfolio Pruning & Auth Flow ✅ COMPLETED
+
+**Goal:** Remove low-value AST modules from the default registry; add `AuthFlowModule` for auth/security diagrams.
+
+| Step | Status | Description |
+|------|--------|-------------|
+| 4.5.1 | ✅ | Remove `DependencyGraphModule`, `ModuleBoundariesModule`, `PackageBoundaryModule` from `createDefaultRegistry()` — files kept on disk, just de-registered |
+| 4.5.2 | ✅ | Add `auth:jwt`, `auth:oauth`, `auth:session`, `auth:middleware` signals to `SignalDetector` (file-path + symbol-name pattern matching) |
+| 4.5.3 | ✅ | Create `AuthFlowModule` (`universal/auth-flow`) — LLM-assisted, triggers on any `auth:*` signal; generates `flowchart TD` showing request → auth middleware → token validation → RBAC check → resource; `null` if no auth files found |
+| 4.5.4 | ✅ | Register `AuthFlowModule` in `createDefaultRegistry()` after `DeploymentInfraModule` |
+| 4.5.5 | ✅ | Update `DiagramRegistry.test.ts` for new 7-module portfolio; add `AuthFlowModule.test.ts` (16 tests) and `SignalDetector` auth signal tests (9 tests). 257 tests pass. |
+
+**Final portfolio (7 modules):**
+
+| Module | Type | Trigger |
+|--------|------|---------|
+| `CircularDependencyModule` | AST | always-on (null if clean) |
+| `HighLevelArchitectureModule` | AI | always-on |
+| `ErDiagramModule` | AST | orm:prisma |
+| `ApiEntityMappingModule` | Hybrid | framework:express/fastify/koa/nestjs/hapi |
+| `StateManagementModule` | Hybrid | state-management:* |
+| `DeploymentInfraModule` | AI | ci:*/infra:* |
+| `AuthFlowModule` | AI | auth:* (NEW) |
+
+**Notes:**
+- DependencyGraph/ModuleBoundaries/PackageBoundary removed because: too noisy/unreadable (dep graph), too generic (module boundaries — just folder names), near-zero content (package boundaries — 1-2 nodes for most repos)
+- Auth flow diagram covers the "how does auth work here?" question that new team members always ask
+
+---
+
 ## Phase 5: QnA Pipeline
 **Goal:** Chat tab where users ask questions about the repo and get grounded, sourced answers.
 

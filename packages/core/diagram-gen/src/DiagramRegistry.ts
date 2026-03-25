@@ -1,12 +1,10 @@
 import { ApiEntityMappingModule } from './diagrams/backend/ApiEntityMappingModule';
 import { StateManagementModule } from './diagrams/frontend/StateManagementModule';
+import { AuthFlowModule } from './diagrams/universal/AuthFlowModule';
 import { CircularDependencyModule } from './diagrams/universal/CircularDependencyModule';
-import { DependencyGraphModule } from './diagrams/universal/DependencyGraphModule';
 import { DeploymentInfraModule } from './diagrams/universal/DeploymentInfraModule';
 import { ErDiagramModule } from './diagrams/universal/ErDiagramModule';
 import { HighLevelArchitectureModule } from './diagrams/universal/HighLevelArchitectureModule';
-import { ModuleBoundariesModule } from './diagrams/universal/ModuleBoundariesModule';
-import { PackageBoundaryModule } from './diagrams/universal/PackageBoundaryModule';
 import type { DiagramModule } from './types';
 
 /**
@@ -64,22 +62,20 @@ export class DiagramRegistry {
 export function createDefaultRegistry(): DiagramRegistry {
   const registry = new DiagramRegistry();
 
-  // ── Always-on, pure AST ──────────────────────────────────────────────────
-  registry.register(new DependencyGraphModule());
-  registry.register(new ModuleBoundariesModule());
-  registry.register(new CircularDependencyModule());
-  registry.register(new PackageBoundaryModule());
-
   // ── Always-on, LLM-assisted ──────────────────────────────────────────────
-  registry.register(new HighLevelArchitectureModule());
+  registry.register(new HighLevelArchitectureModule()); // first — shown first in UI
+
+  // ── Always-on, pure AST ──────────────────────────────────────────────────
+  registry.register(new CircularDependencyModule()); // null if no cycles — diagnostic only
 
   // ── Signal-gated, pure AST ───────────────────────────────────────────────
   registry.register(new ErDiagramModule()); // triggers on orm:prisma
 
-  // ── Signal-gated, AST or hybrid/LLM ─────────────────────────────────────
+  // ── Signal-gated, hybrid/LLM ─────────────────────────────────────────────
+  registry.register(new ApiEntityMappingModule()); // framework:express/fastify/koa/nestjs/hapi
   registry.register(new StateManagementModule()); // state-management:* — hybrid
-  registry.register(new ApiEntityMappingModule()); // framework:express/fastify/koa/nestjs/hapi — pure AST
   registry.register(new DeploymentInfraModule()); // ci:github-actions/gitlab-ci/etc. — LLM
+  registry.register(new AuthFlowModule()); // auth:jwt/oauth/session/middleware — LLM
 
   return registry;
 }
