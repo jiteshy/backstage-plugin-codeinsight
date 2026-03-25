@@ -255,20 +255,40 @@ describe('ChunkingService', () => {
 
   describe('computeCompositeSha', () => {
     it('produces deterministic output', () => {
-      const a = computeCompositeSha(['sha1', 'sha2']);
-      const b = computeCompositeSha(['sha1', 'sha2']);
+      const inputs = [
+        { filePath: 'a.ts', fileSha: 'sha1' },
+        { filePath: 'b.ts', fileSha: 'sha2' },
+      ];
+      const a = computeCompositeSha(inputs);
+      const b = computeCompositeSha(inputs);
       expect(a).toBe(b);
     });
 
-    it('is order-independent (sorts internally)', () => {
-      const a = computeCompositeSha(['sha1', 'sha2']);
-      const b = computeCompositeSha(['sha2', 'sha1']);
+    it('is order-independent (sorts by filePath internally)', () => {
+      const a = computeCompositeSha([
+        { filePath: 'a.ts', fileSha: 'sha1' },
+        { filePath: 'b.ts', fileSha: 'sha2' },
+      ]);
+      const b = computeCompositeSha([
+        { filePath: 'b.ts', fileSha: 'sha2' },
+        { filePath: 'a.ts', fileSha: 'sha1' },
+      ]);
       expect(a).toBe(b);
     });
 
     it('produces different output for different inputs', () => {
-      const a = computeCompositeSha(['sha1']);
-      const b = computeCompositeSha(['sha2']);
+      const a = computeCompositeSha([{ filePath: 'a.ts', fileSha: 'sha1' }]);
+      const b = computeCompositeSha([{ filePath: 'a.ts', fileSha: 'sha2' }]);
+      expect(a).not.toBe(b);
+    });
+
+    it('returns "empty" for empty array', () => {
+      expect(computeCompositeSha([])).toBe('empty');
+    });
+
+    it('includes filePath in hash (different paths with same SHA differ)', () => {
+      const a = computeCompositeSha([{ filePath: 'a.ts', fileSha: 'sha1' }]);
+      const b = computeCompositeSha([{ filePath: 'b.ts', fileSha: 'sha1' }]);
       expect(a).not.toBe(b);
     });
   });
@@ -630,6 +650,33 @@ describe('ChunkingService', () => {
       expect(result.stats.oversizedSplit).toBe(0);
       expect(result.chunks[0].metadata.subChunkIndex).toBeUndefined();
     });
+
+    it('does not split diagram chunks (emits single chunk regardless of size)', async () => {
+      cloneDir = await createTempRepo({});
+
+      const largeMermaid = Array.from(
+        { length: 200 },
+        (_, i) => `  node${i}["Module ${i} with a long label to increase token count"] --> node${i + 1}`,
+      ).join('\n');
+
+      const storage = createMockStorage({
+        diagramArtifacts: [
+          makeDiagramArtifact(
+            'huge-diagram',
+            `graph TD\n${largeMermaid}`,
+            'Huge Diagram',
+            'A very large diagram for testing oversized behavior.',
+          ),
+        ],
+      });
+
+      const svc = new ChunkingService(storage, undefined, { maxChunkTokens: 100 });
+      const result = await svc.chunkRepo('repo-1', cloneDir);
+
+      // Diagrams are not split — single chunk emitted
+      expect(result.stats.diagramChunks).toBe(1);
+      expect(result.chunks[0].metadata.subChunkIndex).toBeUndefined();
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -664,6 +711,26 @@ describe('ChunkingService', () => {
   // -----------------------------------------------------------------------
 
   describe('edge cases', () => {
+    it('uses lexicographically first filePath for multi-input artifacts', async () => {
+      cloneDir = await createTempRepo({});
+
+      const storage = createMockStorage({
+        docArtifacts: [makeDocArtifact('overview', 'Some overview text')],
+        artifactInputs: new Map([
+          ['doc:overview', [
+            { repoId: 'repo-1', artifactId: 'doc:overview', filePath: 'src/z.ts', fileSha: 'sha-z' },
+            { repoId: 'repo-1', artifactId: 'doc:overview', filePath: 'src/a.ts', fileSha: 'sha-a' },
+            { repoId: 'repo-1', artifactId: 'doc:overview', filePath: 'src/m.ts', fileSha: 'sha-m' },
+          ]],
+        ]),
+      });
+
+      const svc = new ChunkingService(storage);
+      const result = await svc.chunkRepo('repo-1', cloneDir);
+
+      expect(result.chunks[0].filePath).toBe('src/a.ts');
+    });
+
     it('handles empty repo (no nodes, no artifacts)', async () => {
       cloneDir = await createTempRepo({});
 

@@ -811,7 +811,8 @@ Replace low-value diagrams with high-value architecture diagrams.
 - Oversized code splitting: tries blank-line boundaries first, falls back to force-split at equal line counts
 - Oversized doc/text splitting: tries paragraph boundaries (`\n\n`), falls back to line-based force-split
 - Sub-chunks get `chunkId` suffix `:0`, `:1`, etc. with `subChunkIndex`/`totalSubChunks` metadata
-- `computeCompositeSha` for multi-file artifact inputs (order-independent via sort)
+- `computeCompositeSha` matches `computeInputSha` algorithm: SHA256 of sorted `filePath:fileSha` pairs
+- Multi-input artifact filePath is deterministic: lexicographically first input path
 - Token estimation: ~4 chars/token (configurable via `maxChunkTokens`, default 1000)
 - Graceful fallbacks: missing source files skipped, null content skipped, `extractedSha` used when `RepoFile` not found
 

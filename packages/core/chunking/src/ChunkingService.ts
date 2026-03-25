@@ -67,9 +67,9 @@ export class ChunkingService {
     ]);
 
     // Build lookup maps
-    const filesBySha = new Map<string, RepoFile>();
+    const filesByPath = new Map<string, RepoFile>();
     for (const f of repoFiles) {
-      filesBySha.set(f.filePath, f);
+      filesByPath.set(f.filePath, f);
     }
 
     const edgesByFrom = new Map<string, CIGEdge[]>();
@@ -100,7 +100,7 @@ export class ChunkingService {
     // --- Layer 1: Code chunks from CIG nodes ---
     const codeChunks: Chunk[] = [];
     for (const node of nodes) {
-      const repoFile = filesBySha.get(node.filePath);
+      const repoFile = filesByPath.get(node.filePath);
       const fileSha = repoFile?.currentSha ?? node.extractedSha;
 
       // Read source lines for this symbol
@@ -182,10 +182,13 @@ export class ChunkingService {
         artifact.artifactId,
       );
       const fileSha = inputs.length > 0
-        ? computeCompositeSha(inputs.map(i => i.fileSha))
+        ? computeCompositeSha(inputs)
         : artifact.inputSha;
 
-      const filePath = inputs.length > 0 ? inputs[0].filePath : artifact.artifactId;
+      // Pick lexicographically first path for deterministic chunk IDs
+      const filePath = inputs.length > 0
+        ? [...inputs].sort((a, b) => a.filePath.localeCompare(b.filePath))[0].filePath
+        : artifact.artifactId;
 
       const chunkId = buildChunkId(repoId, artifact.artifactId, doc.module, 'doc');
       const metadata: ChunkMetadata = {
@@ -233,10 +236,13 @@ export class ChunkingService {
         artifact.artifactId,
       );
       const fileSha = inputs.length > 0
-        ? computeCompositeSha(inputs.map(i => i.fileSha))
+        ? computeCompositeSha(inputs)
         : artifact.inputSha;
 
-      const filePath = inputs.length > 0 ? inputs[0].filePath : artifact.artifactId;
+      // Pick lexicographically first path for deterministic chunk IDs
+      const filePath = inputs.length > 0
+        ? [...inputs].sort((a, b) => a.filePath.localeCompare(b.filePath))[0].filePath
+        : artifact.artifactId;
 
       const chunkId = buildChunkId(
         repoId,
@@ -296,8 +302,13 @@ export class ChunkingService {
       const slice = lines.slice(startLine - 1, endLine);
       const result = slice.join('\n').trim();
       return result || null;
-    } catch {
-      this.logger?.warn('ChunkingService: failed to read source', { filePath });
+    } catch (err) {
+      this.logger?.warn('ChunkingService: failed to read source', {
+        filePath,
+        startLine,
+        endLine,
+        error: err instanceof Error ? err.message : String(err),
+      });
       return null;
     }
   }
@@ -469,7 +480,8 @@ export class ChunkingService {
       });
     }
 
-    return chunks;
+    // Filter out empty sub-chunks (e.g. trailing blank-line slices)
+    return chunks.filter(c => c.content.length > 0);
   }
 }
 
@@ -502,11 +514,16 @@ export function buildDiagramChunkText(diagram: DiagramContent): string | null {
   return text || null;
 }
 
-/** Compute a composite SHA from multiple SHAs (for multi-file inputs). */
-export function computeCompositeSha(shas: string[]): string {
-  const hash = createHash('sha256');
-  for (const sha of shas.sort()) {
-    hash.update(sha);
-  }
-  return hash.digest('hex');
+/**
+ * Compute a composite SHA from file inputs (for multi-file artifacts).
+ * Matches the `computeInputSha` algorithm in ContextBuilder: SHA256 of
+ * sorted `filePath:fileSha` pairs joined by `|`.
+ */
+export function computeCompositeSha(
+  inputs: Array<{ filePath: string; fileSha: string }>,
+): string {
+  if (inputs.length === 0) return 'empty';
+  const sorted = [...inputs].sort((a, b) => a.filePath.localeCompare(b.filePath));
+  const payload = sorted.map(i => `${i.filePath}:${i.fileSha}`).join('|');
+  return createHash('sha256').update(payload).digest('hex');
 }
