@@ -39,6 +39,9 @@ const GITHUB_ANNOTATION = 'github.com/project-slug';
 const TERMINAL_STATUSES = new Set(['completed', 'failed', 'partial']);
 const POLL_INTERVAL_MS = 3_000;
 
+const jobStorageKey = (repoId: string) => `codeinsight-active-job-${repoId}`;
+const jobTypeKey = (repoId: string) => `codeinsight-job-type-${repoId}`;
+
 const SECTION_ORDER: Record<string, number> = {
   overview: 0,
   'getting-started': 1,
@@ -545,7 +548,25 @@ function FirstRunEmptyState({ icon, heading }: { icon: string; heading: string }
         <Box component="span" className={classes.emptyStateFeaturePill}>Q&amp;A</Box>
       </Box>
       <Typography variant="caption" color="textSecondary" style={{ marginTop: 4 }}>
-        Use the button above to get started.
+        Use the "DISCOVER INSIGHTS" button above to get started.
+      </Typography>
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// GeneratingContent — shown during first-run job while content is being built
+// ---------------------------------------------------------------------------
+
+function GeneratingContent({ label, status }: { label: string; status: string }) {
+  const classes = useStyles();
+  return (
+    <Box className={classes.emptyState}>
+      <CircularProgress size={32} />
+      <Typography variant="h6" style={{ fontWeight: 600, marginTop: 8 }}>{label}</Typography>
+      <Typography variant="body2" color="textSecondary">{status}</Typography>
+      <Typography variant="caption" color="textSecondary" style={{ marginTop: 4 }}>
+        This may take a few minutes. You can navigate away — progress is tracked.
       </Typography>
     </Box>
   );
@@ -794,6 +815,7 @@ function CodeInsightContentInner() {
 
   // Job lifecycle
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [jobIsFirstRun, setJobIsFirstRun] = useState(false);
   const [jobLabel, setJobLabel] = useState('Queued...');
   const [triggerLoading, setTriggerLoading] = useState(false);
   const [triggerError, setTriggerError] = useState<string | null>(null);
@@ -801,6 +823,17 @@ function CodeInsightContentInner() {
 
   // Active inner tab
   const [activeTab, setActiveTab] = useState<ContentTab>('docs');
+
+  // Restore in-progress job from sessionStorage (survives route navigation)
+  useEffect(() => {
+    if (!repoId) return;
+    const stored = sessionStorage.getItem(jobStorageKey(repoId));
+    if (stored) {
+      setActiveJobId(stored);
+      setJobLabel('Analyzing repository...');
+      setJobIsFirstRun(sessionStorage.getItem(jobTypeKey(repoId)) === 'first');
+    }
+  }, [repoId]); // intentionally runs once on mount
 
   // Fetch last-synced timestamp (non-fatal if unavailable)
   useEffect(() => {
@@ -849,7 +882,16 @@ function CodeInsightContentInner() {
         if (cancelled) return;
         if (result.status === 'running') setJobLabel('Analyzing repository...');
         if (TERMINAL_STATUSES.has(result.status)) {
+          const wasFirstRun = sessionStorage.getItem(jobTypeKey(repoId)) === 'first';
+          sessionStorage.removeItem(jobStorageKey(repoId));
+          sessionStorage.removeItem(jobTypeKey(repoId));
           setActiveJobId(null);
+          setJobIsFirstRun(false);
+          if (wasFirstRun) {
+            // Reset to null so the loading spinner shows while fresh content fetches in
+            setDocs(null);
+            setDiagrams(null);
+          }
           setLastOutcome({
             status: result.status as JobOutcome['status'],
             filesProcessed: result.filesProcessed,
@@ -859,7 +901,10 @@ function CodeInsightContentInner() {
         }
       } catch (err) {
         if (!cancelled) {
+          sessionStorage.removeItem(jobStorageKey(repoId));
+          sessionStorage.removeItem(jobTypeKey(repoId));
           setActiveJobId(null);
+          setJobIsFirstRun(false);
           setTriggerError(`Lost contact with job: ${String(err)}`);
         }
       }
@@ -877,21 +922,28 @@ function CodeInsightContentInner() {
   // "First run" = docs loaded (not null) and empty — no prior analysis
   const isFirstRun = docs !== null && !hasDocs;
 
+  // Block content display during a first-run job — show generating state instead
+  const showGenerating = !!activeJobId && jobIsFirstRun;
+
   const handleAnalyze = useCallback(async () => {
     if (!repoId || !repoUrl) return;
     setTriggerLoading(true);
     setTriggerError(null);
     setLastOutcome(null);
     setJobLabel('Queued...');
+    const triggerIsFirstRun = isFirstRun;
     try {
       const { jobId } = await api.triggerIngestion(repoId, repoUrl);
+      sessionStorage.setItem(jobStorageKey(repoId), jobId);
+      sessionStorage.setItem(jobTypeKey(repoId), triggerIsFirstRun ? 'first' : 'sync');
+      setJobIsFirstRun(triggerIsFirstRun);
       setActiveJobId(jobId);
     } catch (err) {
       setTriggerError(String(err));
     } finally {
       setTriggerLoading(false);
     }
-  }, [api, repoId, repoUrl]);
+  }, [api, repoId, repoUrl, isFirstRun]);
 
   // No annotation guard
   if (!annotation || !repoId || !repoUrl) {
@@ -1002,14 +1054,14 @@ function CodeInsightContentInner() {
 
       <Box className={classes.tabContent}>
         {activeTab === 'docs' && (
-          <DocumentationContent docs={docs} loadError={loadError} isFirstRun={isFirstRun} />
+          showGenerating
+            ? <GeneratingContent label="Generating documentation..." status={jobLabel} />
+            : <DocumentationContent docs={docs} loadError={loadError} isFirstRun={isFirstRun} />
         )}
         {activeTab === 'diagrams' && (
-          <DiagramsContent
-            diagrams={diagrams}
-            loadError={diagramLoadError}
-            isFirstRun={isFirstRun}
-          />
+          showGenerating
+            ? <GeneratingContent label="Generating diagrams..." status={jobLabel} />
+            : <DiagramsContent diagrams={diagrams} loadError={diagramLoadError} isFirstRun={isFirstRun} />
         )}
         {activeTab === 'qna' && (
           <ComingSoonContent

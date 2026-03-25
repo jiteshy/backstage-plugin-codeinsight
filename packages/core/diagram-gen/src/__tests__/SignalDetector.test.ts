@@ -198,6 +198,103 @@ describe('SignalDetector', () => {
     });
   });
 
+  describe('authentication detection', () => {
+    it('detects auth:jwt from jwt file path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/utils/jwt.ts')]));
+      expect(signals).toContain('auth:jwt');
+    });
+
+    it('detects auth:jwt from jsonwebtoken file path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/auth/jsonwebtoken.ts')]));
+      expect(signals).toContain('auth:jwt');
+    });
+
+    it('detects auth:jwt from JwtStrategy symbolName', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/auth.ts', 'function', 'JwtStrategy')]));
+      expect(signals).toContain('auth:jwt');
+    });
+
+    it('detects auth:jwt from verifyToken symbolName', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/auth.ts', 'function', 'verifyToken')]));
+      expect(signals).toContain('auth:jwt');
+    });
+
+    it('detects auth:oauth from oauth file path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/auth/oauth.ts')]));
+      expect(signals).toContain('auth:oauth');
+    });
+
+    it('detects auth:oauth from passport file path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/passport/strategy.ts')]));
+      expect(signals).toContain('auth:oauth');
+    });
+
+    it('detects auth:session from express-session path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/middleware/express-session.ts')]));
+      expect(signals).toContain('auth:session');
+    });
+
+    it('detects auth:session from auth/session path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/auth/session.ts')]));
+      expect(signals).toContain('auth:session');
+    });
+
+    it('detects auth:session from /session/middleware path segment', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/session/middleware.ts')]));
+      expect(signals).toContain('auth:session');
+    });
+
+    it('detects auth:session from /session/store path segment', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/session/store.ts')]));
+      expect(signals).toContain('auth:session');
+    });
+
+    it('detects auth:session from cookieParser symbol name', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/app.ts', 'function', 'cookieParser')]));
+      expect(signals).toContain('auth:session');
+    });
+
+    it('does NOT emit auth:session for generic session paths unrelated to auth', () => {
+      // False-positive guard: session-replay analytics should not trigger auth:session
+      const signals = detector.detect(snap([makeNode('n1', 'src/services/session-replay/analytics.ts')]));
+      expect(signals).not.toContain('auth:session');
+    });
+
+    it('does NOT emit auth:session for a plain middleware/session.ts file', () => {
+      // Previously matched via fp.includes('session') — now tightened
+      const signals = detector.detect(snap([makeNode('n1', 'src/middleware/session.ts')]));
+      expect(signals).not.toContain('auth:session');
+    });
+
+    it('detects auth:middleware from auth.middleware file path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/auth.middleware.ts')]));
+      expect(signals).toContain('auth:middleware');
+    });
+
+    it('detects auth:middleware from middleware/auth file path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/middleware/auth.ts')]));
+      expect(signals).toContain('auth:middleware');
+    });
+
+    it('detects auth:middleware from guards/auth file path', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/guards/auth.guard.ts')]));
+      expect(signals).toContain('auth:middleware');
+    });
+
+    it('detects auth:middleware from AuthGuard symbolName', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/guards.ts', 'function', 'AuthGuard')]));
+      expect(signals).toContain('auth:middleware');
+    });
+
+    it('does not emit auth signals for plain source files', () => {
+      const signals = detector.detect(snap([makeNode('n1', 'src/index.ts')]));
+      expect(signals).not.toContain('auth:jwt');
+      expect(signals).not.toContain('auth:oauth');
+      expect(signals).not.toContain('auth:session');
+      expect(signals).not.toContain('auth:middleware');
+    });
+  });
+
   describe('multiple signals', () => {
     it('can detect multiple signals from the same CIG', () => {
       const nodes = [

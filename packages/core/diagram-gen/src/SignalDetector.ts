@@ -86,6 +86,36 @@ export class SignalDetector {
       signals.add('state-management:mobx');
     }
 
+    // ── Authentication ───────────────────────────────────────────────────────
+    if (
+      allPaths.some(fp => fp.includes('jwt') || fp.includes('jsonwebtoken')) ||
+      symbolNames.some(s => /jwtstrategy|verifytoken|signjwt|decodejwt/.test(s))
+    ) {
+      signals.add('auth:jwt');
+    }
+    if (allPaths.some(fp => fp.includes('oauth') || fp.includes('passport'))) {
+      signals.add('auth:oauth');
+    }
+    if (
+      allPaths.some(fp =>
+        fp.includes('express-session') ||
+        fp.includes('cookie-session') ||
+        fp.includes('auth/session') ||
+        /\/session\/(auth|store|middleware)/.test(fp),
+      ) ||
+      symbolNames.some(s => /\bsession\b.*auth|auth.*\bsession\b|cookieparser/.test(s))
+    ) {
+      signals.add('auth:session');
+    }
+    if (
+      allPaths.some(fp =>
+        /auth\.middleware|middleware\/auth|guards\/auth|guards\/.*auth|auth\.guard/.test(fp),
+      ) ||
+      symbolNames.some(s => /authmiddleware|authguard|isauthenticated|requireauth/.test(s))
+    ) {
+      signals.add('auth:middleware');
+    }
+
     // ── Infrastructure ───────────────────────────────────────────────────────
     if (filePaths.some(fp => /Dockerfile|docker-compose\.ya?ml$|\.dockerignore$/.test(fp))) {
       signals.add('infra:docker');

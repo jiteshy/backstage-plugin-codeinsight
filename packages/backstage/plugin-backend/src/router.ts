@@ -179,7 +179,25 @@ export async function createRouter(
       };
     });
 
-    diagrams.sort((a, b) => a.artifactId.localeCompare(b.artifactId));
+    // Sort by preferred display order (matches createDefaultRegistry() registration order).
+    // Unknown module IDs fall to the end, then sorted alphabetically.
+    const DIAGRAM_ORDER = [
+      'universal/high-level-architecture',
+      'universal/circular-dependencies',
+      'universal/er-diagram',
+      'backend/api-entity-mapping',
+      'frontend/state-management',
+      'universal/deployment-infra',
+      'universal/auth-flow',
+    ];
+    diagrams.sort((a, b) => {
+      const ai = DIAGRAM_ORDER.indexOf(a.artifactId);
+      const bi = DIAGRAM_ORDER.indexOf(b.artifactId);
+      if (ai !== -1 && bi !== -1) return ai - bi;
+      if (ai !== -1) return -1;
+      if (bi !== -1) return 1;
+      return a.artifactId.localeCompare(b.artifactId);
+    });
 
     res.json(diagrams);
   });
