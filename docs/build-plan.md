@@ -758,6 +758,8 @@ Replace low-value diagrams with high-value architecture diagrams.
 - No new runtime dependencies — MUI Dialog/IconButton/Tooltip already in scope
 - **Post-completion fix (f380eb1):** nodeMap click handler now extracts Mermaid SVG element id (e.g. `flowchart-src_auth_controller_ts-0`) to derive the sanitized key before falling back to label text — fixes click-to-copy for all AST modules
 - **Post-completion fix (f380eb1):** `DiagramGenerationService` token estimation switched from `module.llmNeeded` → `diagram.llmUsed` to correctly count tokens for hybrid modules (`StateManagementModule`, `ApiEntityMappingModule`)
+- **Post-completion fix (45e53ac):** `getDocs`/`getDiagrams` in `api-client.ts` now treat HTTP 404 as empty array instead of throwing — unregistered repos showed a red error instead of the empty state
+- **Post-completion fix (45e53ac):** First-run button label changed from "Analyze Repository" → "Discover Insights"; new `FirstRunEmptyState` component with icon ring, feature pills (Docs, Architecture Diagrams, Q&A-ready index), and unified description; Q&A copy corrected from "generate Q&A" to "index for Q&A"
 
 ---
 
