@@ -212,6 +212,24 @@
 - CircularDependencyModule.test.ts (MINOR): "plural description" test only asserts contains('cycles'), not the exact count. Regression-resilient assertion would be contains('2 circular import cycles').
 - No test covering AST-detected signals activating a signal-gated module end-to-end through DiagramGenerationService (SignalDetector → selectModules path untested at service level).
 
+## Known Issues Found in Phase 4.4 Review (MermaidDiagramViewer / EntityCodeInsightContent)
+- MermaidDiagramViewer.tsx line 212 (MAJOR/REGRESSION): `securityLevel: 'strict'` sandboxes SVG in a foreignObject iframe — post-render `querySelector('.node')` returns nothing. Node-click wiring is 100% non-functional under strict mode. Must switch to `'loose'` or `'antiscript'` to enable clickable nodes. This reverts the Phase 3.6 security hardening intentionally (server-generated Mermaid, XSS risk acceptable).
+- MermaidDiagramViewer.tsx line 265 (MAJOR): `setTimeout(() => setToast(null), 2200)` inside click handler has no cleanup. Timer fires on unmounted component in React 16/17. Fix: collect timer IDs in the node-wiring effect and clear them in cleanup.
+- MermaidDiagramViewer.tsx lines 319-330 (MAJOR): `URL.revokeObjectURL(url)` called synchronously after `a.click()`. Firefox/Safari may not have started the download yet. Fix: `setTimeout(() => URL.revokeObjectURL(url), 100)`.
+- EntityCodeInsightContent.tsx line 867 (MINOR): `buttonLabel` shows "Sync Changes" during initial docs fetch (docs===null, isFirstRun===false). Fix: add `docs === null ? 'Analyze Repository'` branch.
+- EntityCodeInsightContent.tsx lines 483-497 (MINOR): DiagramCard renders MermaidDiagramViewer with no max-height constraint. Large diagrams (40+ nodes) produce 2000px-tall cards. Wrap viewer in `<Box style={{ maxHeight: 400, overflow: 'hidden' }}>`.
+- MermaidDiagramViewer.tsx line 43 (MINOR): `controlBar` style uses `gap: 2` (raw pixels) instead of `theme.spacing(...)`. Will break under MUI v5 migration (2 → 2rem).
+- MermaidDiagramViewer.tsx lines 260-261 (MINOR): `brightness(1.2)` hover filter invisible on light-background nodes. Use `drop-shadow` instead.
+- config.d.ts (STILL OPEN): diagramGen block missing. Open since Phase 3.
+
+## Phase 4.4 Pattern Notes
+- MermaidDiagramViewer is fully self-contained: only @material-ui/core imports, no Backstage deps. Correct placement in plugin package.
+- Fullscreen recursion prevention via showFullscreenButton={false} prop — clean, no context needed.
+- Non-passive wheel event listener via native addEventListener (not React synthetic) — required because React 17+ forces wheel handlers passive. Correctly implemented.
+- cancelled flag pattern used in all async effects — consistent with rest of codebase.
+- nodeMap flows correctly: DiagramSection.nodeMap (api.ts) → MermaidDiagramViewerProps.nodeMap — no type widening.
+- Module-level mermaidInitialized flag: documented as acceptable for CSR SPA, test-suite risk noted.
+
 ## Known Issues Found in Phase 4.1 Review (Type System & Signal Detection Foundation)
 - DiagramGenerationService.test.ts makeStorageAdapter() (MAJOR): Missing `getArtifactIdsByFilePaths` and `getArtifactDependents` stubs — cast with `as unknown as StorageAdapter` hides the gap. Fix: add `jest.fn().mockResolvedValue([])` for both.
 - SignalDetector.ts line 73-77 (MAJOR): Zustand symbol-name heuristic `/\bcreate\b/.test(s) && /\bstore\b/.test(s)` fires on any compound name like `createTokenStore` or `createReduxStore`. Remove the symbol-name branch; keep path-based detection only.

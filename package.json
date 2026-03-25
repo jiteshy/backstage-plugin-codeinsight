@@ -25,7 +25,8 @@
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d postgres && pnpm db:migrate",
     "db:migrate": "pnpm --filter @codeinsight/storage db:migrate",
-    "db:rollback": "pnpm --filter @codeinsight/storage db:rollback"
+    "db:rollback": "pnpm --filter @codeinsight/storage db:rollback",
+    "db:nuke": "./scripts/db-nuke.sh"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

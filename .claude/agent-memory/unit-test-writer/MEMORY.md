@@ -1,10 +1,13 @@
 # Unit Test Writer Memory
 
 ## Test Conventions
-- Test files co-located with source: `foo.test.ts` next to `foo.ts`
+- Test files co-located with source: `foo.test.ts` next to `foo.ts`, `foo.test.tsx` for React components
 - Root Jest config at `jest.config.js`, roots: `['<rootDir>/packages']`
+- `testMatch` includes both `*.test.ts` and `*.test.tsx` (updated when React component tests were added)
 - Run tests: `pnpm test` or `npx jest --testPathPattern='<pattern>'`
-- ts-jest preset, node environment, strict TS
+- ts-jest preset, node environment by default; React component test files use `@jest-environment jsdom` docblock
+- ts-jest transform uses inline tsconfig overrides (`jsx: 'react-jsx'`, `lib: ['ES2021','DOM','DOM.Iterable']`) — no separate tsconfig file needed
+- `@testing-library/jest-dom` is installed at workspace root; import with `import '@testing-library/jest-dom'` at top of each component test file (no global setup file)
 
 ## Mock Patterns
 - **Constructor injection** throughout — pass mock objects directly, no `jest.mock()` needed
@@ -17,6 +20,16 @@
 - `supertest` is NOT installed — use `http` module for backend router tests (create express app, listen on port 0, use `http.request`)
 - Strict TS: importing unused types in test files causes `TS6196` compile errors — always trim import lists to only what is referenced in the file
 - Knex loads dialect drivers eagerly at construction — only use client strings whose native packages are installed in the workspace (`pg` is installed; `sqlite3`, `mysql2` are NOT). Tests that verify client pass-through must use `'pg'` only.
+- MUI v4 `Tooltip` + React 18 produces `findDOMNode is deprecated` console.error warnings in component tests — these are cosmetic, not failures
+
+## Backstage Component Test Pattern (no @backstage/test-utils)
+`@backstage/test-utils` is NOT installed. For frontend component tests, mock Backstage at the module level:
+- `@backstage/plugin-catalog-react`: mock `useEntity` to return a controlled entity fixture
+- `@backstage/core-plugin-api`: mock BOTH `useApi` (returns mock API object) AND `createApiRef` (called at module-level in `api.ts` — return `{ id: config.id }` stub). Missing `createApiRef` causes `TypeError: createApiRef is not a function` at suite load.
+- `@backstage/core-components`: mock `InfoCard` and `MarkdownContent` as plain div stubs (they need full Backstage app context)
+- Import the raw component file (`'./EntityCodeInsightContent'`), NOT the routable extension from `'../plugin'` — the extension uses `createRoutableExtension` which requires a full Backstage app context
+- `FetchApi mock` in `api-client.test.ts`: helper accepts `{ ok, status, statusText }` — `status` defaults to `ok ? 200 : 500`. For 404-specific branches: `{ ok: false, status: 404, statusText: 'Not Found' }`
+- When `getByText` finds multiple elements (e.g. "Q&A" appears as both a tab and a feature pill), use `getAllByText(...).length >= 1` or scope with `within(container)`
 
 ## CIG / TypeScriptExtractor Test Patterns
 - `buildMultiFile(files)` helper uses `CIGBuilder` + `TypeScriptExtractor` to avoid raw Tree-sitter native module handling
@@ -65,6 +78,18 @@
 - Pure-AST modules: `triggersOn.toHaveLength(0)` for always-on, signal-gated modules list specific signals
 - nodeMap verification: `Object.values(result.nodeMap!)` should contain actual file paths from the fixture
 - `makeMockLLM(returnValue)` factory pattern keeps tests DRY when most tests need a valid LLM mock
+
+## React Component Unit Test Patterns (@material-ui/core v4 + @testing-library/react)
+- Wrap all renders in `<ThemeProvider theme={createTheme()}>` — `makeStyles` requires a MUI theme context
+- Use `createTheme` (not the deprecated `createMuiTheme`) from `@material-ui/core/styles`
+- Mock dynamic imports with `jest.mock('module-name', factory)` declared BEFORE component import
+- Browser globals (`navigator.clipboard`, `XMLSerializer`, `URL.createObjectURL/revokeObjectURL`) must be mocked via `Object.defineProperty` or `(global as any).Foo = ...`
+- Use `waitFor(() => expect(document.querySelector('svg')).toBeInTheDocument())` to wait for async effects (e.g. mermaid render) to complete before asserting
+- Tooltip-wrapped buttons are found by `screen.getByTitle('Tooltip text')` — MUI v4 Tooltip renders the title as the accessible label
+- For nodes injected via `innerHTML` (e.g. SVG content), use `document.querySelector('.node')` not `screen.getBy*` — React Testing Library only queries within React's render root
+- Module-level mutable state (like `mermaidInitialized` flag) resets naturally across test files but NOT across tests within a file — design tests to be order-independent by controlling mock behavior per-test
+- `buildSvgWithNodes(labels)` helper pattern: construct SVG string with `.node` > `.label` > `text` structure to match Mermaid's DOM output
+- Pass mermaid source as a JS variable, never as a JSX string literal with `\n` — JSX template strings interpret escape sequences differently than JS strings
 
 ## Project Structure (test-relevant)
 - `packages/backstage/plugin-backend/` — backend plugin, uses `@backstage/*` (OK here)
