@@ -106,6 +106,37 @@ export class PgVectorStore implements VectorStore {
   }
 
   // -------------------------------------------------------------------------
+  // searchKeyword — PostgreSQL full-text search
+  // -------------------------------------------------------------------------
+
+  async searchKeyword(
+    repoId: string,
+    query: string,
+    topK: number,
+    layers?: string[],
+  ): Promise<VectorChunk[]> {
+    let q = this.knex<QnaEmbeddingRow>('ci_qna_embeddings')
+      .where('repo_id', repoId)
+      .whereRaw(
+        `to_tsvector('english', content) @@ plainto_tsquery('english', ?)`,
+        [query],
+      )
+      .select('repo_id', 'chunk_id', 'content', 'content_sha', 'layer', 'metadata')
+      .orderByRaw(
+        `ts_rank(to_tsvector('english', content), plainto_tsquery('english', ?)) DESC`,
+        [query],
+      )
+      .limit(topK);
+
+    if (layers && layers.length > 0) {
+      q = q.whereIn('layer', layers);
+    }
+
+    const rows = await q;
+    return rows.map(row => this.rowToVectorChunk(row));
+  }
+
+  // -------------------------------------------------------------------------
   // listChunks — for delta detection
   // -------------------------------------------------------------------------
 
