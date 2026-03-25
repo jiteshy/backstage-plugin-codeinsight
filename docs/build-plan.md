@@ -770,16 +770,25 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 5.1 — Embedding Client + Cache
+### 5.1 — Embedding Client + Cache ✅ COMPLETED
 
-- [ ] Create `EmbeddingClient` abstraction
-- [ ] Implement with OpenAI `text-embedding-3-small`
-- [ ] Implement embedding cache:
+- [x] Create `EmbeddingClient` abstraction
+- [x] Implement with OpenAI `text-embedding-3-small`
+- [x] Implement embedding cache:
   - Key: `SHA256(chunk_text)`
   - Check `ci_embedding_cache` before every embed call
   - Store embedding after every embed call
 
-**Acceptance:** Embedding calls work. Second identical text returns from cache.
+**Acceptance:** ✅ Embedding calls work. Second identical text returns from cache. 22 tests pass.
+
+**Notes:**
+- `@codeinsight/embeddings` adapter package: `OpenAIEmbeddingClient`, `CachingEmbeddingClient`, `createEmbeddingClient` factory
+- `EmbeddingClient` interface already existed in `@codeinsight/types` (defined in Phase 1.1)
+- `ci_embedding_cache` table already existed (migration 007 from Phase 1.3)
+- `CachingEmbeddingClient` uses batch-aware caching: computes SHA-256 per text, looks up all SHAs in one `whereIn` query, only embeds misses, stores results in batches of 50
+- pgvector `VECTOR(1536)` column stores embeddings; `parseEmbedding()` handles pgvector's string representation
+- Wired into plugin-backend composition root: reads `codeinsight.embeddings.*` config, creates `CachingEmbeddingClient` when config is present
+- `embeddingClient` available in composition root for Phase 5.2+ (QnA indexing)
 
 ---
 

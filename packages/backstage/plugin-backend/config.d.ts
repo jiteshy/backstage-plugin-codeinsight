@@ -47,8 +47,10 @@ export interface Config {
       provider?: string;
       /** API key for the embedding provider */
       apiKey?: string;
-      /** Model identifier */
+      /** Model identifier. Default: 'text-embedding-3-small'. */
       model?: string;
+      /** Embedding vector dimensions. Default: 1536. */
+      dimensions?: number;
     };
 
     /**

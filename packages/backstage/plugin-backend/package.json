@@ -18,6 +18,7 @@
     "@backstage/backend-plugin-api": "^1.7.0",
     "@codeinsight/diagram-gen": "workspace:*",
     "@codeinsight/doc-generator": "workspace:*",
+    "@codeinsight/embeddings": "workspace:*",
     "@codeinsight/ingestion": "workspace:*",
     "@codeinsight/llm": "workspace:*",
     "@codeinsight/repo": "workspace:*",

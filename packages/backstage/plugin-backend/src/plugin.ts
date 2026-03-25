@@ -8,11 +8,12 @@ import { DiagramGenerationService } from '@codeinsight/diagram-gen';
 import type { DiagramGenConfig } from '@codeinsight/diagram-gen';
 import { DocGenerationService } from '@codeinsight/doc-generator';
 import type { DocGenConfig } from '@codeinsight/doc-generator';
+import { createEmbeddingClient } from '@codeinsight/embeddings';
 import { InProcessJobQueue, IngestionService } from '@codeinsight/ingestion';
 import { createLLMClient } from '@codeinsight/llm';
 import { GitRepoConnector } from '@codeinsight/repo';
 import { KnexStorageAdapter } from '@codeinsight/storage';
-import type { IngestionConfig, LLMConfig, Logger, RepoCloneConfig } from '@codeinsight/types';
+import type { EmbeddingConfig, IngestionConfig, LLMConfig, Logger, RepoCloneConfig } from '@codeinsight/types';
 
 import { createRouter } from './router';
 
@@ -119,6 +120,35 @@ export const codeinsightPlugin = createBackendPlugin({
         } else {
           coreLogger.info(
             'No LLM config found — doc/diagram generation will be unavailable',
+          );
+        }
+
+        // Embedding client — optional; only instantiated when embedding config is present
+        const embeddingProvider = config.getOptionalString('codeinsight.embeddings.provider');
+        const embeddingApiKey = config.getOptionalString('codeinsight.embeddings.apiKey');
+
+        const embeddingConfig: EmbeddingConfig | undefined =
+          embeddingProvider && embeddingApiKey
+            ? {
+                provider: embeddingProvider as EmbeddingConfig['provider'],
+                apiKey: embeddingApiKey,
+                model: config.getOptionalString('codeinsight.embeddings.model') ?? undefined,
+                dimensions: config.getOptionalNumber('codeinsight.embeddings.dimensions') ?? undefined,
+              }
+            : undefined;
+
+        const embeddingClient = embeddingConfig
+          ? createEmbeddingClient(embeddingConfig, coreLogger, knex)
+          : undefined;
+
+        if (embeddingConfig && embeddingClient) {
+          coreLogger.info('Embedding client initialized', {
+            provider: embeddingConfig.provider,
+            model: embeddingConfig.model ?? 'text-embedding-3-small',
+          });
+        } else {
+          coreLogger.info(
+            'No embedding config found — QnA features will be unavailable',
           );
         }
 
