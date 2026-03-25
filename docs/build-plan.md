@@ -841,18 +841,30 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 5.4 — Retrieval Service
+### 5.4 — Retrieval Service ✅ COMPLETED
 
-- [ ] Create `RetrievalService`:
+- [x] Create `RetrievalService`:
   - `retrieve(repoId, query, queryEmbedding)` → top chunks
   - Vector search via pgvector cosine similarity, filtered by `repo_id`
   - Keyword search via PostgreSQL full-text search on `content` field
   - CIG direct lookup for structural queries (no embedding)
   - Merge results, deduplicate by `chunk_id`
   - Return top 5-8 chunks after deduplication
-- [ ] Layer filtering: conceptual queries search Layers 2+3 first; specific queries hit Layer 1
+- [x] Layer filtering: conceptual queries search Layers 2+3 first; specific queries hit Layer 1
 
 **Acceptance:** Relevant chunks retrieved for 10+ test questions against a real repo.
+
+**Notes:**
+- `VectorStore` interface extended: added `searchKeyword(repoId, query, topK, layers?)` method
+- `PgVectorStore` implements `searchKeyword` via PostgreSQL `to_tsvector` / `plainto_tsquery` + `ts_rank` ordering
+- `@codeinsight/qna` package created (`packages/core/qna/`) — home for retrieval, context assembly, and QnA service
+- `classifyQuery()` detects 5 query types: conceptual / specific / relational / navigational / general
+  - CamelCase identifier heuristic fires before broad conceptual patterns to correctly classify "How does loginUser work?"
+- Three parallel retrieval paths: vector search (skipped for relational) + keyword search (skipped for conceptual) + CIG lookup (active for specific / relational / navigational)
+- CIG synthetic chunks: `layer='cig_metadata'`, content = "{symbolType} {symbolName} in {filePath} (lines X–Y)"
+- Exact CIG matches ranked before fuzzy matches in results
+- All paths fail-safe: individual path errors are logged and swallowed; remaining paths still contribute results
+- 20 unit tests — all pass
 
 ---
 

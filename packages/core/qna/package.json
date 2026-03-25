@@ -1,0 +1,23 @@
+{
+  "name": "@codeinsight/qna",
+  "version": "0.1.0",
+  "description": "QnA pipeline for CodeInsight — retrieval, context assembly, and answer generation",
+  "license": "Apache-2.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@codeinsight/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "~5.4.0"
+  }
+}
