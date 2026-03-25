@@ -10,13 +10,19 @@ function mockDiscoveryApi(baseUrl = 'http://localhost:7007/api/codeinsight') {
   };
 }
 
-function mockFetchApi(responseBody: unknown, init?: { ok?: boolean; statusText?: string }) {
+function mockFetchApi(
+  responseBody: unknown,
+  init?: { ok?: boolean; statusText?: string; status?: number },
+) {
   const ok = init?.ok ?? true;
   const statusText = init?.statusText ?? 'OK';
+  // Default to 200 for ok responses, caller must supply explicit status for error cases
+  const status = init?.status ?? (ok ? 200 : 500);
 
   return {
     fetch: jest.fn().mockResolvedValue({
       ok,
+      status,
       statusText,
       json: jest.fn().mockResolvedValue(responseBody),
     }),
@@ -255,11 +261,146 @@ describe('CodeInsightClient', () => {
       expect(result[0].tokensUsed).toBe(450);
     });
 
-    it('throws when the response is not ok', async () => {
-      const fetchApi = mockFetchApi(null, { ok: false, statusText: 'Not Found' });
+    it('returns an empty array for a 404 response without throwing', async () => {
+      const fetchApi = mockFetchApi(null, { ok: false, status: 404, statusText: 'Not Found' });
       const { client } = createClient({ fetchApi });
 
-      await expect(client.getDocs('my-repo')).rejects.toThrow('Failed to get docs: Not Found');
+      const result = await client.getDocs('my-repo');
+
+      expect(result).toEqual([]);
+    });
+
+    it('throws for a non-ok response that is not 404 (e.g. 500)', async () => {
+      const fetchApi = mockFetchApi(null, { ok: false, status: 500, statusText: 'Internal Server Error' });
+      const { client } = createClient({ fetchApi });
+
+      await expect(client.getDocs('my-repo')).rejects.toThrow(
+        'Failed to get docs: Internal Server Error',
+      );
+    });
+
+    it('throws when the response is not ok', async () => {
+      const fetchApi = mockFetchApi(null, { ok: false, statusText: 'Service Unavailable' });
+      const { client } = createClient({ fetchApi });
+
+      await expect(client.getDocs('my-repo')).rejects.toThrow('Failed to get docs: Service Unavailable');
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // getDiagrams
+  // -----------------------------------------------------------------------
+  describe('getDiagrams', () => {
+    it('sends GET to the correct URL and returns diagram sections', async () => {
+      const responseBody = [
+        {
+          artifactId: 'dep-graph',
+          title: 'Dependency Graph',
+          diagramType: 'graph',
+          mermaid: 'graph TD\n  A --> B',
+          isStale: false,
+          staleReason: null,
+          llmUsed: false,
+          nodeMap: null,
+          generatedAt: '2024-06-01T10:00:00.000Z',
+          tokensUsed: 0,
+        },
+      ];
+      const fetchApi = mockFetchApi(responseBody);
+      const { client } = createClient({ fetchApi });
+
+      const result = await client.getDiagrams('my-repo');
+
+      expect(result).toEqual(responseBody);
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        `${BASE_URL}/repos/my-repo/diagrams`,
+      );
+    });
+
+    it('encodes the repoId in the URL', async () => {
+      const fetchApi = mockFetchApi([]);
+      const { client } = createClient({ fetchApi });
+
+      await client.getDiagrams('org/repo-name');
+
+      const calledUrl = fetchApi.fetch.mock.calls[0][0] as string;
+      expect(calledUrl).toBe(`${BASE_URL}/repos/org%2Frepo-name/diagrams`);
+    });
+
+    it('returns an empty array for a 404 response without throwing', async () => {
+      const fetchApi = mockFetchApi(null, { ok: false, status: 404, statusText: 'Not Found' });
+      const { client } = createClient({ fetchApi });
+
+      const result = await client.getDiagrams('my-repo');
+
+      expect(result).toEqual([]);
+    });
+
+    it('throws for a non-ok response that is not 404 (e.g. 500)', async () => {
+      const fetchApi = mockFetchApi(null, { ok: false, status: 500, statusText: 'Internal Server Error' });
+      const { client } = createClient({ fetchApi });
+
+      await expect(client.getDiagrams('my-repo')).rejects.toThrow(
+        'Failed to get diagrams: Internal Server Error',
+      );
+    });
+
+    it('returns an empty array when no diagrams exist', async () => {
+      const fetchApi = mockFetchApi([]);
+      const { client } = createClient({ fetchApi });
+
+      const result = await client.getDiagrams('my-repo');
+
+      expect(result).toEqual([]);
+    });
+
+    it('returns diagrams with optional nodeMap populated', async () => {
+      const responseBody = [
+        {
+          artifactId: 'api-flow',
+          title: 'API Flow',
+          diagramType: 'flowchart',
+          mermaid: 'flowchart LR\n  A --> B',
+          isStale: false,
+          staleReason: null,
+          llmUsed: true,
+          nodeMap: { UserService: 'src/services/UserService.ts' },
+          generatedAt: '2024-06-01T12:00:00.000Z',
+          tokensUsed: 800,
+        },
+      ];
+      const fetchApi = mockFetchApi(responseBody);
+      const { client } = createClient({ fetchApi });
+
+      const result = await client.getDiagrams('my-repo');
+
+      expect(result[0].nodeMap).toEqual({ UserService: 'src/services/UserService.ts' });
+      expect(result[0].llmUsed).toBe(true);
+      expect(result[0].tokensUsed).toBe(800);
+    });
+
+    it('returns stale diagrams correctly', async () => {
+      const responseBody = [
+        {
+          artifactId: 'er-diagram',
+          title: 'ER Diagram',
+          diagramType: 'erDiagram',
+          mermaid: 'erDiagram\n  A ||--o{ B : has',
+          isStale: true,
+          staleReason: 'file_changed',
+          llmUsed: false,
+          nodeMap: null,
+          generatedAt: '2024-05-15T08:00:00.000Z',
+          tokensUsed: 0,
+        },
+      ];
+      const fetchApi = mockFetchApi(responseBody);
+      const { client } = createClient({ fetchApi });
+
+      const result = await client.getDiagrams('my-repo');
+
+      expect(result[0].isStale).toBe(true);
+      expect(result[0].staleReason).toBe('file_changed');
     });
   });
 

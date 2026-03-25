@@ -7,8 +7,8 @@
  * Inner tabs: Documentation | Diagrams | Q&A
  *
  * Action button semantics:
- *   "Analyze Repository" — no docs yet; full ingestion + doc generation pass
- *   "Sync Changes"       — docs exist; detects changed files, updates only those
+ *   "Discover Insights" — no docs yet; full ingestion + doc/diagram/QnA generation pass
+ *   "Sync Changes"      — docs exist; detects changed files, updates only those
  *   Both call the same backend endpoint — the label sets the right expectation.
  */
 import { InfoCard, MarkdownContent } from '@backstage/core-components';
@@ -267,6 +267,34 @@ const useStyles = makeStyles(theme => ({
     color: theme.palette.text.secondary,
     textAlign: 'center',
   },
+  emptyStateIconRing: {
+    width: 52,
+    height: 52,
+    borderRadius: '50%',
+    border: `2px solid ${theme.palette.primary.main}`,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '1.35rem',
+    color: theme.palette.primary.main,
+    opacity: 0.6,
+    flexShrink: 0,
+  },
+  emptyStateFeatures: {
+    display: 'flex',
+    gap: theme.spacing(1),
+    flexWrap: 'wrap' as const,
+    justifyContent: 'center',
+    marginTop: theme.spacing(0.25),
+  },
+  emptyStateFeaturePill: {
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: 20,
+    padding: theme.spacing(0.5, 1.5),
+    fontSize: '0.74rem',
+    color: theme.palette.text.secondary,
+    backgroundColor: theme.palette.action.hover,
+  },
   comingSoon: {
     display: 'flex',
     flexDirection: 'column',
@@ -498,6 +526,32 @@ function DiagramCard({ diagram }: { diagram: DiagramSection }) {
 }
 
 // ---------------------------------------------------------------------------
+// FirstRunEmptyState
+// ---------------------------------------------------------------------------
+
+function FirstRunEmptyState({ icon, heading }: { icon: string; heading: string }) {
+  const classes = useStyles();
+  return (
+    <Box className={classes.emptyState}>
+      <Box className={classes.emptyStateIconRing}>{icon}</Box>
+      <Typography variant="h6" style={{ fontWeight: 600 }}>{heading}</Typography>
+      <Typography variant="body2" color="textSecondary" style={{ maxWidth: 460, lineHeight: 1.65 }}>
+        Run a full repository analysis to generate documentation and architecture diagrams,
+        and index the codebase for natural-language Q&amp;A — all kept in sync as it evolves.
+      </Typography>
+      <Box className={classes.emptyStateFeatures}>
+        <Box component="span" className={classes.emptyStateFeaturePill}>Docs</Box>
+        <Box component="span" className={classes.emptyStateFeaturePill}>Architecture Diagrams</Box>
+        <Box component="span" className={classes.emptyStateFeaturePill}>Q&amp;A</Box>
+      </Box>
+      <Typography variant="caption" color="textSecondary" style={{ marginTop: 4 }}>
+        Use the button above to get started.
+      </Typography>
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // DiagramsContent
 // ---------------------------------------------------------------------------
 
@@ -530,13 +584,13 @@ function DiagramsContent({
   }
 
   if (diagrams.length === 0) {
-    return (
+    return isFirstRun ? (
+      <FirstRunEmptyState icon="◆" heading="No diagrams generated yet" />
+    ) : (
       <Box className={classes.emptyState}>
-        <Typography variant="h6">No diagrams yet</Typography>
+        <Typography variant="h6">No diagrams found</Typography>
         <Typography variant="body2">
-          {isFirstRun
-            ? 'Click "Analyze Repository" above to generate diagrams for this repository.'
-            : 'No diagrams found. Try clicking "Sync Changes" to refresh.'}
+          Try clicking &quot;Sync Changes&quot; to refresh diagrams for this repository.
         </Typography>
       </Box>
     );
@@ -618,13 +672,13 @@ function DocumentationContent({
   }
 
   if (docs.length === 0) {
-    return (
+    return isFirstRun ? (
+      <FirstRunEmptyState icon="≡" heading="No documentation yet" />
+    ) : (
       <Box className={classes.emptyState}>
-        <Typography variant="h6">No documentation yet</Typography>
+        <Typography variant="h6">No documentation found</Typography>
         <Typography variant="body2">
-          {isFirstRun
-            ? 'Click "Analyze Repository" above to generate documentation for this repository.'
-            : 'No documentation sections found. Try clicking "Sync Changes" to refresh.'}
+          Try clicking &quot;Sync Changes&quot; to refresh documentation for this repository.
         </Typography>
       </Box>
     );
@@ -864,9 +918,9 @@ function CodeInsightContentInner() {
     return null;
   })();
 
-  const buttonLabel = triggerLoading ? 'Starting...' : isFirstRun ? 'Analyze Repository' : 'Sync Changes';
+  const buttonLabel = triggerLoading ? 'Starting...' : isFirstRun ? 'Discover Insights' : 'Sync Changes';
   const buttonTooltip = isFirstRun
-    ? 'Run a full analysis to generate documentation, diagrams, and Q&A for this repository.'
+    ? 'Run a full analysis to generate documentation and architecture diagrams, and index the codebase for Q&A.'
     : 'Detect new commits and update only the sections affected by changed files.';
 
   return (
@@ -880,7 +934,7 @@ function CodeInsightContentInner() {
           </Typography>
           <Typography className={classes.headerDesc}>
             Turns your repository into living knowledge — auto-generated documentation, architecture
-            diagrams, and Q&A that stay in sync as your codebase evolves.
+            diagrams, and a Q&A-ready index that stays in sync as your codebase evolves.
           </Typography>
         </Box>
 
