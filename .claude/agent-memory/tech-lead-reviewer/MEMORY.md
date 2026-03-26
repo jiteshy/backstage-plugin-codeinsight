@@ -1,12 +1,10 @@
 # Tech Lead Reviewer Memory
 
 ## Project Status
-- Phase 1 COMPLETE (all 11 sub-phases 1.0-1.10)
-- Phase 2 COMPLETE (all 2.0-2.8 sub-phases done) -- GREEN verdict 2026-03-20
-- Phase 3 COMPLETE (all 3.1-3.6 sub-phases done) -- 3.6 hardening resolved all YELLOW items
-- Phase 4 COMPLETE (all 4.1-4.5 sub-phases done) -- GREEN verdict 2026-03-24
-- 264 diagram-gen tests pass; full suite test count TBD
-- Phase 5 (QnA Pipeline) ready to begin
+- Phases 1-5 ALL COMPLETE
+- Phase 5 QnA Pipeline review 2026-03-26: YELLOW (2 critical must-fix)
+  - IndexingService not wired into composition root (QnA dead on arrival)
+  - Vector dimension mismatch: migration=VECTOR(3072), default config=1536
 - See `review-findings.md` for detailed review history
 
 ## Phase Renumbering (effective 2026-03-20)
@@ -36,20 +34,16 @@
 - Signal-gated LLM: deployment-infra (ci:*/infra:*), auth-flow (auth:*)
 - Legacy (exported but not registered): dependency-graph, module-boundaries, package-boundaries, component-hierarchy, api-flow, ci-cd-pipeline, state-flow, request-lifecycle
 
-## Known Debt Entering Phase 5
-1. nodeMap click matching -- FIXED in Phase 4.4 post-completion (SVG id extraction)
-2. Token estimation -- FIXED in Phase 4.4 post-completion (diagram.llmUsed)
-3. computeInputSha hashes full CIG per module (not filtered to relevant nodes)
-4. No ErrorApi/AlertApi usage in frontend (errors shown inline)
-5. GET /repos/:repoId/docs has N+1 query pattern
-6. 35+ lint warnings in test files (all no-explicit-any)
-
-## Phase 5 Readiness (assessed 2026-03-24)
-- EmbeddingClient + VectorStore + VectorChunk + VectorFilter interfaces: DEFINED in @codeinsight/types
-- QnAChunkContent discriminated union variant: DEFINED in data.ts
-- pgvector migration 007: EXISTS with forward-compatible placeholder pattern
-- QnA schema (ci_qna_embeddings, ci_qna_sessions, ci_qna_messages): DESIGNED in llm-context.md
-- Gaps (not blockers): QnA DB migrations, StorageAdapter QnA methods, QnA session/message types, ci_embedding_cache ALTER TABLE for VECTOR column
+## Known Debt Entering Phase 6
+1. computeInputSha hashes full CIG per module (not filtered to relevant nodes)
+2. No ErrorApi/AlertApi usage in frontend (errors shown inline)
+3. GET /repos/:repoId/docs has N+1 query pattern
+4. 35+ lint warnings in test files (all no-explicit-any)
+5. CIG lookup in RetrievalService loads ALL nodes per query (O(N) scan)
+6. IVFFlat index on empty table -- should switch to HNSW
+7. No rate limiting on QnA ask endpoint
+8. History compression LLM call not tracked in token usage
+9. SSE streaming does not handle client disconnect (wastes LLM tokens)
 
 ## Architectural Decisions (Established -- Do Not Re-litigate)
 - CIG built via Tree-sitter AST, zero LLM, shared by all 3 features
