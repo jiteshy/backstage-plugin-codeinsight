@@ -190,7 +190,7 @@ describe('RetrievalService', () => {
     expect(storage.getCIGNodes).toHaveBeenCalledWith('repo-1');
     // CIG chunk for loginUser included
     const chunkIds = results.map(r => r.chunkId);
-    expect(chunkIds).toContain('repo-1:src/foo.ts:loginUser');
+    expect(chunkIds).toContain('repo-1:src/foo.ts:loginUser:function');
   });
 
   it('skips vector search for relational queries', async () => {

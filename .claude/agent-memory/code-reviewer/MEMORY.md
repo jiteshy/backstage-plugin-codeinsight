@@ -200,6 +200,19 @@
 - Test coverage (MINOR): No test for `deleteChunks` batching (BATCH_SIZE = 500) in PgVectorStore — not unit-testable without a real DB, but worth noting for integration test phase.
 - IngestionService.ts (GOOD): Indexer duck-type interface correctly omits `chunksTotal` from its return type (callers only log the three deltas). Non-fatal try/catch around `indexer.indexRepo` is correctly placed after diagrams and before `updateRepoStatus`. cloneDir is still alive at this point (finally block runs after).
 
+## Known Issues Found in Phase 5.4 Review (RetrievalService / searchKeyword)
+- RetrievalService.ts line 41 (MINOR): SPECIFIC_RE pattern `how does .+ work` is dead code. Any query with 'how does' hits CONCEPTUAL_RE first (which also contains 'how does'). The only path to SPECIFIC_RE for 'how does X work' would require no camelCase in the query AND CONCEPTUAL failing — impossible since CONCEPTUAL has 'how does'. Dead branch should be removed or SPECIFIC should check for work suffix on a separate regex not sharing the 'how does' prefix.
+- RetrievalService.ts line 72 (MINOR): `'did'` appears twice in the stop words array — harmless (Set deduplicates) but messy.
+- RetrievalService.ts (MINOR): Stop words list missing common TS/JS keywords: 'function', 'return', 'import', 'export', 'const', 'let', 'var', 'string', 'number', 'boolean'. Queries like 'What does the import function do?' would include 'function' and 'import' as identifiers, causing broad CIG matches.
+- RetrievalService.ts line 112 (MAJOR): cigNodeToChunk chunkId = `${repoId}:${filePath}:${symbolName}` omits symbolType. Two CIG nodes with same repoId+filePath+symbolName but different symbolType (e.g. a 'class User' and a 'variable User' in the same file) produce identical synthetic chunkIds. The second is silently deduplicated in mergeAndDeduplicate. Fix: append symbolType to the chunkId.
+- RetrievalService.ts cigLookup (MAJOR-PERF): Calls `storage.getCIGNodes(repoId)` which loads ALL nodes into memory, then filters in JS. For repos with 1000+ CIG nodes this is a full table scan + JS iteration. No DB-level filtering exists. Acceptable for v1 but needs a TODO comment noting the limit.
+- PgVectorStore.ts searchKeyword lines 118-133 (MINOR): The layer whereIn filter is appended AFTER .limit(topK) in the Knex chain. Functionally correct (Knex collects WHERE clauses regardless of chain order), but unusual and likely to confuse maintainers. Reorder: apply optional filters before .orderByRaw().limit().
+- Migration 011 (MAJOR-PERF): No GIN index on `to_tsvector('english', content)`. Every `searchKeyword` call is a full sequential scan on `ci_qna_embeddings`. Should add `CREATE INDEX idx_qna_embeddings_fts ON ci_qna_embeddings USING gin(to_tsvector('english', content))`.
+- RetrievalService.test.ts (MINOR): No test for navigational query type — tests verify relational skips vector search, but navigational (which DOES use vector search) is not tested at the retrieve() level.
+- RetrievalService.test.ts (MINOR): No test for empty query string passed to retrieve().
+- PgVectorStore.test.ts searchKeyword (GOOD): 7 tests cover the full Knex chain, row mapping, null metadata, layer filter, and empty results. Test mock correctly models the actual code's chain order. The thenable limitResult pattern is non-standard but correct.
+- @codeinsight/qna package.json: Zero @backstage imports in core/qna — constraint satisfied. Config injected via constructor — satisfied. All I/O through VectorStore/StorageAdapter interfaces — satisfied.
+
 ## File Structure Reference
 - Types: `packages/core/types/src/{data,interfaces,config,index}.ts`
 - Backend plugin: `packages/backstage/plugin-backend/src/{plugin,router,index}.ts`

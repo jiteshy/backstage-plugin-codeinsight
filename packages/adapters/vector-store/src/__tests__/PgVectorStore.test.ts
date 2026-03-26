@@ -389,21 +389,27 @@ describe('PgVectorStore.search', () => {
 describe('PgVectorStore.searchKeyword', () => {
   const REPO = 'repo-1';
 
+  // New chain order (layer filter applied before orderByRaw/limit):
+  //   knex(table)
+  //     .where('repo_id', repoId)       → whereResult
+  //     .whereRaw(tsvector condition)   → whereRawResult
+  //     .select(columns)               → selectResult
+  //     [.whereIn('layer', layers)]    → withLayerResult  (only when layers given)
+  //     .orderByRaw(ts_rank)           → orderByRawResult (called on selectResult or withLayerResult)
+  //     .limit(topK)                   → resolved rows
   function makeKeywordKnex(resolvedRows: object[] = []) {
-    // Terminal mock for the no-layer path: limit() returns a thenable.
-    // For the with-layer path: limit() returns a chainable with whereIn().
-    const actualRows = resolvedRows;
-    const limitResult = {
-      whereIn: jest.fn().mockResolvedValue(actualRows),
-      // Also thenable for the no-layer path: await limitResult resolves rows
-      then: (res: (v: object[]) => void) => Promise.resolve(actualRows).then(res),
-    };
-
     const orderByRawResult = {
-      limit: jest.fn().mockReturnValue(limitResult),
+      limit: jest.fn().mockResolvedValue(resolvedRows),
     };
 
+    // withLayerResult is returned by selectResult.whereIn(); it exposes orderByRaw.
+    const withLayerResult = {
+      orderByRaw: jest.fn().mockReturnValue(orderByRawResult),
+    };
+
+    // selectResult is the base after .select(); exposes both paths.
     const selectResult = {
+      whereIn: jest.fn().mockReturnValue(withLayerResult),
       orderByRaw: jest.fn().mockReturnValue(orderByRawResult),
     };
 
@@ -426,13 +432,13 @@ describe('PgVectorStore.searchKeyword', () => {
       whereResult,
       whereRawResult,
       selectResult,
+      withLayerResult,
       orderByRawResult,
-      limitResult,
     };
   }
 
   it('queries with correct repo_id filter, tsvector condition, ts_rank ordering, and limit', async () => {
-    const { knex, tableResult, whereResult, whereRawResult, selectResult, orderByRawResult, limitResult } =
+    const { knex, tableResult, whereResult, whereRawResult, selectResult, orderByRawResult } =
       makeKeywordKnex();
     const store = new PgVectorStore(knex as never);
 
@@ -447,40 +453,42 @@ describe('PgVectorStore.searchKeyword', () => {
     expect(whereRawResult.select).toHaveBeenCalledWith(
       'repo_id', 'chunk_id', 'content', 'content_sha', 'layer', 'metadata',
     );
+    // No layer filter — orderByRaw called directly on selectResult
+    expect(selectResult.whereIn).not.toHaveBeenCalled();
     expect(selectResult.orderByRaw).toHaveBeenCalledWith(
       `ts_rank(to_tsvector('english', content), plainto_tsquery('english', ?)) DESC`,
       ['login flow'],
     );
     expect(orderByRawResult.limit).toHaveBeenCalledWith(5);
-    // No layer filter — whereIn not called
-    expect(limitResult.whereIn).not.toHaveBeenCalled();
   });
 
   it('applies whereIn layer filter when layers array is non-empty', async () => {
-    const { knex, limitResult } = makeKeywordKnex();
+    const { knex, selectResult, withLayerResult } = makeKeywordKnex();
     const store = new PgVectorStore(knex as never);
 
     await store.searchKeyword(REPO, 'auth', 8, ['code', 'doc_section']);
 
-    expect(limitResult.whereIn).toHaveBeenCalledWith('layer', ['code', 'doc_section']);
+    expect(selectResult.whereIn).toHaveBeenCalledWith('layer', ['code', 'doc_section']);
+    // orderByRaw called on the post-whereIn result
+    expect(withLayerResult.orderByRaw).toHaveBeenCalled();
   });
 
   it('skips whereIn when layers array is empty', async () => {
-    const { knex, limitResult } = makeKeywordKnex();
+    const { knex, selectResult } = makeKeywordKnex();
     const store = new PgVectorStore(knex as never);
 
     await store.searchKeyword(REPO, 'auth', 8, []);
 
-    expect(limitResult.whereIn).not.toHaveBeenCalled();
+    expect(selectResult.whereIn).not.toHaveBeenCalled();
   });
 
   it('skips whereIn when layers is undefined', async () => {
-    const { knex, limitResult } = makeKeywordKnex();
+    const { knex, selectResult } = makeKeywordKnex();
     const store = new PgVectorStore(knex as never);
 
     await store.searchKeyword(REPO, 'auth', 8);
 
-    expect(limitResult.whereIn).not.toHaveBeenCalled();
+    expect(selectResult.whereIn).not.toHaveBeenCalled();
   });
 
   it('maps DB rows to VectorChunk objects (snake_case → camelCase)', async () => {
