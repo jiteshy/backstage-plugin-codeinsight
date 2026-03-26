@@ -7,11 +7,23 @@ import type {
   VectorStore,
 } from '@codeinsight/types';
 
+import {
+  LAYER_CIG_METADATA,
+  LAYER_CODE,
+  LAYER_DOC_SECTION,
+  LAYER_FILE_SUMMARY,
+} from './layers';
+
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
 
-export type ExpansionType = 'callee_snippet' | 'doc_link' | 'import_list';
+/**
+ * - `callee_ref`   — location reference for a directly called function (symbolType, name, file, lines)
+ * - `doc_link`     — linked doc_section chunk for the same file/symbol (truncated markdown)
+ * - `import_list`  — list of file paths imported by the chunk's source file
+ */
+export type ExpansionType = 'callee_ref' | 'doc_link' | 'import_list';
 
 export interface ContextExpansion {
   type: ExpansionType;
@@ -29,9 +41,17 @@ export interface ContextBlock {
   totalTokens: number;
 }
 
+/**
+ * The assembled context ready for the LLM prompt.
+ *
+ * `blocks` may be empty if the single highest-relevance chunk alone exceeds
+ * `maxContextTokens` — callers must handle the empty-blocks case.
+ */
 export interface AssembledContext {
+  /** Expanded context blocks, ordered by descending relevance. May be empty. */
   blocks: ContextBlock[];
   totalTokens: number;
+  /** true when at least one block was dropped due to the token budget. */
   truncated: boolean;
   droppedChunks: number;
 }
@@ -40,8 +60,8 @@ export interface ContextAssemblyConfig {
   /** Maximum total tokens for the assembled context. Default: 8000. */
   maxContextTokens?: number;
   /**
-   * Maximum tokens per callee snippet. Default: 200.
-   * Up to MAX_CALLEES_PER_CHUNK (3) snippets may be generated per code chunk,
+   * Maximum tokens per callee reference. Default: 200.
+   * Up to MAX_CALLEES_PER_CHUNK (3) references may be generated per code chunk,
    * so the total callee budget per chunk is up to 3 × maxCalleeTokens.
    */
   maxCalleeTokens?: number;
@@ -60,11 +80,12 @@ const MAX_CALLEES_PER_CHUNK = 3;
 const MAX_IMPORT_PATHS = 10;
 const CHARS_PER_TOKEN = 4;
 
-// Layers that support code-level expansions (callee_snippets, import_list)
-const CODE_LAYERS = new Set(['code', 'cig_metadata']);
-// Layers that support doc_link expansion (cig_metadata excluded — synthetic strings
-// produce low-quality doc matches and waste a vector store round-trip)
-const DOC_SEARCH_LAYERS = new Set(['code', 'file_summary']);
+// Layers that support code-level expansions (callee_ref, import_list)
+const CODE_LAYERS = new Set([LAYER_CODE, LAYER_CIG_METADATA]);
+// Layers that support doc_link expansion.
+// cig_metadata excluded — synthetic machine-formatted strings produce low-quality
+// doc matches and waste a vector store round-trip.
+const DOC_SEARCH_LAYERS = new Set([LAYER_CODE, LAYER_FILE_SUMMARY]);
 
 // ---------------------------------------------------------------------------
 // Token estimation
@@ -201,7 +222,7 @@ export class ContextAssemblyService {
     const canSearchDocs = DOC_SEARCH_LAYERS.has(chunk.layer);
 
     if (isCodeLayer && cigMaps) {
-      // 1. Callee snippets
+      // 1. Callee references
       const calleeExpansions = this.buildCalleeExpansions(chunk, cigMaps, maxCalleeTokens);
       expansions.push(...calleeExpansions);
 
@@ -212,7 +233,7 @@ export class ContextAssemblyService {
       }
     }
 
-    // 3. Doc link — only for code / file_summary layers (not doc, diagram, or cig_metadata)
+    // 3. Doc link — only for code / file_summary layers (not doc_section, diagram_desc, or cig_metadata)
     if (canSearchDocs) {
       const docExpansion = await this.buildDocLinkExpansion(repoId, chunk, maxDocLinkTokens);
       if (docExpansion) {
@@ -228,8 +249,12 @@ export class ContextAssemblyService {
     cigMaps: CIGMaps,
     maxCalleeTokens: number,
   ): ContextExpansion[] {
-    const filePath = chunk.metadata?.filePath as string | undefined;
-    const symbol = chunk.metadata?.symbol as string | undefined;
+    const filePath = typeof chunk.metadata?.filePath === 'string'
+      ? chunk.metadata.filePath
+      : undefined;
+    const symbol = typeof chunk.metadata?.symbol === 'string'
+      ? chunk.metadata.symbol
+      : undefined;
 
     if (!filePath || !symbol) return [];
 
@@ -239,8 +264,13 @@ export class ContextAssemblyService {
     const outEdges = cigMaps.edgesByFromNodeId.get(node.nodeId) ?? [];
     const callEdges = outEdges.filter(e => e.edgeType === 'calls');
 
+    // Iterate all call edges but stop once MAX_CALLEES_PER_CHUNK expansions are built.
+    // This prevents stale edges (whose target node was deleted) from consuming the
+    // callee budget before valid edges are processed.
     const expansions: ContextExpansion[] = [];
-    for (const edge of callEdges.slice(0, MAX_CALLEES_PER_CHUNK)) {
+    for (const edge of callEdges) {
+      if (expansions.length >= MAX_CALLEES_PER_CHUNK) break;
+
       const callee = cigMaps.nodesById.get(edge.toNodeId);
       if (!callee) {
         this.logger?.debug('ContextAssemblyService: callee node not found (stale edge?)', {
@@ -250,13 +280,13 @@ export class ContextAssemblyService {
         continue;
       }
 
-      const description =
+      const ref =
         `${callee.symbolType} ${callee.symbolName} in ${callee.filePath}` +
         ` (lines ${callee.startLine}–${callee.endLine})`;
 
-      const truncated = truncateToTokens(description, maxCalleeTokens);
+      const truncated = truncateToTokens(ref, maxCalleeTokens);
       expansions.push({
-        type: 'callee_snippet',
+        type: 'callee_ref',
         content: truncated,
         estimatedTokens: estimateTokens(truncated),
         filePath: callee.filePath,
@@ -271,7 +301,9 @@ export class ContextAssemblyService {
     chunk: VectorChunk,
     cigMaps: CIGMaps,
   ): ContextExpansion | null {
-    const filePath = chunk.metadata?.filePath as string | undefined;
+    const filePath = typeof chunk.metadata?.filePath === 'string'
+      ? chunk.metadata.filePath
+      : undefined;
     if (!filePath) return null;
 
     const fileNodes = cigMaps.nodesByFilePath.get(filePath) ?? [];
@@ -308,14 +340,19 @@ export class ContextAssemblyService {
     maxDocLinkTokens: number,
   ): Promise<ContextExpansion | null> {
     const searchTerm =
-      (chunk.metadata?.symbol as string | undefined) ??
-      (chunk.metadata?.filePath as string | undefined);
+      (typeof chunk.metadata?.symbol === 'string' ? chunk.metadata.symbol : undefined) ??
+      (typeof chunk.metadata?.filePath === 'string' ? chunk.metadata.filePath : undefined);
 
     if (!searchTerm) return null;
 
     try {
       // topK=2 so we can skip the current chunk if it appears in results
-      const results = await this.vectorStore.searchKeyword(repoId, searchTerm, 2, ['doc']);
+      const results = await this.vectorStore.searchKeyword(
+        repoId,
+        searchTerm,
+        2,
+        [LAYER_DOC_SECTION],
+      );
 
       // Take first result that is not the current chunk
       const docChunk = results.find(r => r.chunkId !== chunk.chunkId);
@@ -326,8 +363,12 @@ export class ContextAssemblyService {
         type: 'doc_link',
         content: truncated,
         estimatedTokens: estimateTokens(truncated),
-        filePath: docChunk.metadata?.filePath as string | undefined,
-        symbol: docChunk.metadata?.symbol as string | undefined,
+        filePath: typeof docChunk.metadata?.filePath === 'string'
+          ? docChunk.metadata.filePath
+          : undefined,
+        symbol: typeof docChunk.metadata?.symbol === 'string'
+          ? docChunk.metadata.symbol
+          : undefined,
       };
     } catch (err) {
       this.logger?.warn('ContextAssemblyService: doc_link search failed', {
@@ -354,7 +395,9 @@ export class ContextAssemblyService {
     }
 
     // Drop blocks from the tail (least relevant) until within budget.
-    // Always retain at least one block so the caller always gets context.
+    // Always retain at least one block so the caller always gets some context.
+    // If the single retained block still exceeds the budget, truncated=true is
+    // still set so callers know the context is over-budget.
     let droppedChunks = 0;
     while (blocks.length > 1 && totalTokens > maxContextTokens) {
       const dropped = blocks.pop()!;
@@ -365,7 +408,6 @@ export class ContextAssemblyService {
     return {
       blocks,
       totalTokens,
-      // truncated if we dropped anything, or if we hit the min-1 guard and still over budget
       truncated: droppedChunks > 0 || totalTokens > maxContextTokens,
       droppedChunks,
     };
