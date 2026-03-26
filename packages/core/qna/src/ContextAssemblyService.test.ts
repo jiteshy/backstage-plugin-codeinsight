@@ -115,7 +115,7 @@ describe('ContextAssemblyService', () => {
     expect(result.droppedChunks).toBe(0);
   });
 
-  it('builds callee_snippet expansion for a code chunk with calls edges', async () => {
+  it('builds callee_ref expansion for a code chunk with calls edges', async () => {
     const node = makeNode('node-login', 'loginUser');
     const callee = makeNode('node-validate', 'validateToken', 'src/auth/helpers.ts');
     const edge = makeEdge('e1', 'node-login', 'node-validate', 'calls');
@@ -127,7 +127,7 @@ describe('ContextAssemblyService', () => {
     const result = await svc.assemble('repo-1', [chunk]);
 
     expect(result.blocks).toHaveLength(1);
-    const calleeExpansions = result.blocks[0].expansions.filter(e => e.type === 'callee_snippet');
+    const calleeExpansions = result.blocks[0].expansions.filter(e => e.type === 'callee_ref');
     expect(calleeExpansions).toHaveLength(1);
     expect(calleeExpansions[0].content).toContain('validateToken');
     expect(calleeExpansions[0].content).toContain('src/auth/helpers.ts');
@@ -152,9 +152,9 @@ describe('ContextAssemblyService', () => {
     expect(importExpansions[0].filePath).toBe('src/auth/login.ts');
   });
 
-  it('builds doc_link expansion when vector store returns a doc chunk', async () => {
+  it('builds doc_link expansion when vector store returns a doc_section chunk', async () => {
     const docChunk = makeChunk('doc-chunk-1', {
-      layer: 'doc',
+      layer: 'doc_section',
       content: 'Authentication module handles login and session management.',
     });
 
@@ -169,7 +169,8 @@ describe('ContextAssemblyService', () => {
     const docExpansions = result.blocks[0].expansions.filter(e => e.type === 'doc_link');
     expect(docExpansions).toHaveLength(1);
     expect(docExpansions[0].content).toContain('Authentication module');
-    expect(vs.searchKeyword).toHaveBeenCalledWith('repo-1', 'loginUser', 2, ['doc']);
+    // Must use the real layer name 'doc_section' (not 'doc')
+    expect(vs.searchKeyword).toHaveBeenCalledWith('repo-1', 'loginUser', 2, ['doc_section']);
   });
 
   it('skips callee and import expansions for non-code layers', async () => {
@@ -191,13 +192,13 @@ describe('ContextAssemblyService', () => {
     };
     const result = await svc.assemble('repo-1', [chunk]);
 
-    const calleeExp = result.blocks[0].expansions.filter(e => e.type === 'callee_snippet');
+    const calleeExp = result.blocks[0].expansions.filter(e => e.type === 'callee_ref');
     const importExp = result.blocks[0].expansions.filter(e => e.type === 'import_list');
     expect(calleeExp).toHaveLength(0);
     expect(importExp).toHaveLength(0);
   });
 
-  it('skips doc_link search for doc and diagram layer chunks', async () => {
+  it('skips doc_link search for doc_section and diagram_desc layer chunks', async () => {
     const vs = makeVectorStore({
       searchKeyword: jest.fn().mockResolvedValue([]),
     });
@@ -208,7 +209,7 @@ describe('ContextAssemblyService', () => {
       repoId: 'repo-1',
       content: 'doc content',
       contentSha: 'sha',
-      layer: 'doc',
+      layer: 'doc_section',
       metadata: { symbol: 'overview' },
     };
     const diagramChunk: VectorChunk = {
@@ -216,7 +217,7 @@ describe('ContextAssemblyService', () => {
       repoId: 'repo-1',
       content: 'diagram content',
       contentSha: 'sha',
-      layer: 'diagram',
+      layer: 'diagram_desc',
       metadata: {},
     };
 
@@ -226,25 +227,26 @@ describe('ContextAssemblyService', () => {
   });
 
   it('enforces token budget by dropping least-relevant blocks from the tail', async () => {
+    // No doc_link expansions: use file_summary layer (not in DOC_SEARCH_LAYERS)
+    // and no CIG data so callee/import expansions are also absent.
+    // Each chunk: 200 chars = exactly 50 tokens. Budget = 50 → only 1 block fits.
     const svc = new ContextAssemblyService(makeStorage(), makeVectorStore(), {
       maxContextTokens: 50,
     });
 
-    // Each chunk has content ~200 chars = ~50 tokens
     const chunks = [
-      makeChunk('c1', { content: 'A'.repeat(200), layer: 'code' }),
-      makeChunk('c2', { content: 'B'.repeat(200), layer: 'code' }),
-      makeChunk('c3', { content: 'C'.repeat(200), layer: 'code' }),
+      makeChunk('c1', { content: 'A'.repeat(200), layer: 'file_summary' }),
+      makeChunk('c2', { content: 'B'.repeat(200), layer: 'file_summary' }),
+      makeChunk('c3', { content: 'C'.repeat(200), layer: 'file_summary' }),
     ];
 
     const result = await svc.assemble('repo-1', chunks);
 
-    // Should have dropped some blocks to fit within 50 tokens
     expect(result.truncated).toBe(true);
-    expect(result.droppedChunks).toBeGreaterThan(0);
-    expect(result.totalTokens).toBeLessThanOrEqual(50);
-    // First (most relevant) block should be retained
-    expect(result.blocks[0].chunk.chunkId).toBe('c1');
+    expect(result.blocks).toHaveLength(1);       // exactly 1 block retained
+    expect(result.droppedChunks).toBe(2);        // 2 tail blocks dropped
+    expect(result.totalTokens).toBe(50);         // exactly 200 chars / 4 = 50 tokens
+    expect(result.blocks[0].chunk.chunkId).toBe('c1'); // most relevant block kept
   });
 
   it('does not set truncated when total is within budget', async () => {
@@ -269,7 +271,7 @@ describe('ContextAssemblyService', () => {
 
     expect(result.blocks).toHaveLength(1);
     // No CIG-based expansions (callee/import), but doc_link search may still run
-    const calleeExp = result.blocks[0].expansions.filter(e => e.type === 'callee_snippet');
+    const calleeExp = result.blocks[0].expansions.filter(e => e.type === 'callee_ref');
     const importExp = result.blocks[0].expansions.filter(e => e.type === 'import_list');
     expect(calleeExp).toHaveLength(0);
     expect(importExp).toHaveLength(0);
@@ -328,7 +330,7 @@ describe('ContextAssemblyService', () => {
     const chunk = makeChunk('c1', { layer: 'code', filePath: 'src/auth/login.ts', symbol: 'mainFunction' });
     const result = await svc.assemble('repo-1', [chunk]);
 
-    const calleeExp = result.blocks[0].expansions.filter(e => e.type === 'callee_snippet');
+    const calleeExp = result.blocks[0].expansions.filter(e => e.type === 'callee_ref');
     expect(calleeExp.length).toBeLessThanOrEqual(3);
   });
 
@@ -356,7 +358,7 @@ describe('ContextAssemblyService', () => {
     const chunk = makeChunk('c1', { layer: 'code', filePath: 'src/auth/login.ts', symbol: 'longSymbol' });
     const result = await svc.assemble('repo-1', [chunk]);
 
-    const calleeExp = result.blocks[0].expansions.filter(e => e.type === 'callee_snippet');
+    const calleeExp = result.blocks[0].expansions.filter(e => e.type === 'callee_ref');
     if (calleeExp.length > 0) {
       // 10 tokens * 4 chars/token = 40 chars max
       expect(calleeExp[0].content.length).toBeLessThanOrEqual(40);

@@ -6,6 +6,14 @@ import type {
   VectorStore,
 } from '@codeinsight/types';
 
+import {
+  LAYER_CIG_METADATA,
+  LAYER_CODE,
+  LAYER_DIAGRAM_DESC,
+  LAYER_DOC_SECTION,
+  LAYER_FILE_SUMMARY,
+} from './layers';
+
 // ---------------------------------------------------------------------------
 // Query classification
 // ---------------------------------------------------------------------------
@@ -16,13 +24,6 @@ export type QueryType =
   | 'relational'
   | 'navigational'
   | 'general';
-
-// Layer constants — match what ChunkingService produces
-const LAYER_CODE = 'code';
-const LAYER_FILE_SUMMARY = 'file_summary';
-const LAYER_DOC_SECTION = 'doc_section';
-const LAYER_DIAGRAM_DESC = 'diagram_desc';
-const LAYER_CIG_METADATA = 'cig_metadata';
 
 const ALL_INDEXED_LAYERS = [
   LAYER_CODE,
