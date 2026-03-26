@@ -23,11 +23,12 @@ import Fab from '@material-ui/core/Fab';
 import { makeStyles } from '@material-ui/core/styles';
 import Tab from '@material-ui/core/Tab';
 import Tabs from '@material-ui/core/Tabs';
+import TextField from '@material-ui/core/TextField';
 import Tooltip from '@material-ui/core/Tooltip';
 import Typography from '@material-ui/core/Typography';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { codeInsightApiRef, DiagramSection, DocSection } from '../api';
+import { codeInsightApiRef, DiagramSection, DocSection, QnASource } from '../api';
 
 import { MermaidDiagramViewer } from './MermaidDiagramViewer';
 
@@ -65,6 +66,14 @@ interface JobOutcome {
 }
 
 type ContentTab = 'docs' | 'diagrams' | 'qna';
+
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: QnASource[];
+  isStreaming?: boolean;
+}
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -316,6 +325,141 @@ const useStyles = makeStyles(theme => ({
   },
   errorText: { color: theme.palette.error.main },
 
+  // ── Q&A tab ───────────────────────────────────────────────────────────────
+  qnaContainer: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    height: 540,
+  },
+  qnaToolbar: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: theme.spacing(1),
+    marginBottom: theme.spacing(1),
+    borderBottom: `1px solid ${theme.palette.divider}`,
+  },
+  qnaToolbarLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: theme.spacing(1),
+  },
+  qnaDisclaimer: {
+    fontSize: '0.72rem',
+    color: theme.palette.text.disabled,
+    fontStyle: 'italic',
+  },
+  qnaMessages: {
+    flex: 1,
+    overflowY: 'auto' as const,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: theme.spacing(2),
+    paddingRight: theme.spacing(0.5),
+  },
+  qnaMessageRow: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  qnaUserRow: {
+    alignItems: 'flex-end',
+  },
+  qnaAssistantRow: {
+    alignItems: 'flex-start',
+  },
+  qnaRoleLabel: {
+    fontSize: '0.68rem',
+    fontWeight: 600,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase' as const,
+    color: theme.palette.text.disabled,
+    marginBottom: 2,
+  },
+  qnaUserBubble: {
+    maxWidth: '78%',
+    backgroundColor: theme.palette.primary.main,
+    color: theme.palette.primary.contrastText,
+    borderRadius: '12px 12px 2px 12px',
+    padding: theme.spacing(1, 1.5),
+    fontSize: '0.875rem',
+    lineHeight: 1.5,
+    wordBreak: 'break-word' as const,
+  },
+  qnaAssistantBubble: {
+    maxWidth: '88%',
+    backgroundColor: theme.palette.background.paper,
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: '2px 12px 12px 12px',
+    padding: theme.spacing(1, 1.5),
+    fontSize: '0.875rem',
+    lineHeight: 1.5,
+    wordBreak: 'break-word' as const,
+    '& p': { margin: '0 0 8px', '&:last-child': { margin: 0 } },
+    '& pre': { overflowX: 'auto' as const },
+    '& code': { fontSize: '0.8rem' },
+  },
+  qnaCursor: {
+    display: 'inline-block',
+    width: 2,
+    height: '1em',
+    backgroundColor: theme.palette.text.primary,
+    marginLeft: 1,
+    verticalAlign: 'text-bottom',
+    animation: '$blink 1s step-end infinite',
+  },
+  '@keyframes blink': {
+    '0%, 100%': { opacity: 1 },
+    '50%': { opacity: 0 },
+  },
+  qnaSources: {
+    marginTop: theme.spacing(1),
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: theme.spacing(0.5),
+  },
+  qnaSourcesLabel: {
+    fontSize: '0.68rem',
+    fontWeight: 600,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase' as const,
+    color: theme.palette.text.disabled,
+    marginBottom: theme.spacing(0.25),
+  },
+  qnaSourceCard: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    padding: theme.spacing(0.5, 1),
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: 4,
+    cursor: 'pointer',
+    textDecoration: 'none',
+    backgroundColor: theme.palette.action.hover,
+    '&:hover': {
+      backgroundColor: theme.palette.action.selected,
+    },
+  },
+  qnaSourcePath: {
+    fontSize: '0.76rem',
+    fontFamily: 'monospace',
+    color: theme.palette.primary.main,
+    wordBreak: 'break-all' as const,
+  },
+  qnaSourceMeta: {
+    fontSize: '0.7rem',
+    color: theme.palette.text.disabled,
+  },
+  qnaInputArea: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    gap: theme.spacing(1),
+    marginTop: theme.spacing(1.5),
+    paddingTop: theme.spacing(1.5),
+    borderTop: `1px solid ${theme.palette.divider}`,
+  },
+  qnaTextField: {
+    flex: 1,
+  },
+
   // ── Diagrams tab ──────────────────────────────────────────────────────────
   diagramsGrid: {
     display: 'grid',
@@ -387,6 +531,15 @@ function formatModuleName(artifactId: string): string {
     .join(' ');
 }
 
+
+function stripSourceRefs(text: string): string {
+  return text.replace(/\[source:\d+\]/gi, '').replace(/ {2,}/g, ' ');
+}
+
+function buildFileUrl(repoUrl: string, filePath: string, startLine?: number): string {
+  const base = `${repoUrl}/blob/HEAD/${filePath}`;
+  return startLine ? `${base}#L${startLine}` : base;
+}
 
 function outcomeMessage(outcome: JobOutcome): { text: string; color: 'textSecondary' | 'error' | 'inherit' } {
   if (outcome.status === 'failed') {
@@ -757,16 +910,240 @@ function DocumentationContent({
   );
 }
 
+// (ComingSoonContent removed — Q&A tab is now live)
+
 // ---------------------------------------------------------------------------
-// ComingSoonContent
+// SourceCard
 // ---------------------------------------------------------------------------
 
-function ComingSoonContent({ feature, description }: { feature: string; description: string }) {
+function SourceCard({ source, repoUrl }: { source: QnASource; repoUrl: string }) {
   const classes = useStyles();
+  const href = buildFileUrl(repoUrl, source.filePath, source.startLine);
+  const lineMeta = source.startLine
+    ? source.endLine && source.endLine !== source.startLine
+      ? `lines ${source.startLine}–${source.endLine}`
+      : `line ${source.startLine}`
+    : null;
+
   return (
-    <Box className={classes.comingSoon}>
-      <Typography variant="h6">{feature} — Coming Soon</Typography>
-      <Typography variant="body2">{description}</Typography>
+    <Box
+      component="a"
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={classes.qnaSourceCard}
+    >
+      <Typography className={classes.qnaSourcePath}>{source.filePath}</Typography>
+      <Typography className={classes.qnaSourceMeta}>
+        {[source.symbol, lineMeta, source.layer].filter(Boolean).join(' · ')}
+      </Typography>
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// QnAContent
+// ---------------------------------------------------------------------------
+
+function QnAContent({
+  repoId,
+  repoUrl,
+  isFirstRun,
+}: {
+  repoId: string;
+  repoUrl: string;
+  isFirstRun: boolean;
+}) {
+  const api = useApi(codeInsightApiRef);
+  const classes = useStyles();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isAsking, setIsAsking] = useState(false);
+
+  // Auto-create session on mount
+  useEffect(() => {
+    let cancelled = false;
+    setSessionError(null);
+    api.createQnASession(repoId).then(
+      ({ sessionId: sid }) => { if (!cancelled) setSessionId(sid); },
+      err => { if (!cancelled) setSessionError(String(err)); },
+    );
+    return () => { cancelled = true; };
+  }, [api, repoId]);
+
+  // Scroll to bottom when messages update
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleNewConversation = useCallback(async () => {
+    try {
+      setSessionError(null);
+      const { sessionId: sid } = await api.createQnASession(repoId);
+      setSessionId(sid);
+      setMessages([]);
+    } catch (err) {
+      setSessionError(String(err));
+    }
+  }, [api, repoId]);
+
+  const handleSend = useCallback(async () => {
+    const question = input.trim();
+    if (!question || !sessionId || isAsking) return;
+
+    setInput('');
+    setIsAsking(true);
+
+    const userId = `u-${Date.now()}`;
+    const assistantId = `a-${Date.now()}`;
+
+    setMessages(prev => [
+      ...prev,
+      { id: userId, role: 'user', content: question },
+      { id: assistantId, role: 'assistant', content: '', isStreaming: true },
+    ]);
+
+    try {
+      const sources = await api.askQnAStream(repoId, sessionId, question, token => {
+        setMessages(prev =>
+          prev.map(m => m.id === assistantId ? { ...m, content: m.content + token } : m),
+        );
+      });
+      setMessages(prev =>
+        prev.map(m => m.id === assistantId ? { ...m, isStreaming: false, sources } : m),
+      );
+    } catch (err) {
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === assistantId
+            ? { ...m, content: `Error: ${String(err)}`, isStreaming: false }
+            : m,
+        ),
+      );
+    } finally {
+      setIsAsking(false);
+    }
+  }, [api, repoId, sessionId, input, isAsking]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    },
+    [handleSend],
+  );
+
+  if (isFirstRun) {
+    return <FirstRunEmptyState icon="?" heading="Q&A not available yet" />;
+  }
+
+  if (sessionError) {
+    return (
+      <Typography variant="body2" className={classes.errorText}>
+        Failed to start Q&A session: {sessionError}
+      </Typography>
+    );
+  }
+
+  return (
+    <Box className={classes.qnaContainer}>
+      {/* Toolbar */}
+      <Box className={classes.qnaToolbar}>
+        <Box className={classes.qnaToolbarLeft}>
+          <Typography variant="body2" style={{ fontWeight: 600 }}>
+            Ask about this repository
+          </Typography>
+          {!sessionId && <CircularProgress size={12} />}
+        </Box>
+        <Button size="small" onClick={handleNewConversation} disabled={isAsking}>
+          New conversation
+        </Button>
+      </Box>
+
+      {/* Message list */}
+      <Box className={classes.qnaMessages}>
+        {messages.length === 0 && (
+          <Box className={classes.emptyState} style={{ padding: '32px 0' }}>
+            <Typography variant="body2" color="textSecondary">
+              Ask a question about the codebase — e.g. &quot;How does authentication work?&quot;
+            </Typography>
+          </Box>
+        )}
+
+        {messages.map(msg => (
+          <Box
+            key={msg.id}
+            className={`${classes.qnaMessageRow} ${msg.role === 'user' ? classes.qnaUserRow : classes.qnaAssistantRow}`}
+          >
+            <Typography className={classes.qnaRoleLabel}>
+              {msg.role === 'user' ? 'You' : 'CodeInsight'}
+            </Typography>
+
+            {msg.role === 'user' ? (
+              <Box className={classes.qnaUserBubble}>{msg.content}</Box>
+            ) : (
+              <Box className={classes.qnaAssistantBubble}>
+                {msg.content ? (
+                  <MarkdownContent content={stripSourceRefs(msg.content)} />
+                ) : (
+                  <CircularProgress size={14} />
+                )}
+                {msg.isStreaming && <Box component="span" className={classes.qnaCursor} />}
+
+                {/* Sources */}
+                {!msg.isStreaming && msg.sources && msg.sources.length > 0 && (
+                  <Box className={classes.qnaSources}>
+                    <Typography className={classes.qnaSourcesLabel}>
+                      Sources ({msg.sources.length})
+                    </Typography>
+                    {msg.sources.map((src, idx) => (
+                      <SourceCard key={idx} source={src} repoUrl={repoUrl} />
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            )}
+          </Box>
+        ))}
+
+        <div ref={messagesEndRef} />
+      </Box>
+
+      {/* Input area */}
+      <Box className={classes.qnaInputArea}>
+        <TextField
+          className={classes.qnaTextField}
+          variant="outlined"
+          size="small"
+          placeholder="Ask a question... (Shift+Enter for newline)"
+          multiline
+          rowsMax={4}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={!sessionId || isAsking}
+        />
+        <Button
+          variant="contained"
+          color="primary"
+          size="small"
+          onClick={handleSend}
+          disabled={!sessionId || isAsking || !input.trim()}
+          style={{ minWidth: 64, height: 40, flexShrink: 0 }}
+        >
+          {isAsking ? <CircularProgress size={14} color="inherit" /> : 'Send'}
+        </Button>
+      </Box>
+
+      <Typography className={classes.qnaDisclaimer} style={{ marginTop: 6 }}>
+        AI-generated answers — always verify against source code.
+      </Typography>
     </Box>
   );
 }
@@ -1011,11 +1388,8 @@ function CodeInsightContentInner() {
             isFirstRun={isFirstRun}
           />
         )}
-        {activeTab === 'qna' && (
-          <ComingSoonContent
-            feature="Q&A"
-            description="Ask natural-language questions about this codebase and get AI-powered answers grounded in the repository."
-          />
+        {activeTab === 'qna' && repoId && repoUrl && (
+          <QnAContent repoId={repoId} repoUrl={repoUrl} isFirstRun={isFirstRun} />
         )}
       </Box>
     </InfoCard>
