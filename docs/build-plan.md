@@ -864,7 +864,10 @@ Replace low-value diagrams with high-value architecture diagrams.
 - CIG synthetic chunks: `layer='cig_metadata'`, content = "{symbolType} {symbolName} in {filePath} (lines X–Y)"
 - Exact CIG matches ranked before fuzzy matches in results
 - All paths fail-safe: individual path errors are logged and swallowed; remaining paths still contribute results
-- 20 unit tests — all pass
+- `cigNodeToChunk` chunkId includes `symbolType` to prevent collision on same-name symbols of different types
+- `searchKeyword` chain order: layer `whereIn` applied before `orderByRaw().limit()`
+- Migration 012 adds GIN index `idx_qna_embeddings_fts` on `to_tsvector('english', content)` for O(log n) FTS
+- 20 unit tests (`@codeinsight/qna`) + 7 `PgVectorStore.searchKeyword` tests — all pass
 
 ---
 
