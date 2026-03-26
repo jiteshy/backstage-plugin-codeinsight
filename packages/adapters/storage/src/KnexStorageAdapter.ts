@@ -1,4 +1,5 @@
 import type {
+  ActiveContext,
   Artifact,
   ArtifactContent,
   ArtifactInput,
@@ -6,6 +7,10 @@ import type {
   CIGEdge,
   CIGNode,
   IngestionJob,
+  QnAMessage,
+  QnARole,
+  QnASession,
+  QnASource,
   RepoFile,
   RepoStatus,
   Repository,
@@ -89,6 +94,25 @@ interface JobRow {
   error_message: string | null;
   started_at: Date | null;
   completed_at: Date | null;
+  created_at: Date;
+}
+
+interface QnASessionRow {
+  session_id: string;
+  repo_id: string;
+  user_ref: string | null;
+  active_context: ActiveContext | null;
+  created_at: Date;
+  last_active: Date;
+}
+
+interface QnAMessageRow {
+  message_id: string;
+  session_id: string;
+  role: string;
+  content: string;
+  sources: QnASource[] | null;
+  tokens_used: number;
   created_at: Date;
 }
 
@@ -178,6 +202,32 @@ function jobFromRow(row: JobRow): IngestionJob {
     errorMessage: row.error_message,
     startedAt: row.started_at ? new Date(row.started_at) : null,
     completedAt: row.completed_at ? new Date(row.completed_at) : null,
+    createdAt: new Date(row.created_at),
+  };
+}
+
+function qnaSessionFromRow(row: QnASessionRow): QnASession {
+  return {
+    sessionId: row.session_id,
+    repoId: row.repo_id,
+    userRef: row.user_ref,
+    activeContext: row.active_context ?? {
+      mentionedFiles: [],
+      mentionedSymbols: [],
+    },
+    createdAt: new Date(row.created_at),
+    lastActive: new Date(row.last_active),
+  };
+}
+
+function qnaMessageFromRow(row: QnAMessageRow): QnAMessage {
+  return {
+    messageId: row.message_id,
+    sessionId: row.session_id,
+    role: row.role as QnARole,
+    content: row.content,
+    sources: row.sources,
+    tokensUsed: row.tokens_used,
     createdAt: new Date(row.created_at),
   };
 }
@@ -634,5 +684,84 @@ export class KnexStorageAdapter implements StorageAdapter {
       .orderBy('created_at', 'desc')
       .first();
     return row ? jobFromRow(row) : null;
+  }
+
+  // -------------------------------------------------------------------------
+  // QnA Sessions (Phase 5.6)
+  // -------------------------------------------------------------------------
+
+  async createSession(session: QnASession): Promise<string> {
+    await this.knex('ci_qna_sessions').insert({
+      session_id: session.sessionId,
+      repo_id: session.repoId,
+      user_ref: session.userRef ?? null,
+      active_context: JSON.stringify(session.activeContext),
+      created_at: session.createdAt,
+      last_active: session.lastActive,
+    });
+    return session.sessionId;
+  }
+
+  async getSession(sessionId: string): Promise<QnASession | null> {
+    const row = await this.knex<QnASessionRow>('ci_qna_sessions')
+      .where('session_id', sessionId)
+      .first();
+    return row ? qnaSessionFromRow(row) : null;
+  }
+
+  async updateSessionActiveContext(
+    sessionId: string,
+    activeContext: ActiveContext,
+  ): Promise<void> {
+    await this.knex('ci_qna_sessions')
+      .where('session_id', sessionId)
+      .update({ active_context: JSON.stringify(activeContext) });
+  }
+
+  async touchSession(sessionId: string): Promise<void> {
+    await this.knex('ci_qna_sessions')
+      .where('session_id', sessionId)
+      .update({ last_active: this.knex.fn.now() });
+  }
+
+  // -------------------------------------------------------------------------
+  // QnA Messages (Phase 5.6)
+  // -------------------------------------------------------------------------
+
+  async addMessage(message: QnAMessage): Promise<string> {
+    await this.knex('ci_qna_messages').insert({
+      message_id: message.messageId,
+      session_id: message.sessionId,
+      role: message.role,
+      content: message.content,
+      sources: message.sources ? JSON.stringify(message.sources) : null,
+      tokens_used: message.tokensUsed,
+      created_at: message.createdAt,
+    });
+    return message.messageId;
+  }
+
+  async getSessionMessages(
+    sessionId: string,
+    limit?: number,
+    offset?: number,
+  ): Promise<QnAMessage[]> {
+    let query = this.knex<QnAMessageRow>('ci_qna_messages')
+      .where('session_id', sessionId)
+      .orderBy('created_at', 'asc');
+
+    if (offset !== undefined) query = query.offset(offset);
+    if (limit !== undefined) query = query.limit(limit);
+
+    const rows = await query;
+    return rows.map(qnaMessageFromRow);
+  }
+
+  async getSessionMessageCount(sessionId: string): Promise<number> {
+    const result = await this.knex('ci_qna_messages')
+      .where('session_id', sessionId)
+      .count('message_id as count')
+      .first();
+    return Number(result?.count ?? 0);
   }
 }

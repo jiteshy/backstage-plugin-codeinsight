@@ -289,6 +289,9 @@ importers:
       '@codeinsight/llm':
         specifier: workspace:*
         version: link:../../adapters/llm
+      '@codeinsight/qna':
+        specifier: workspace:*
+        version: link:../../core/qna
       '@codeinsight/repo':
         specifier: workspace:*
         version: link:../../adapters/repo
@@ -298,6 +301,9 @@ importers:
       '@codeinsight/types':
         specifier: workspace:*
         version: link:../../core/types
+      '@codeinsight/vector-store':
+        specifier: workspace:*
+        version: link:../../adapters/vector-store
       express:
         specifier: ^4.18.2
         version: 4.22.1

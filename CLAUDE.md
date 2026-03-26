@@ -65,6 +65,8 @@ pnpm db:migrate                       # run Knex migrations
   - 5.2 Chunking Service — ✅ COMPLETED (`@codeinsight/chunking` package, 28 tests)
   - 5.3 Indexing Service — ✅ COMPLETED (`@codeinsight/indexing` package, `@codeinsight/vector-store` adapter, migration 011, 9 tests)
   - 5.4 Retrieval Service — ✅ COMPLETED (`@codeinsight/qna` package, `RetrievalService`, `classifyQuery`, `searchKeyword` on VectorStore, 20 tests)
+  - 5.5 Context Assembly Service — ✅ COMPLETED (`ContextAssemblyService`, CIG expansions, token budget enforcement, 9 tests)
+  - 5.6 QnA Service — ✅ COMPLETED (`QnAService` with `ask()`, `askStream()`, session management, SSE streaming, 17 tests)
 
 ## Custom Agents & Skills
 

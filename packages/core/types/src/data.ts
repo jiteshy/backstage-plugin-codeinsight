@@ -152,3 +152,51 @@ export interface IngestionJob {
   completedAt?: Date | null;
   createdAt: Date;
 }
+
+// ---------------------------------------------------------------------------
+// QnA Session & Message types (Phase 5.6)
+// ---------------------------------------------------------------------------
+
+export type QnARole = 'user' | 'assistant';
+
+export interface QnASource {
+  filePath: string;
+  symbol?: string;
+  startLine?: number;
+  endLine?: number;
+  layer?: string;
+  snippet?: string;
+}
+
+export interface ActiveContext {
+  mentionedFiles: string[];
+  mentionedSymbols: string[];
+  topicSummary?: string;
+}
+
+export interface QnASession {
+  sessionId: string;
+  repoId: string;
+  userRef?: string | null;
+  activeContext: ActiveContext;
+  createdAt: Date;
+  lastActive: Date;
+}
+
+export interface QnAMessage {
+  messageId: string;
+  sessionId: string;
+  role: QnARole;
+  content: string;
+  sources?: QnASource[] | null;
+  tokensUsed: number;
+  createdAt: Date;
+}
+
+export interface QnAAnswer {
+  answer: string;
+  sources: QnASource[];
+  tokensUsed: number;
+  messageId: string;
+  sessionId: string;
+}

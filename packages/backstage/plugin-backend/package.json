@@ -21,8 +21,10 @@
     "@codeinsight/embeddings": "workspace:*",
     "@codeinsight/ingestion": "workspace:*",
     "@codeinsight/llm": "workspace:*",
+    "@codeinsight/qna": "workspace:*",
     "@codeinsight/repo": "workspace:*",
     "@codeinsight/storage": "workspace:*",
+    "@codeinsight/vector-store": "workspace:*",
     "@codeinsight/types": "workspace:*",
     "express": "^4.18.2",
     "express-promise-router": "^4.1.0"

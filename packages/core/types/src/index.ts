@@ -23,6 +23,12 @@ export type {
   ArtifactInput,
   ArtifactDependency,
   IngestionJob,
+  QnARole,
+  QnASource,
+  ActiveContext,
+  QnASession,
+  QnAMessage,
+  QnAAnswer,
 } from './data';
 
 // I/O interfaces

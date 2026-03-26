@@ -1,4 +1,5 @@
 import type {
+  ActiveContext,
   Artifact,
   ArtifactInput,
   ArtifactType,
@@ -6,6 +7,8 @@ import type {
   CIGNode,
   IngestionJob,
   JobStatus,
+  QnAMessage,
+  QnASession,
   RepoFile,
   RepoStatus,
   Repository,
@@ -128,6 +131,17 @@ export interface StorageAdapter {
   updateJob(jobId: string, update: Partial<IngestionJob>): Promise<void>;
   getJob(jobId: string): Promise<IngestionJob | null>;
   getActiveJobForRepo(repoId: string): Promise<IngestionJob | null>;
+
+  // QnA Sessions (Phase 5.6)
+  createSession(session: QnASession): Promise<string>;
+  getSession(sessionId: string): Promise<QnASession | null>;
+  updateSessionActiveContext(sessionId: string, activeContext: ActiveContext): Promise<void>;
+  touchSession(sessionId: string): Promise<void>;
+
+  // QnA Messages (Phase 5.6)
+  addMessage(message: QnAMessage): Promise<string>;
+  getSessionMessages(sessionId: string, limit?: number, offset?: number): Promise<QnAMessage[]>;
+  getSessionMessageCount(sessionId: string): Promise<number>;
 }
 
 // ---------------------------------------------------------------------------
