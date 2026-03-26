@@ -935,9 +935,7 @@ function SourceCard({ source, repoUrl }: { source: QnASource; repoUrl: string })
   return (
     <Box
       component="a"
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
+      {...({ href, target: '_blank', rel: 'noopener noreferrer' } as any)}
       className={classes.qnaSourceCard}
     >
       <Typography className={classes.qnaSourcePath}>{source.filePath}</Typography>

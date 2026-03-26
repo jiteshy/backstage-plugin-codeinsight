@@ -79,6 +79,10 @@
 - nodeMap verification: `Object.values(result.nodeMap!)` should contain actual file paths from the fixture
 - `makeMockLLM(returnValue)` factory pattern keeps tests DRY when most tests need a valid LLM mock
 
+## JSDOM Missing APIs — Required Stubs
+- `scrollIntoView` is NOT implemented in JSDOM — add `beforeAll(() => { window.HTMLElement.prototype.scrollIntoView = jest.fn(); })` to any test file that renders components with scroll-to effects (e.g. QnA message list scroll-to-bottom)
+- MUI v4 `Box component="a"` with anchor props (`href`, `target`, `rel`) causes TS2322 in strict mode — fix with spread cast: `{...({ href, target: '_blank', rel: '...' } as any)}`
+
 ## React Component Unit Test Patterns (@material-ui/core v4 + @testing-library/react)
 - Wrap all renders in `<ThemeProvider theme={createTheme()}>` — `makeStyles` requires a MUI theme context
 - Use `createTheme` (not the deprecated `createMuiTheme`) from `@material-ui/core/styles`

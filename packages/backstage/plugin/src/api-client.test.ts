@@ -405,6 +405,495 @@ describe('CodeInsightClient', () => {
   });
 
   // -----------------------------------------------------------------------
+  // createQnASession
+  // -----------------------------------------------------------------------
+  describe('createQnASession', () => {
+    it('sends POST to the correct session creation URL', async () => {
+      const fetchApi = mockFetchApi({ sessionId: 'sess-abc' });
+      const { client } = createClient({ fetchApi });
+
+      const result = await client.createQnASession('my-repo');
+
+      expect(result).toEqual({ sessionId: 'sess-abc' });
+      expect(fetchApi.fetch).toHaveBeenCalledWith(
+        `${BASE_URL}/repos/my-repo/qna/sessions`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      );
+    });
+
+    it('encodes the repoId in the URL', async () => {
+      const fetchApi = mockFetchApi({ sessionId: 'sess-xyz' });
+      const { client } = createClient({ fetchApi });
+
+      await client.createQnASession('org/my-repo');
+
+      const calledUrl = fetchApi.fetch.mock.calls[0][0] as string;
+      expect(calledUrl).toBe(`${BASE_URL}/repos/org%2Fmy-repo/qna/sessions`);
+    });
+
+    it('throws when the response is not ok', async () => {
+      const fetchApi = mockFetchApi(null, { ok: false, statusText: 'Service Unavailable' });
+      const { client } = createClient({ fetchApi });
+
+      await expect(client.createQnASession('my-repo')).rejects.toThrow(
+        'Failed to create QnA session: Service Unavailable',
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // askQnAStream
+  // -----------------------------------------------------------------------
+  describe('askQnAStream', () => {
+    /**
+     * Builds a minimal ReadableStreamDefaultReader mock from a sequence of
+     * raw SSE text chunks (each chunk is a string that will be returned by
+     * successive reader.read() calls).  The final read() returns done=true.
+     */
+    function makeStreamReader(chunks: string[]) {
+      const encoder = new TextEncoder();
+      let idx = 0;
+      return {
+        read: jest.fn(async () => {
+          if (idx < chunks.length) {
+            return { done: false, value: encoder.encode(chunks[idx++]) };
+          }
+          return { done: true as const, value: undefined };
+        }),
+        cancel: jest.fn().mockResolvedValue(undefined),
+      };
+    }
+
+    /** Wraps a fetch mock so response.body.getReader() returns the given reader. */
+    function mockFetchWithStream(reader: ReturnType<typeof makeStreamReader>) {
+      return {
+        fetch: jest.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: { getReader: jest.fn().mockReturnValue(reader) },
+          json: jest.fn(),
+        }),
+      };
+    }
+
+    /** Builds a second fetch mock (for the /messages GET call) with a JSON response. */
+    function mockMessagesFetch(messages: Array<{ role: string; sources?: unknown[] | null }>) {
+      return jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: jest.fn().mockResolvedValue(messages),
+      });
+    }
+
+    it('sends POST to the correct ask-stream URL with the question in the body', async () => {
+      const reader = makeStreamReader(['data: {"done":true}\n\n']);
+      const fetchMock = mockFetchWithStream(reader);
+      // Second call: /messages endpoint
+      fetchMock.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        body: { getReader: jest.fn().mockReturnValue(reader) },
+        json: jest.fn(),
+      });
+      // Override with a two-call sequence
+      const streamFetch = jest.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: { getReader: jest.fn().mockReturnValue(reader) },
+          json: jest.fn(),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue([]),
+        });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      await client.askQnAStream('my-repo', 'sess-1', 'What does this do?', jest.fn());
+
+      expect(streamFetch).toHaveBeenNthCalledWith(
+        1,
+        `${BASE_URL}/repos/my-repo/qna/sessions/sess-1/ask-stream`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: 'What does this do?' }),
+        },
+      );
+    });
+
+    it('calls onToken for each token event in the SSE stream', async () => {
+      // Two SSE frames: one token, one done
+      const sseChunk = 'data: {"token":"Hello"}\n\ndata: {"token":" world"}\n\ndata: {"done":true}\n\n';
+      const reader = makeStreamReader([sseChunk]);
+
+      const streamFetch = jest.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: { getReader: jest.fn().mockReturnValue(reader) },
+          json: jest.fn(),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue([
+            { role: 'assistant', sources: [] },
+          ]),
+        });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      const onToken = jest.fn();
+      await client.askQnAStream('my-repo', 'sess-1', 'question', onToken);
+
+      expect(onToken).toHaveBeenCalledTimes(2);
+      expect(onToken).toHaveBeenNthCalledWith(1, 'Hello');
+      expect(onToken).toHaveBeenNthCalledWith(2, ' world');
+    });
+
+    it('calls reader.cancel() in the finally block after streaming completes', async () => {
+      const reader = makeStreamReader(['data: {"done":true}\n\n']);
+      const streamFetch = jest.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: { getReader: jest.fn().mockReturnValue(reader) },
+          json: jest.fn(),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue([]),
+        });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      await client.askQnAStream('my-repo', 'sess-1', 'q', jest.fn());
+
+      expect(reader.cancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('fetches /messages after stream and returns sources from the last assistant message', async () => {
+      const reader = makeStreamReader(['data: {"done":true}\n\n']);
+      const sources = [
+        { filePath: 'src/auth.ts', symbol: 'AuthService', startLine: 10 },
+      ];
+      const streamFetch = jest.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: { getReader: jest.fn().mockReturnValue(reader) },
+          json: jest.fn(),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue([
+            { role: 'user', sources: null },
+            { role: 'assistant', sources },
+          ]),
+        });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      const result = await client.askQnAStream('my-repo', 'sess-1', 'q', jest.fn());
+
+      expect(result).toEqual(sources);
+      // Second fetch should be the /messages GET
+      const secondUrl = streamFetch.mock.calls[1][0] as string;
+      expect(secondUrl).toBe(`${BASE_URL}/repos/my-repo/qna/sessions/sess-1/messages`);
+    });
+
+    it('returns the LAST assistant message sources when there are multiple assistant messages', async () => {
+      const reader = makeStreamReader(['data: {"done":true}\n\n']);
+      const firstSources = [{ filePath: 'old.ts' }];
+      const lastSources = [{ filePath: 'new.ts', startLine: 5 }];
+      const streamFetch = jest.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: { getReader: jest.fn().mockReturnValue(reader) },
+          json: jest.fn(),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue([
+            { role: 'user', sources: null },
+            { role: 'assistant', sources: firstSources },
+            { role: 'user', sources: null },
+            { role: 'assistant', sources: lastSources },
+          ]),
+        });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      const result = await client.askQnAStream('my-repo', 'sess-1', 'q', jest.fn());
+
+      expect(result).toEqual(lastSources);
+    });
+
+    it('returns an empty array when /messages responds with a non-ok status', async () => {
+      const reader = makeStreamReader(['data: {"done":true}\n\n']);
+      const streamFetch = jest.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: { getReader: jest.fn().mockReturnValue(reader) },
+          json: jest.fn(),
+        })
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 500,
+          statusText: 'Internal Server Error',
+          json: jest.fn().mockResolvedValue(null),
+        });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      const result = await client.askQnAStream('my-repo', 'sess-1', 'q', jest.fn());
+
+      expect(result).toEqual([]);
+    });
+
+    it('returns an empty array when the last assistant message has no sources', async () => {
+      const reader = makeStreamReader(['data: {"done":true}\n\n']);
+      const streamFetch = jest.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: { getReader: jest.fn().mockReturnValue(reader) },
+          json: jest.fn(),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue([
+            { role: 'assistant', sources: null },
+          ]),
+        });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      const result = await client.askQnAStream('my-repo', 'sess-1', 'q', jest.fn());
+
+      expect(result).toEqual([]);
+    });
+
+    it('throws when the initial POST response is not ok', async () => {
+      const fetchApi = mockFetchApi(null, { ok: false, statusText: 'Unauthorized' });
+      const { client } = createClient({ fetchApi });
+
+      await expect(
+        client.askQnAStream('my-repo', 'sess-1', 'q', jest.fn()),
+      ).rejects.toThrow('Failed to ask: Unauthorized');
+    });
+
+    it('throws when response.body is null (no readable stream)', async () => {
+      const streamFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        body: null,
+        json: jest.fn(),
+      });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      await expect(
+        client.askQnAStream('my-repo', 'sess-1', 'q', jest.fn()),
+      ).rejects.toThrow('No response body');
+    });
+
+    it('throws when an SSE frame contains a malformed JSON payload', async () => {
+      const reader = makeStreamReader(['data: NOT_JSON\n\n']);
+      const streamFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        body: { getReader: jest.fn().mockReturnValue(reader) },
+        json: jest.fn(),
+      });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      await expect(
+        client.askQnAStream('my-repo', 'sess-1', 'q', jest.fn()),
+      ).rejects.toThrow('Malformed SSE frame:');
+    });
+
+    it('throws when an SSE frame carries an error field', async () => {
+      const reader = makeStreamReader(['data: {"error":"Something went wrong"}\n\n']);
+      const streamFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        body: { getReader: jest.fn().mockReturnValue(reader) },
+        json: jest.fn(),
+      });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      await expect(
+        client.askQnAStream('my-repo', 'sess-1', 'q', jest.fn()),
+      ).rejects.toThrow('Something went wrong');
+    });
+
+    it('still calls reader.cancel() when an SSE error frame is encountered', async () => {
+      const reader = makeStreamReader(['data: {"error":"boom"}\n\n']);
+      const streamFetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        body: { getReader: jest.fn().mockReturnValue(reader) },
+        json: jest.fn(),
+      });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      await expect(
+        client.askQnAStream('my-repo', 'sess-1', 'q', jest.fn()),
+      ).rejects.toThrow('boom');
+
+      expect(reader.cancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('handles SSE frames split across multiple chunks (buffer accumulation)', async () => {
+      // Frame split across two read() calls
+      const part1 = 'data: {"tok';
+      const part2 = 'en":"split"}\n\ndata: {"done":true}\n\n';
+      const reader = makeStreamReader([part1, part2]);
+
+      const streamFetch = jest.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: { getReader: jest.fn().mockReturnValue(reader) },
+          json: jest.fn(),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue([
+            { role: 'assistant', sources: [] },
+          ]),
+        });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      const onToken = jest.fn();
+      await client.askQnAStream('my-repo', 'sess-1', 'q', onToken);
+
+      expect(onToken).toHaveBeenCalledWith('split');
+    });
+
+    it('encodes both repoId and sessionId in all URLs', async () => {
+      const reader = makeStreamReader(['data: {"done":true}\n\n']);
+      const streamFetch = jest.fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: { getReader: jest.fn().mockReturnValue(reader) },
+          json: jest.fn(),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: jest.fn().mockResolvedValue([]),
+        });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      await client.askQnAStream('org/repo', 'sess/1', 'q', jest.fn());
+
+      const streamUrl = streamFetch.mock.calls[0][0] as string;
+      const messagesUrl = streamFetch.mock.calls[1][0] as string;
+
+      expect(streamUrl).toBe(
+        `${BASE_URL}/repos/org%2Frepo/qna/sessions/sess%2F1/ask-stream`,
+      );
+      expect(messagesUrl).toBe(
+        `${BASE_URL}/repos/org%2Frepo/qna/sessions/sess%2F1/messages`,
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // Shared behavior
   // -----------------------------------------------------------------------
   describe('discovery API integration', () => {
