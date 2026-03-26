@@ -13,3 +13,11 @@ export type {
   ContextExpansion,
   ExpansionType,
 } from './ContextAssemblyService';
+
+export {
+  LAYER_CODE,
+  LAYER_FILE_SUMMARY,
+  LAYER_DOC_SECTION,
+  LAYER_DIAGRAM_DESC,
+  LAYER_CIG_METADATA,
+} from './layers';
