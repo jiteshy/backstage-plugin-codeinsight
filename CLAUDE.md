@@ -60,13 +60,14 @@ pnpm db:migrate                       # run Knex migrations
   - 4.2 New Diagram Modules — ✅ COMPLETED (5 new modules, 4 retrofitted with `nodeMap`)
   - 4.3 Registry & Wiring — ✅ COMPLETED (9-module default registry)
   - 4.4 Frontend UI Overhaul — ✅ COMPLETED (zoom, pan, fullscreen, clickable nodes, SVG download)
-- **Phase 5**: QnA Pipeline — IN PROGRESS
+- **Phase 5**: QnA Pipeline — ✅ COMPLETED (all 5.1–5.7 sub-phases done)
   - 5.1 Embedding Client + Cache — ✅ COMPLETED (`@codeinsight/embeddings` package)
   - 5.2 Chunking Service — ✅ COMPLETED (`@codeinsight/chunking` package, 28 tests)
   - 5.3 Indexing Service — ✅ COMPLETED (`@codeinsight/indexing` package, `@codeinsight/vector-store` adapter, migration 011, 9 tests)
   - 5.4 Retrieval Service — ✅ COMPLETED (`@codeinsight/qna` package, `RetrievalService`, `classifyQuery`, `searchKeyword` on VectorStore, 20 tests)
   - 5.5 Context Assembly Service — ✅ COMPLETED (`ContextAssemblyService`, CIG expansions, token budget enforcement, 9 tests)
   - 5.6 QnA Service — ✅ COMPLETED (`QnAService` with `ask()`, `askStream()`, session management, SSE streaming, 17 tests)
+  - 5.7 QnA Frontend Tab — ✅ COMPLETED (`QnAContent` chat component, SSE streaming, clickable source cards, session management)
 
 ## Custom Agents & Skills
 

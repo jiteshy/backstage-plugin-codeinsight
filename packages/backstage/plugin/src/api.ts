@@ -1,5 +1,14 @@
 import { createApiRef } from '@backstage/core-plugin-api';
 
+export interface QnASource {
+  filePath: string;
+  symbol?: string;
+  startLine?: number;
+  endLine?: number;
+  layer?: string;
+  snippet?: string;
+}
+
 export interface DocSection {
   artifactId: string;
   markdown: string;
@@ -35,6 +44,13 @@ export interface CodeInsightApi {
   ): Promise<{ status: string; lastCommitSha?: string; updatedAt?: string }>;
   getDocs(repoId: string): Promise<DocSection[]>;
   getDiagrams(repoId: string): Promise<DiagramSection[]>;
+  createQnASession(repoId: string): Promise<{ sessionId: string }>;
+  askQnAStream(
+    repoId: string,
+    sessionId: string,
+    question: string,
+    onToken: (token: string) => void,
+  ): Promise<QnASource[]>;
 }
 
 export const codeInsightApiRef = createApiRef<CodeInsightApi>({

@@ -924,20 +924,28 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 5.7 — QnA Frontend Tab
+### 5.7 — QnA Frontend Tab ✅ COMPLETED
 
-- [ ] Create `EntityQnATab` component:
-  - Chat UI: message list + input box
-  - Stream tokens as they arrive (SSE)
+- [x] Create `QnAContent` component (inline in `EntityCodeInsightContent.tsx`):
+  - Chat UI: message list (scrollable) + multiline text input + Send button
+  - Stream tokens as they arrive via SSE (fetch body reader)
   - Each assistant message shows:
-    - Answer text (Markdown rendered)
-    - Source cards: file path + symbol + line range (clickable → opens in GitHub/GitLab)
-    - Related docs: links to doc sections
-    - Related diagrams: inline preview thumbnail
-  - Session persists across page navigation (session_id in component state)
-  - "New conversation" button
+    - Answer text (Markdown rendered via `MarkdownContent`, `[source:N]` refs stripped)
+    - Source cards: file path + symbol + line range, clickable → opens in GitHub
+  - Session auto-created on tab mount; persists across tab switches
+  - "New conversation" button creates a new session and clears messages
+  - Enter to send (Shift+Enter for newline)
+  - First-run empty state if no ingestion done yet
+- [x] Added `QnASource` type + `createQnASession` / `askQnAStream` to `CodeInsightApi` interface and `CodeInsightClient`
+- [x] SSE stream parsed from fetch `response.body` reader; sources fetched from GET messages after stream completes
 
 **Acceptance:** Chat works end-to-end. Sources are clickable and open correct file. Streaming renders token by token.
+
+**Notes:**
+- `QnAContent` lives in `EntityCodeInsightContent.tsx` alongside docs/diagrams panels
+- `askQnAStream` streams tokens via fetch ReadableStream, then fetches `/messages` to retrieve `sources` from the persisted assistant message
+- `SourceCard` builds GitHub blob URLs: `${repoUrl}/blob/HEAD/${filePath}#L${startLine}`
+- Blinking cursor shown during streaming via CSS `@keyframes blink`
 
 ---
 
