@@ -871,9 +871,9 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 5.5 — Context Assembly Service
+### 5.5 — Context Assembly Service ✅ COMPLETED
 
-- [ ] Create `ContextAssemblyService`:
+- [x] Create `ContextAssemblyService`:
   - For each retrieved chunk, expand with CIG data:
     - Pull direct callees (short snippets, max 200 tokens each)
     - Pull linked doc chunk if exists
@@ -883,6 +883,13 @@ Replace low-value diagrams with high-value architecture diagrams.
   - Truncate least-relevant chunks if over budget
 
 **Acceptance:** Context block for "how does auth work" contains function code + callees + doc section. Total tokens verified within budget.
+
+**Notes:**
+- `ContextAssemblyService` in `packages/core/qna/src/ContextAssemblyService.ts`
+- Supports 3 expansion types: `callee_snippet`, `doc_link`, `import_list`
+- CIG nodes/edges loaded once per `assemble()` call via 4 lookup maps
+- All I/O failures caught and logged; partial results returned
+- 15 unit tests — all pass (35 total in `@codeinsight/qna`)
 
 ---
 
