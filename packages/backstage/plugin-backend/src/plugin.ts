@@ -11,9 +11,12 @@ import type { DocGenConfig } from '@codeinsight/doc-generator';
 import { createEmbeddingClient } from '@codeinsight/embeddings';
 import { InProcessJobQueue, IngestionService } from '@codeinsight/ingestion';
 import { createLLMClient } from '@codeinsight/llm';
+import { QnAService } from '@codeinsight/qna';
+import type { QnAConfig } from '@codeinsight/qna';
 import { GitRepoConnector } from '@codeinsight/repo';
 import { KnexStorageAdapter } from '@codeinsight/storage';
 import type { EmbeddingConfig, IngestionConfig, LLMConfig, Logger, RepoCloneConfig } from '@codeinsight/types';
+import { PgVectorStore } from '@codeinsight/vector-store';
 
 import { createRouter } from './router';
 
@@ -200,6 +203,42 @@ export const codeinsightPlugin = createBackendPlugin({
           ingestionConfig.maxConcurrentJobs,
         );
 
+        // QnA service — requires both LLM and embedding clients
+        const vectorStore = new PgVectorStore(knex, coreLogger);
+
+        const qnaConfig: QnAConfig = {
+          maxHistoryTurns:
+            config.getOptionalNumber('codeinsight.qna.maxHistoryTurns') ?? 6,
+          compressAfterTurns:
+            config.getOptionalNumber('codeinsight.qna.compressAfterTurns') ?? 10,
+          maxContextTokens:
+            config.getOptionalNumber('codeinsight.qna.maxContextTokens') ?? 8000,
+          maxAnswerTokens:
+            config.getOptionalNumber('codeinsight.qna.maxAnswerTokens') ?? 2000,
+          temperature:
+            config.getOptionalNumber('codeinsight.qna.temperature') ?? 0.3,
+        };
+
+        const qnaService =
+          llmClient && embeddingClient
+            ? new QnAService(
+                llmClient,
+                embeddingClient,
+                storageAdapter,
+                vectorStore,
+                qnaConfig,
+                coreLogger,
+              )
+            : undefined;
+
+        if (qnaService) {
+          coreLogger.info('QnA service initialized');
+        } else {
+          coreLogger.info(
+            'QnA service unavailable — requires both LLM and embedding config',
+          );
+        }
+
         // ------------------------------------------------------------------
         // Mount router
         // ------------------------------------------------------------------
@@ -210,6 +249,7 @@ export const codeinsightPlugin = createBackendPlugin({
           database,
           storageAdapter,
           jobQueue,
+          qnaService,
         });
         httpRouter.use(router);
 

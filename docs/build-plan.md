@@ -893,9 +893,9 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 5.6 — QnA Service
+### 5.6 — QnA Service ✅ COMPLETED
 
-- [ ] Create `QnAService`:
+- [x] Create `QnAService`:
   - `ask(sessionId, question)` → structured response
   - Classify query type (conceptual / specific / relational / navigational / generative)
   - Run appropriate retrieval path
@@ -904,13 +904,23 @@ Replace low-value diagrams with high-value architecture diagrams.
   - Parse response → extract answer + source references
   - Store in `ci_qna_messages`
   - Update session `active_context` (accumulate mentioned symbols/files)
-- [ ] Session management:
+- [x] Session management:
   - `createSession(repoId, userId)` → session_id
   - Load last 6 turns as history
   - Compress older turns after 10 turns
-- [ ] Streaming: use SSE to stream LLM response tokens to frontend
+- [x] Streaming: use SSE to stream LLM response tokens to frontend
 
 **Acceptance:** QnA answers 10+ test questions accurately with correct source references. Follow-up questions resolve references correctly.
+
+**Notes:**
+- `QnAService` in `@codeinsight/qna` with `ask()`, `askStream()`, `createSession()`
+- StorageAdapter expanded with 7 QnA session/message methods, implemented in KnexStorageAdapter
+- 4 HTTP routes: POST sessions, POST ask, POST ask-stream (SSE), GET messages
+- Source citation via `[source:N]` regex parsing, mapped to context blocks
+- History compression via LLM summarization after 10 turns (best-effort)
+- Active context accumulates mentioned files/symbols across turns
+- Wired in composition root: requires both LLM and embedding config
+- 17 new QnAService tests (46 total in @codeinsight/qna)
 
 ---
 

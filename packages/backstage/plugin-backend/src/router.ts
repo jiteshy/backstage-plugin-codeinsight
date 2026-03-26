@@ -3,6 +3,7 @@ import {
   LoggerService,
   RootConfigService,
 } from '@backstage/backend-plugin-api';
+import type { QnAService } from '@codeinsight/qna';
 import type { DiagramContent, DocContent, JobQueue, StorageAdapter } from '@codeinsight/types';
 import express from 'express';
 import Router from 'express-promise-router';
@@ -13,12 +14,13 @@ export interface RouterOptions {
   database: DatabaseService;
   jobQueue: JobQueue;
   storageAdapter: StorageAdapter;
+  qnaService?: QnAService;
 }
 
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, jobQueue, storageAdapter } = options;
+  const { logger, jobQueue, storageAdapter, qnaService } = options;
   const router = Router();
 
   router.use(express.json());
@@ -182,6 +184,94 @@ export async function createRouter(
     diagrams.sort((a, b) => a.artifactId.localeCompare(b.artifactId));
 
     res.json(diagrams);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 5.6 — QnA endpoints
+  // ---------------------------------------------------------------------------
+
+  // POST /repos/:repoId/qna/sessions — Create a new QnA session
+  router.post('/repos/:repoId/qna/sessions', async (req, res) => {
+    if (!qnaService) {
+      res.status(503).json({ error: 'QnA service not configured' });
+      return;
+    }
+    const { repoId } = req.params;
+    const { userRef } = req.body ?? {};
+    try {
+      const session = await qnaService.createSession(repoId, userRef);
+      res.status(201).json(session);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // POST /repos/:repoId/qna/sessions/:sessionId/ask — Non-streaming ask
+  router.post('/repos/:repoId/qna/sessions/:sessionId/ask', async (req, res) => {
+    if (!qnaService) {
+      res.status(503).json({ error: 'QnA service not configured' });
+      return;
+    }
+    const { sessionId } = req.params;
+    const { question } = req.body ?? {};
+    if (!question) {
+      res.status(400).json({ error: 'question is required' });
+      return;
+    }
+    try {
+      const answer = await qnaService.ask(sessionId, question);
+      res.json(answer);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('not found')) {
+        res.status(404).json({ error: message });
+      } else {
+        res.status(500).json({ error: message });
+      }
+    }
+  });
+
+  // POST /repos/:repoId/qna/sessions/:sessionId/ask-stream — SSE streaming
+  router.post('/repos/:repoId/qna/sessions/:sessionId/ask-stream', async (req, res) => {
+    if (!qnaService) {
+      res.status(503).json({ error: 'QnA service not configured' });
+      return;
+    }
+    const { sessionId } = req.params;
+    const { question } = req.body ?? {};
+    if (!question) {
+      res.status(400).json({ error: 'question is required' });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    try {
+      const stream = qnaService.askStream(sessionId, question);
+      for await (const token of stream) {
+        res.write(`data: ${JSON.stringify({ token })}\n\n`);
+      }
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+      res.end();
+    }
+  });
+
+  // GET /repos/:repoId/qna/sessions/:sessionId/messages — Get session messages
+  router.get('/repos/:repoId/qna/sessions/:sessionId/messages', async (req, res) => {
+    const { sessionId } = req.params;
+    try {
+      const messages = await storageAdapter.getSessionMessages(sessionId);
+      res.json(messages);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
   });
 
   return router;

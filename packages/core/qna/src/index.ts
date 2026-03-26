@@ -13,3 +13,6 @@ export type {
   ContextExpansion,
   ExpansionType,
 } from './ContextAssemblyService';
+
+export { QnAService } from './QnAService';
+export type { QnAConfig } from './QnAService';
