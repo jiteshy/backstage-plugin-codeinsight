@@ -38,7 +38,7 @@ const NAVIGATIONAL_RE = /\b(where is|find|which file|locate|path to|defined in)\
 const CONCEPTUAL_RE =
   /\b(how does|what is|explain|overview|describe|understand|architecture|design)\b/i;
 const SPECIFIC_RE =
-  /\b(what does|how does .+ work|implement(ation)?|definition of|signature of)\b/i;
+  /\b(what does|implement(ation)?|definition of|signature of)\b/i;
 
 /**
  * Classify a natural-language query into one of five query types that
@@ -70,12 +70,15 @@ export function extractIdentifiers(query: string): string[] {
   const stopWords = new Set([
     'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her',
     'was', 'one', 'our', 'out', 'use', 'had', 'how', 'did', 'get', 'its',
-    'may', 'who', 'why', 'did', 'let', 'put', 'see', 'too', 'via', 'any',
+    'may', 'who', 'why', 'let', 'put', 'see', 'too', 'via', 'any',
     'has', 'file', 'what', 'does', 'this', 'that', 'with', 'from', 'into',
     'they', 'them', 'then', 'than', 'when', 'also', 'call', 'calls', 'used',
     'which', 'where', 'there', 'their', 'would', 'could', 'about', 'after',
     'class', 'type', 'code', 'list', 'show', 'find', 'look', 'like', 'give',
     'explain', 'describe', 'overview', 'design', 'define', 'locate',
+    // Common TS/JS keywords that appear in code questions but are not symbol names
+    'function', 'return', 'import', 'export', 'const', 'async', 'await',
+    'interface', 'boolean', 'string', 'number', 'object', 'array',
   ]);
   return camelOrPascal.filter(t => !stopWords.has(t.toLowerCase()));
 }
@@ -109,7 +112,7 @@ function cigNodeToChunk(node: CIGNode): VectorChunk {
     `${node.symbolType} ${node.symbolName} in ${node.filePath}` +
     ` (lines ${node.startLine}–${node.endLine})`;
   return {
-    chunkId: `${node.repoId}:${node.filePath}:${node.symbolName}`,
+    chunkId: `${node.repoId}:${node.filePath}:${node.symbolName}:${node.symbolType}`,
     repoId: node.repoId,
     content,
     contentSha: node.extractedSha,

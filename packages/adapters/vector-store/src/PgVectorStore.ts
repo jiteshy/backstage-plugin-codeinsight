@@ -121,18 +121,19 @@ export class PgVectorStore implements VectorStore {
         `to_tsvector('english', content) @@ plainto_tsquery('english', ?)`,
         [query],
       )
-      .select('repo_id', 'chunk_id', 'content', 'content_sha', 'layer', 'metadata')
+      .select('repo_id', 'chunk_id', 'content', 'content_sha', 'layer', 'metadata');
+
+    if (layers && layers.length > 0) {
+      q = q.whereIn('layer', layers);
+    }
+
+    const rows = await q
       .orderByRaw(
         `ts_rank(to_tsvector('english', content), plainto_tsquery('english', ?)) DESC`,
         [query],
       )
       .limit(topK);
 
-    if (layers && layers.length > 0) {
-      q = q.whereIn('layer', layers);
-    }
-
-    const rows = await q;
     return rows.map(row => this.rowToVectorChunk(row));
   }
 
