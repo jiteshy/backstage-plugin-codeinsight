@@ -39,8 +39,14 @@ export interface AssembledContext {
 export interface ContextAssemblyConfig {
   /** Maximum total tokens for the assembled context. Default: 8000. */
   maxContextTokens?: number;
-  /** Maximum tokens per callee snippet. Default: 200. */
+  /**
+   * Maximum tokens per callee snippet. Default: 200.
+   * Up to MAX_CALLEES_PER_CHUNK (3) snippets may be generated per code chunk,
+   * so the total callee budget per chunk is up to 3 × maxCalleeTokens.
+   */
   maxCalleeTokens?: number;
+  /** Maximum tokens for a doc_link expansion. Default: 400. */
+  maxDocLinkTokens?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,14 +55,16 @@ export interface ContextAssemblyConfig {
 
 const DEFAULT_MAX_CONTEXT_TOKENS = 8000;
 const DEFAULT_MAX_CALLEE_TOKENS = 200;
+const DEFAULT_MAX_DOC_LINK_TOKENS = 400;
 const MAX_CALLEES_PER_CHUNK = 3;
 const MAX_IMPORT_PATHS = 10;
 const CHARS_PER_TOKEN = 4;
 
 // Layers that support code-level expansions (callee_snippets, import_list)
 const CODE_LAYERS = new Set(['code', 'cig_metadata']);
-// Layers that support doc_link expansion
-const DOC_SEARCH_LAYERS = new Set(['code', 'cig_metadata', 'file_summary']);
+// Layers that support doc_link expansion (cig_metadata excluded — synthetic strings
+// produce low-quality doc matches and waste a vector store round-trip)
+const DOC_SEARCH_LAYERS = new Set(['code', 'file_summary']);
 
 // ---------------------------------------------------------------------------
 // Token estimation
@@ -131,6 +139,7 @@ export class ContextAssemblyService {
 
     const maxContextTokens = this.config.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS;
     const maxCalleeTokens = this.config.maxCalleeTokens ?? DEFAULT_MAX_CALLEE_TOKENS;
+    const maxDocLinkTokens = this.config.maxDocLinkTokens ?? DEFAULT_MAX_DOC_LINK_TOKENS;
 
     // Load CIG data once per assemble() call
     let cigMaps: CIGMaps | null = null;
@@ -156,6 +165,7 @@ export class ContextAssemblyService {
         chunk,
         cigMaps,
         maxCalleeTokens,
+        maxDocLinkTokens,
       );
 
       const chunkTokens = estimateTokens(chunk.content);
@@ -183,6 +193,7 @@ export class ContextAssemblyService {
     chunk: VectorChunk,
     cigMaps: CIGMaps | null,
     maxCalleeTokens: number,
+    maxDocLinkTokens: number,
   ): Promise<ContextExpansion[]> {
     const expansions: ContextExpansion[] = [];
 
@@ -194,16 +205,16 @@ export class ContextAssemblyService {
       const calleeExpansions = this.buildCalleeExpansions(chunk, cigMaps, maxCalleeTokens);
       expansions.push(...calleeExpansions);
 
-      // 3. Import list
+      // 2. Import list
       const importExpansion = this.buildImportListExpansion(chunk, cigMaps);
       if (importExpansion) {
         expansions.push(importExpansion);
       }
     }
 
-    // 2. Doc link — only for non-doc/diagram layers
+    // 3. Doc link — only for code / file_summary layers (not doc, diagram, or cig_metadata)
     if (canSearchDocs) {
-      const docExpansion = await this.buildDocLinkExpansion(repoId, chunk);
+      const docExpansion = await this.buildDocLinkExpansion(repoId, chunk, maxDocLinkTokens);
       if (docExpansion) {
         expansions.push(docExpansion);
       }
@@ -231,7 +242,13 @@ export class ContextAssemblyService {
     const expansions: ContextExpansion[] = [];
     for (const edge of callEdges.slice(0, MAX_CALLEES_PER_CHUNK)) {
       const callee = cigMaps.nodesById.get(edge.toNodeId);
-      if (!callee) continue;
+      if (!callee) {
+        this.logger?.debug('ContextAssemblyService: callee node not found (stale edge?)', {
+          edgeId: edge.edgeId,
+          toNodeId: edge.toNodeId,
+        });
+        continue;
+      }
 
       const description =
         `${callee.symbolType} ${callee.symbolName} in ${callee.filePath}` +
@@ -288,6 +305,7 @@ export class ContextAssemblyService {
   private async buildDocLinkExpansion(
     repoId: string,
     chunk: VectorChunk,
+    maxDocLinkTokens: number,
   ): Promise<ContextExpansion | null> {
     const searchTerm =
       (chunk.metadata?.symbol as string | undefined) ??
@@ -296,16 +314,18 @@ export class ContextAssemblyService {
     if (!searchTerm) return null;
 
     try {
+      // topK=2 so we can skip the current chunk if it appears in results
       const results = await this.vectorStore.searchKeyword(repoId, searchTerm, 2, ['doc']);
 
       // Take first result that is not the current chunk
       const docChunk = results.find(r => r.chunkId !== chunk.chunkId);
       if (!docChunk) return null;
 
+      const truncated = truncateToTokens(docChunk.content, maxDocLinkTokens);
       return {
         type: 'doc_link',
-        content: docChunk.content,
-        estimatedTokens: estimateTokens(docChunk.content),
+        content: truncated,
+        estimatedTokens: estimateTokens(truncated),
         filePath: docChunk.metadata?.filePath as string | undefined,
         symbol: docChunk.metadata?.symbol as string | undefined,
       };
@@ -333,9 +353,10 @@ export class ContextAssemblyService {
       return { blocks, totalTokens, truncated: false, droppedChunks: 0 };
     }
 
-    // Drop blocks from the tail (least relevant) until within budget
+    // Drop blocks from the tail (least relevant) until within budget.
+    // Always retain at least one block so the caller always gets context.
     let droppedChunks = 0;
-    while (blocks.length > 0 && totalTokens > maxContextTokens) {
+    while (blocks.length > 1 && totalTokens > maxContextTokens) {
       const dropped = blocks.pop()!;
       totalTokens -= dropped.totalTokens;
       droppedChunks++;
@@ -344,7 +365,8 @@ export class ContextAssemblyService {
     return {
       blocks,
       totalTokens,
-      truncated: true,
+      // truncated if we dropped anything, or if we hit the min-1 guard and still over budget
+      truncated: droppedChunks > 0 || totalTokens > maxContextTokens,
       droppedChunks,
     };
   }
