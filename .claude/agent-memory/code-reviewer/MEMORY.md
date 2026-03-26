@@ -213,6 +213,17 @@
 - PgVectorStore.test.ts searchKeyword (GOOD): 7 tests cover the full Knex chain, row mapping, null metadata, layer filter, and empty results. Test mock correctly models the actual code's chain order. The thenable limitResult pattern is non-standard but correct.
 - @codeinsight/qna package.json: Zero @backstage imports in core/qna — constraint satisfied. Config injected via constructor — satisfied. All I/O through VectorStore/StorageAdapter interfaces — satisfied.
 
+## Known Issues Found in Phase 5.5 Review (ContextAssemblyService)
+- ContextAssemblyService.ts line 299 (MAJOR): `searchKeyword(..., ['doc'])` uses wrong layer name. Real layer is `'doc_section'` (from ChunkingService / RetrievalService). Every doc-link expansion silently returns nothing in production.
+- ContextAssemblyService.ts lines 57/59 (MAJOR): `DOC_SEARCH_LAYERS` string literals match neither `'doc_section'` nor `'diagram_desc'` — layer constants are duplicated across RetrievalService and ContextAssemblyService with no shared source. Extract to a shared `layers.ts`.
+- ContextAssemblyService.ts lines 236-241 (MAJOR): `callee_snippet` expansion content is a metadata description string (`"function X in path/to/file.ts (lines Y–Z)"`), not actual source code. Name is misleading; either rename to `callee_ref` or inject a FileReader and read actual source lines.
+- ContextAssemblyService.ts lines 337-342 (MINOR): enforceTokenBudget can drop all blocks including the first (most-relevant) one, leaving `blocks: []`. Callers in phase 5.6 must guard against empty context.
+- ContextAssemblyService.ts lines 220/257/309 (MINOR): `chunk.metadata?.foo as string | undefined` is an unsafe cast over `Record<string, unknown>`. Use `typeof` guard.
+- ContextAssemblyService.ts line 232 (MINOR): `callEdges.slice(0, MAX_CALLEES_PER_CHUNK)` before the `!callee` guard — if first N edges have missing target nodes, fewer than MAX_CALLEES_PER_CHUNK expansions are returned even if later edges have valid callees.
+- ContextAssemblyService.test.ts lines 228-248 (MINOR): Token budget test asserts `totalTokens <= 50` but doesn't assert `blocks.length === 1` or `droppedChunks === 2`. Passes vacuously if all blocks are dropped.
+- ContextAssemblyService.test.ts line 200 (MINOR): "skips doc_link for doc/diagram" test uses `layer: 'doc'` not `layer: 'doc_section'` — tests the wrong layer name.
+- @codeinsight/qna package: Zero @backstage imports — constraint satisfied. Config injected via constructor — satisfied. All I/O through VectorStore/StorageAdapter interfaces — satisfied.
+
 ## File Structure Reference
 - Types: `packages/core/types/src/{data,interfaces,config,index}.ts`
 - Backend plugin: `packages/backstage/plugin-backend/src/{plugin,router,index}.ts`
