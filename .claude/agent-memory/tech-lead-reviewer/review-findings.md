@@ -103,6 +103,42 @@ Verdict: YELLOW (diagram portfolio value gap; proceed with Phase 3.6 revision)
 
 ---
 
+## Phase 5 QnA Pipeline Holistic Review (2026-03-26)
+Verdict: YELLOW (2 critical must-fix issues)
+
+### Critical
+1. IndexingService NOT WIRED into composition root. plugin.ts creates IngestionService with 8 args, missing the 9th (indexer). ci_qna_embeddings will always be empty. QnA answers will always say "not enough context." Same class of bug as Phase 2 (DocGenerationService) and Phase 3. Fix: import IndexingService, instantiate, pass as 9th arg.
+2. Vector dimension mismatch: migration 011 creates VECTOR(3072) but config.d.ts documents 1536 default and build plan says text-embedding-3-small. Users following defaults will get Postgres errors on upsert.
+
+### Important
+1. config.d.ts missing qna.* config namespace (5 settings read in plugin.ts but not declared)
+2. IVFFlat index created on empty table -- useless clustering. Switch to HNSW.
+3. SSE streaming endpoint doesn't handle client disconnect -- LLM keeps running.
+4. No frontend error boundary around MarkdownContent in QnA chat.
+5. QnAService.extractSources is public but should be private.
+
+### Strengths Confirmed
+- Zero @backstage/* imports in core/adapters (grep-verified)
+- Clean 5-package decomposition: chunking, indexing, qna, vector-store, embeddings
+- Three-path retrieval with independent error isolation
+- Context assembly with CIG expansion (callees, imports, doc links)
+- Token budget enforcement with tail-drop
+- Streaming via AsyncGenerator + SSE + ReadableStream parsing
+- Session management with active context accumulation + history compression
+- Delta indexing (content-addressed, stale chunk cleanup)
+- 105+ QnA-specific unit tests across 3 core test files
+- Duck-typed Indexer interface in IngestionService (no cross-package import)
+- Config always injected, no process.env in core/adapters
+
+### Recurring Pattern: Composition Root Wiring Gap
+This is the THIRD time a service was fully implemented but not wired:
+- Phase 2: DocGenerationService not wired
+- Phase 3: DiagramGenerationService (was wired, but signals not wired)
+- Phase 5: IndexingService not wired
+Recommendation: Add a composition root integration test or startup assertion.
+
+---
+
 # Pre-Implementation Design Review Findings
 
 Date: 2026-03-07
