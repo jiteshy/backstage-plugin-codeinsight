@@ -532,12 +532,19 @@ function formatModuleName(artifactId: string): string {
 }
 
 
-function stripSourceRefs(text: string): string {
+let _msgCounter = 0;
+export function nextMsgId(prefix: string): string {
+  return `${prefix}-${++_msgCounter}`;
+}
+
+export function stripSourceRefs(text: string): string {
   return text.replace(/\[source:\d+\]/gi, '').replace(/ {2,}/g, ' ');
 }
 
-function buildFileUrl(repoUrl: string, filePath: string, startLine?: number): string {
-  const base = `${repoUrl}/blob/HEAD/${filePath}`;
+// GitHub-specific: uses /blob/HEAD/ path and #L fragment (scoped to github.com/project-slug annotation).
+// Normalises trailing slash in repoUrl to avoid double-slash in constructed URLs.
+export function buildGitHubFileUrl(repoUrl: string, filePath: string, startLine?: number): string {
+  const base = `${repoUrl.replace(/\/$/, '')}/blob/HEAD/${filePath}`;
   return startLine ? `${base}#L${startLine}` : base;
 }
 
@@ -918,7 +925,7 @@ function DocumentationContent({
 
 function SourceCard({ source, repoUrl }: { source: QnASource; repoUrl: string }) {
   const classes = useStyles();
-  const href = buildFileUrl(repoUrl, source.filePath, source.startLine);
+  const href = buildGitHubFileUrl(repoUrl, source.filePath, source.startLine);
   const lineMeta = source.startLine
     ? source.endLine && source.endLine !== source.startLine
       ? `lines ${source.startLine}–${source.endLine}`
@@ -964,8 +971,9 @@ function QnAContent({
   const [input, setInput] = useState('');
   const [isAsking, setIsAsking] = useState(false);
 
-  // Auto-create session on mount
+  // Auto-create session on mount — skip if no indexed content yet (first-run)
   useEffect(() => {
+    if (isFirstRun) return undefined;
     let cancelled = false;
     setSessionError(null);
     api.createQnASession(repoId).then(
@@ -973,7 +981,7 @@ function QnAContent({
       err => { if (!cancelled) setSessionError(String(err)); },
     );
     return () => { cancelled = true; };
-  }, [api, repoId]);
+  }, [api, repoId, isFirstRun]);
 
   // Scroll to bottom when messages update
   useEffect(() => {
@@ -998,8 +1006,8 @@ function QnAContent({
     setInput('');
     setIsAsking(true);
 
-    const userId = `u-${Date.now()}`;
-    const assistantId = `a-${Date.now()}`;
+    const userId = nextMsgId('u');
+    const assistantId = nextMsgId('a');
 
     setMessages(prev => [
       ...prev,
@@ -1102,8 +1110,12 @@ function QnAContent({
                     <Typography className={classes.qnaSourcesLabel}>
                       Sources ({msg.sources.length})
                     </Typography>
-                    {msg.sources.map((src, idx) => (
-                      <SourceCard key={idx} source={src} repoUrl={repoUrl} />
+                    {msg.sources.map(src => (
+                      <SourceCard
+                        key={`${src.filePath}:${src.startLine ?? 0}`}
+                        source={src}
+                        repoUrl={repoUrl}
+                      />
                     ))}
                   </Box>
                 )}

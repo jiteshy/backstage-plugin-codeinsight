@@ -121,24 +121,29 @@ export class CodeInsightClient implements CodeInsightApi {
     const decoder = new TextDecoder();
     let buffer = '';
 
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split('\n\n');
-      buffer = parts.pop() ?? '';
-      for (const part of parts) {
-        const dataLine = part.split('\n').find(l => l.startsWith('data: '));
-        if (!dataLine) continue;
-        const payload = JSON.parse(dataLine.slice(6)) as {
-          token?: string;
-          done?: boolean;
-          error?: string;
-        };
-        if (payload.error) throw new Error(payload.error);
-        if (payload.token) onToken(payload.token);
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() ?? '';
+        for (const part of parts) {
+          const dataLine = part.split('\n').find(l => l.startsWith('data: '));
+          if (!dataLine) continue;
+          let payload: { token?: string; done?: boolean; error?: string };
+          try {
+            payload = JSON.parse(dataLine.slice(6));
+          } catch {
+            throw new Error(`Malformed SSE frame: ${dataLine.slice(6, 80)}`);
+          }
+          if (payload.error) throw new Error(payload.error);
+          if (payload.token) onToken(payload.token);
+        }
       }
+    } finally {
+      reader.cancel();
     }
 
     // Fetch sources from the persisted assistant message
