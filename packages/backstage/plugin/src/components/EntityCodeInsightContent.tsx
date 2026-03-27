@@ -1071,9 +1071,12 @@ function QnAContent({
   }
 
   if (sessionError) {
+    const isNotConfigured = sessionError.toLowerCase().includes('not configured');
     return (
       <Typography variant="body2" className={classes.errorText}>
-        Failed to start Q&A session: {sessionError}
+        {isNotConfigured
+          ? 'Q&A is not available — the administrator needs to configure LLM and embedding services.'
+          : `Failed to start Q&A session: ${sessionError}`}
       </Typography>
     );
   }

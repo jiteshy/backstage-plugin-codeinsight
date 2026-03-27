@@ -92,7 +92,8 @@ export class CodeInsightClient implements CodeInsightApi {
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
     );
     if (!response.ok) {
-      throw new Error(`Failed to create QnA session: ${response.statusText}`);
+      const body = await response.json().catch(() => null);
+      throw new Error((body as any)?.error ?? response.statusText);
     }
     return (await response.json()) as { sessionId: string };
   }

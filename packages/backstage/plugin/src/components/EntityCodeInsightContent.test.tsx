@@ -585,7 +585,7 @@ describe('QnAContent', () => {
       });
     });
 
-    it('shows a session error message when createQnASession rejects', async () => {
+    it('shows a generic session error message when createQnASession rejects', async () => {
       mockApi.getDocs.mockResolvedValue([
         {
           artifactId: 'overview',
@@ -603,6 +603,29 @@ describe('QnAContent', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Failed to start Q&A session/i)).toBeInTheDocument();
+      });
+    });
+
+    it('shows a friendly message when QnA service is not configured', async () => {
+      mockApi.getDocs.mockResolvedValue([
+        {
+          artifactId: 'overview',
+          markdown: '# Overview',
+          isStale: false,
+          staleReason: null,
+          fileCount: 1,
+          generatedAt: '2024-01-01T00:00:00Z',
+          tokensUsed: 100,
+        },
+      ]);
+      mockApi.createQnASession.mockRejectedValue(new Error('QnA service not configured'));
+
+      await renderAndOpenQnATab();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/administrator needs to configure LLM and embedding services/i),
+        ).toBeInTheDocument();
       });
     });
   });

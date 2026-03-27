@@ -431,13 +431,23 @@ describe('CodeInsightClient', () => {
       expect(calledUrl).toBe(`${BASE_URL}/repos/org%2Fmy-repo/qna/sessions`);
     });
 
-    it('throws when the response is not ok', async () => {
-      const fetchApi = mockFetchApi(null, { ok: false, statusText: 'Service Unavailable' });
+    it('throws with the JSON error message when the response is not ok', async () => {
+      const fetchApi = mockFetchApi(
+        { error: 'QnA service not configured' },
+        { ok: false, statusText: 'Service Unavailable' },
+      );
       const { client } = createClient({ fetchApi });
 
       await expect(client.createQnASession('my-repo')).rejects.toThrow(
-        'Failed to create QnA session: Service Unavailable',
+        'QnA service not configured',
       );
+    });
+
+    it('falls back to statusText when the error body has no error field', async () => {
+      const fetchApi = mockFetchApi(null, { ok: false, statusText: 'Bad Gateway' });
+      const { client } = createClient({ fetchApi });
+
+      await expect(client.createQnASession('my-repo')).rejects.toThrow('Bad Gateway');
     });
   });
 
