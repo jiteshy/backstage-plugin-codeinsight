@@ -84,4 +84,10 @@ export interface DiagramGenConfig {
   maxOutputTokens?: number;
   /** Temperature for LLM calls. Default: 0.2 */
   temperature?: number;
+  /**
+   * LLM model identifier used to compute generationSig.
+   * When this changes, existing artifacts are considered stale and regenerated
+   * on the next sync regardless of source file changes.
+   */
+  modelName?: string;
 }

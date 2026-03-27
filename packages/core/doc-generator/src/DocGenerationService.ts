@@ -60,6 +60,9 @@ export class DocGenerationService {
   private readonly maxConcurrency: number;
   private readonly maxOutputTokens: number;
   private readonly temperature: number;
+  // "{modelName}:{promptVersion}" — stored on every artifact so model/prompt changes
+  // invalidate artifacts on next sync even when source files haven't changed.
+  private readonly generationSig: string;
 
   constructor(
     private readonly storageAdapter: StorageAdapter,
@@ -71,6 +74,7 @@ export class DocGenerationService {
     this.maxConcurrency = config?.maxConcurrency ?? 20;
     this.maxOutputTokens = config?.maxOutputTokens ?? 2000;
     this.temperature = config?.temperature ?? 0.2;
+    this.generationSig = `${config?.modelName ?? 'unknown'}:v0`;
   }
 
   // ---------------------------------------------------------------------------
@@ -237,15 +241,18 @@ export class DocGenerationService {
     // Compute composite input SHA
     const inputSha = computeInputSha(context.inputFiles);
 
-    // Check existing artifact — skip if not stale and has same inputSha
+    // Check existing artifact — skip if not stale, same inputSha, and same generationSig.
+    // A null existing sig means "legacy artifact" — treated as a sig match to avoid
+    // forcing a full regeneration on first deploy after migration 017.
     const existing = await this.storageAdapter.getArtifact(moduleId, repoId);
-    if (existing && !existing.isStale && existing.inputSha === inputSha) {
+    const sigMatch = !existing?.generationSig || existing.generationSig === this.generationSig;
+    if (existing && !existing.isStale && existing.inputSha === inputSha && sigMatch) {
       this.logger?.info('Module artifact is fresh, skipping', { moduleId, inputSha });
       return { skipped: true, tokensUsed: 0 };
     }
 
     // Call LLM (cache is handled transparently by CachingLLMClient)
-    this.logger?.info('Generating doc module', { moduleId });
+    this.logger?.info('Generating doc module', { moduleId, generationSig: this.generationSig });
     const markdown = await this.llmClient.complete(
       context.systemPrompt,
       context.userPrompt,
@@ -271,7 +278,8 @@ export class DocGenerationService {
         markdown,
       },
       inputSha,
-      promptVersion: null, // TODO: version prompts when they change
+      promptVersion: null,
+      generationSig: this.generationSig,
       isStale: false,
       staleReason: null,
       tokensUsed: estimatedTokens,

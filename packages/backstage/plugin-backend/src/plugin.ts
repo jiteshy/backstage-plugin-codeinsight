@@ -149,8 +149,9 @@ export const codeinsightPlugin = createBackendPlugin({
         // all repos via "Sync Changes" will be required.
         if (embeddingConfig) {
           const expectedDimension = deriveEmbeddingDimension(embeddingConfig);
-          await syncEmbeddingDimension(knex, expectedDimension, coreLogger);
-          coreLogger.info('Embedding dimension verified', { dimension: expectedDimension });
+          const expectedModel = embeddingConfig.model ?? 'text-embedding-3-small';
+          await syncEmbeddingDimension(knex, expectedDimension, expectedModel, coreLogger);
+          coreLogger.info('Embedding dimension verified', { dimension: expectedDimension, model: expectedModel });
         }
 
         const embeddingClient = embeddingConfig
@@ -176,6 +177,8 @@ export const codeinsightPlugin = createBackendPlugin({
             config.getOptionalNumber('codeinsight.docGen.maxOutputTokens') ?? 2000,
           temperature:
             config.getOptionalNumber('codeinsight.docGen.temperature') ?? 0.2,
+          // Pass model name so that changing the LLM forces artifact regeneration on next sync.
+          modelName: llmModel ?? undefined,
         };
 
         const docGenerationService = llmClient
@@ -190,6 +193,7 @@ export const codeinsightPlugin = createBackendPlugin({
             config.getOptionalNumber('codeinsight.diagramGen.maxOutputTokens') ?? 2000,
           temperature:
             config.getOptionalNumber('codeinsight.diagramGen.temperature') ?? 0.2,
+          modelName: llmModel ?? undefined,
         };
 
         const diagramGenerationService = new DiagramGenerationService(
@@ -200,7 +204,10 @@ export const codeinsightPlugin = createBackendPlugin({
         );
 
         // Vector store — needed by both IndexingService and QnAService
-        const vectorStore = new PgVectorStore(knex, coreLogger);
+        // Pass embedding model name so upserted rows carry model_used and
+        // syncEmbeddingDimension can detect same-dimension model switches.
+        const embeddingModelName = embeddingConfig?.model ?? 'text-embedding-3-small';
+        const vectorStore = new PgVectorStore(knex, coreLogger, embeddingModelName);
 
         // Indexing service — optional; only instantiated when embeddingClient is present
         const indexingConfig: IndexingConfig = {

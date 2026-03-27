@@ -114,6 +114,13 @@ export interface Artifact {
   content?: ArtifactContent | null;
   inputSha: string;
   promptVersion?: string | null;
+  /**
+   * Tracks the LLM model and prompt version used to generate this artifact.
+   * Format: "{modelName}:{promptVersion}". Null on legacy artifacts (pre-017).
+   * When this differs from the current generation sig, the artifact is
+   * regenerated on the next sync even if the source files haven't changed.
+   */
+  generationSig?: string | null;
   isStale: boolean;
   staleReason?: StaleReason | null;
   tokensUsed: number;

@@ -72,6 +72,7 @@ interface ArtifactRow {
   content: ArtifactContent | null;
   input_sha: string;
   prompt_version: string | null;
+  generation_sig: string | null;
   is_stale: boolean;
   stale_reason: string | null;
   tokens_used: number;
@@ -180,6 +181,7 @@ function artifactFromRow(row: ArtifactRow): Artifact {
     content: row.content,
     inputSha: row.input_sha,
     promptVersion: row.prompt_version,
+    generationSig: row.generation_sig,
     isStale: row.is_stale,
     staleReason: row.stale_reason as Artifact['staleReason'],
     tokensUsed: row.tokens_used,
@@ -485,6 +487,7 @@ export class KnexStorageAdapter implements StorageAdapter {
       content: artifact.content ?? null,
       input_sha: artifact.inputSha,
       prompt_version: artifact.promptVersion ?? null,
+      generation_sig: artifact.generationSig ?? null,
       is_stale: artifact.isStale,
       stale_reason: artifact.staleReason ?? null,
       tokens_used: artifact.tokensUsed,
@@ -500,6 +503,7 @@ export class KnexStorageAdapter implements StorageAdapter {
         content: row.content,
         input_sha: row.input_sha,
         prompt_version: row.prompt_version,
+        generation_sig: row.generation_sig,
         is_stale: row.is_stale,
         stale_reason: row.stale_reason,
         tokens_used: row.tokens_used,

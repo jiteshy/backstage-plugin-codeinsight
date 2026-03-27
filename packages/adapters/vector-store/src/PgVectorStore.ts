@@ -13,6 +13,7 @@ interface QnaEmbeddingRow {
   content_sha: string;
   layer: string;
   metadata: Record<string, unknown> | null;
+  model_used?: string; // not selected in search/list queries
 }
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,8 @@ export class PgVectorStore implements VectorStore {
   constructor(
     private readonly knex: Knex,
     private readonly logger?: Logger,
+    /** Embedding model identifier written to model_used on every upsert. */
+    private readonly modelName: string = '',
   ) {}
 
   // -------------------------------------------------------------------------
@@ -48,6 +51,7 @@ export class PgVectorStore implements VectorStore {
         content_sha: c.contentSha,
         layer: c.layer,
         metadata: c.metadata ?? null,
+        model_used: this.modelName,
       }));
 
       await this.knex('ci_qna_embeddings')
@@ -59,6 +63,7 @@ export class PgVectorStore implements VectorStore {
           'content_sha',
           'layer',
           'metadata',
+          'model_used',
         ]);
     }
 

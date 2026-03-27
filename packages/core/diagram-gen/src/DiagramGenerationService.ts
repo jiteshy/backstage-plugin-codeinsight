@@ -34,8 +34,11 @@ export interface DiagramGenerator {
 // ---------------------------------------------------------------------------
 
 export class DiagramGenerationService implements DiagramGenerator {
-  private readonly config: Required<DiagramGenConfig>;
+  private readonly config: Required<Omit<DiagramGenConfig, 'modelName'>>;
   private readonly signalDetector = new SignalDetector();
+  // "{modelName}:{promptVersion}" — stored on every artifact so model changes
+  // invalidate existing diagrams on next sync even when source files haven't changed.
+  private readonly generationSig: string;
 
   constructor(
     private readonly storageAdapter: StorageAdapter,
@@ -49,6 +52,7 @@ export class DiagramGenerationService implements DiagramGenerator {
       maxOutputTokens: config.maxOutputTokens ?? 2000,
       temperature: config.temperature ?? 0.2,
     };
+    this.generationSig = `${config.modelName ?? 'unknown'}:v0`;
   }
 
   // ---------------------------------------------------------------------------
@@ -146,8 +150,11 @@ export class DiagramGenerationService implements DiagramGenerator {
       const inputSha = this.computeInputSha(cig, module);
 
       // Check if we already have a fresh (non-stale) artifact with the same inputSha
+      // and same generationSig (null sig = legacy artifact, treated as a match to
+      // avoid forced full regeneration on first deploy after migration 017).
       const existing = await this.storageAdapter.getArtifact(module.id, repoId);
-      if (existing && !existing.isStale && existing.inputSha === inputSha) {
+      const sigMatch = !existing?.generationSig || existing.generationSig === this.generationSig;
+      if (existing && !existing.isStale && existing.inputSha === inputSha && sigMatch) {
         this.logger.debug('Diagram up-to-date, skipping', {
           repoId,
           moduleId: module.id,
@@ -188,6 +195,7 @@ export class DiagramGenerationService implements DiagramGenerator {
         artifactType: 'diagram',
         content,
         inputSha,
+        generationSig: this.generationSig,
         isStale: false,
         tokensUsed,
         llmUsed: diagram.llmUsed,
