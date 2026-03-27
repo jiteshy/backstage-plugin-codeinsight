@@ -135,6 +135,8 @@ export interface ArtifactDependency {
   depType: ArtifactDepType;
 }
 
+export type IndexingStatus = 'completed' | 'failed' | 'skipped';
+
 export interface IngestionJob {
   jobId: string;
   repoId: string;
@@ -148,6 +150,10 @@ export interface IngestionJob {
   filesSkipped: number;
   tokensConsumed: number;
   errorMessage?: string | null;
+  /** Outcome of the non-fatal QnA indexing step. Null until indexing runs. */
+  indexingStatus?: IndexingStatus | null;
+  /** Error detail when indexingStatus === 'failed'. */
+  indexingError?: string | null;
   startedAt?: Date | null;
   completedAt?: Date | null;
   createdAt: Date;

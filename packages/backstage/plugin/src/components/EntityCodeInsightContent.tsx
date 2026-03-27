@@ -66,6 +66,8 @@ interface JobOutcome {
   status: 'completed' | 'partial' | 'failed';
   filesProcessed?: number;
   errorMessage?: string;
+  indexingStatus?: string;
+  indexingError?: string;
 }
 
 type ContentTab = 'docs' | 'diagrams' | 'qna';
@@ -975,10 +977,14 @@ function QnAContent({
   repoId,
   repoUrl,
   isFirstRun,
+  indexingFailed,
+  indexingError,
 }: {
   repoId: string;
   repoUrl: string;
   isFirstRun: boolean;
+  indexingFailed?: boolean;
+  indexingError?: string;
 }) {
   const api = useApi(codeInsightApiRef);
   const classes = useStyles();
@@ -1083,6 +1089,17 @@ function QnAContent({
 
   return (
     <Box className={classes.qnaContainer}>
+      {/* Indexing failure warning — answers may be incomplete or context-free */}
+      {indexingFailed && (
+        <Box style={{ padding: '8px 16px', background: 'rgba(255,152,0,0.12)', borderBottom: '1px solid rgba(255,152,0,0.3)' }}>
+          <Typography variant="caption" style={{ color: '#f57c00' }}>
+            ⚠ Q&A index failed during last sync — answers may lack context.
+            {indexingError ? ` (${indexingError})` : ''}{' '}
+            Run &quot;Sync Changes&quot; to retry.
+          </Typography>
+        </Box>
+      )}
+
       {/* Toolbar */}
       <Box className={classes.qnaToolbar}>
         <Box className={classes.qnaToolbarLeft}>
@@ -1286,6 +1303,8 @@ function CodeInsightContentInner() {
             status: result.status as JobOutcome['status'],
             filesProcessed: result.filesProcessed,
             errorMessage: result.errorMessage,
+            indexingStatus: result.indexingStatus,
+            indexingError: result.indexingError,
           });
           setRefreshToken(t => t + 1);
         }
@@ -1454,7 +1473,13 @@ function CodeInsightContentInner() {
             : <DiagramsContent diagrams={diagrams} loadError={diagramLoadError} isFirstRun={isFirstRun} />
         )}
         {activeTab === 'qna' && repoId && repoUrl && (
-          <QnAContent repoId={repoId} repoUrl={repoUrl} isFirstRun={isFirstRun} />
+          <QnAContent
+            repoId={repoId}
+            repoUrl={repoUrl}
+            isFirstRun={isFirstRun}
+            indexingFailed={lastOutcome?.indexingStatus === 'failed'}
+            indexingError={lastOutcome?.indexingError ?? undefined}
+          />
         )}
       </Box>
     </InfoCard>

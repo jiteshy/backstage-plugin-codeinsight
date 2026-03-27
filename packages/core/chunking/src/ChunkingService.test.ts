@@ -198,11 +198,17 @@ describe('ChunkingService', () => {
   // -----------------------------------------------------------------------
 
   describe('estimateTokens', () => {
-    it('estimates ~4 chars per token', () => {
-      expect(estimateTokens('abcd')).toBe(1);
-      expect(estimateTokens('abcdefgh')).toBe(2);
+    it('estimates ~3 chars per token by default', () => {
+      expect(estimateTokens('abc')).toBe(1);
+      expect(estimateTokens('abcdef')).toBe(2);
       expect(estimateTokens('a')).toBe(1); // ceil
       expect(estimateTokens('')).toBe(0);
+    });
+
+    it('respects a custom charsPerToken override', () => {
+      expect(estimateTokens('abcd', 4)).toBe(1);
+      expect(estimateTokens('abcdefgh', 4)).toBe(2);
+      expect(estimateTokens('ab', 4)).toBe(1); // ceil
     });
   });
 
@@ -382,7 +388,7 @@ describe('ChunkingService', () => {
       const result = await svc.chunkRepo('repo-1', cloneDir);
 
       expect(result.stats.docChunks).toBe(1);
-      const chunk = result.chunks.find(c => c.layer === 'doc');
+      const chunk = result.chunks.find(c => c.layer === 'doc_section');
       expect(chunk).toBeDefined();
       expect(chunk!.chunkId).toBe('repo-1:doc:overview:overview:doc');
       expect(chunk!.content).toContain('# Overview');
@@ -407,7 +413,7 @@ describe('ChunkingService', () => {
       const result = await svc.chunkRepo('repo-1', cloneDir);
 
       expect(result.stats.diagramChunks).toBe(1);
-      const chunk = result.chunks.find(c => c.layer === 'diagram');
+      const chunk = result.chunks.find(c => c.layer === 'diagram_desc');
       expect(chunk).toBeDefined();
       expect(chunk!.content).toContain('Dependencies');
       expect(chunk!.content).toContain('Shows module dependencies');
@@ -525,7 +531,7 @@ describe('ChunkingService', () => {
       expect(result.stats.docChunks).toBe(1);
       expect(result.stats.diagramChunks).toBe(1);
       expect(result.stats.totalChunks).toBe(3);
-      expect(result.chunks.map(c => c.layer).sort()).toEqual(['code', 'diagram', 'doc']);
+      expect(result.chunks.map(c => c.layer).sort()).toEqual(['code', 'diagram_desc', 'doc_section']);
     });
   });
 

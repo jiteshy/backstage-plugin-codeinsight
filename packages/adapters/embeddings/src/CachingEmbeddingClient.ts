@@ -134,7 +134,7 @@ export class CachingEmbeddingClient implements EmbeddingClient {
         const batch = rows.slice(i, i + BATCH_SIZE);
         await this.knex('ci_embedding_cache')
           .insert(batch)
-          .onConflict('content_sha')
+          .onConflict(['content_sha', 'model_used'])
           .ignore();
       }
     } catch (err) {

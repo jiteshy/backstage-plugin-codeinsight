@@ -19,6 +19,7 @@
     "@codeinsight/diagram-gen": "workspace:*",
     "@codeinsight/doc-generator": "workspace:*",
     "@codeinsight/embeddings": "workspace:*",
+    "@codeinsight/indexing": "workspace:*",
     "@codeinsight/ingestion": "workspace:*",
     "@codeinsight/llm": "workspace:*",
     "@codeinsight/qna": "workspace:*",

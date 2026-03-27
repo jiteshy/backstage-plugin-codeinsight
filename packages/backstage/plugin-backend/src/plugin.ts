@@ -8,15 +8,17 @@ import { DiagramGenerationService } from '@codeinsight/diagram-gen';
 import type { DiagramGenConfig } from '@codeinsight/diagram-gen';
 import { DocGenerationService } from '@codeinsight/doc-generator';
 import type { DocGenConfig } from '@codeinsight/doc-generator';
-import { createEmbeddingClient } from '@codeinsight/embeddings';
+import { createEmbeddingClient, deriveEmbeddingDimension } from '@codeinsight/embeddings';
 import { InProcessJobQueue, IngestionService } from '@codeinsight/ingestion';
+import { IndexingService } from '@codeinsight/indexing';
+import type { IndexingConfig } from '@codeinsight/indexing';
 import { createLLMClient } from '@codeinsight/llm';
 import { QnAService } from '@codeinsight/qna';
 import type { QnAConfig } from '@codeinsight/qna';
 import { GitRepoConnector } from '@codeinsight/repo';
 import { KnexStorageAdapter } from '@codeinsight/storage';
 import type { EmbeddingConfig, IngestionConfig, LLMConfig, Logger, RepoCloneConfig } from '@codeinsight/types';
-import { PgVectorStore } from '@codeinsight/vector-store';
+import { PgVectorStore, syncEmbeddingDimension } from '@codeinsight/vector-store';
 
 import { createRouter } from './router';
 
@@ -140,6 +142,17 @@ export const codeinsightPlugin = createBackendPlugin({
               }
             : undefined;
 
+        // Sync vector column dimensions to match the configured model.
+        // Runs after migrations so the tables exist. If the model changed
+        // since last startup, both embedding tables are truncated and the
+        // column is re-created with the correct dimension — re-indexing
+        // all repos via "Sync Changes" will be required.
+        if (embeddingConfig) {
+          const expectedDimension = deriveEmbeddingDimension(embeddingConfig);
+          await syncEmbeddingDimension(knex, expectedDimension, coreLogger);
+          coreLogger.info('Embedding dimension verified', { dimension: expectedDimension });
+        }
+
         const embeddingClient = embeddingConfig
           ? createEmbeddingClient(embeddingConfig, coreLogger, knex)
           : undefined;
@@ -186,6 +199,29 @@ export const codeinsightPlugin = createBackendPlugin({
           diagramGenConfig,
         );
 
+        // Vector store — needed by both IndexingService and QnAService
+        const vectorStore = new PgVectorStore(knex, coreLogger);
+
+        // Indexing service — optional; only instantiated when embeddingClient is present
+        const indexingConfig: IndexingConfig = {
+          // Derive the effective dimension to compute the per-model token limit.
+          // All current OpenAI embedding models cap at 8192 tokens; charsPerToken=3
+          // gives ~24 576 chars as the safety cap before truncation.
+          modelTokenLimit: 8_192,
+          charsPerToken: 3,
+        };
+        const indexingService = embeddingClient
+          ? new IndexingService(embeddingClient, vectorStore, storageAdapter, coreLogger, indexingConfig)
+          : undefined;
+
+        if (indexingService) {
+          coreLogger.info('Indexing service initialized');
+        } else {
+          coreLogger.info(
+            'Indexing service unavailable — requires embedding config',
+          );
+        }
+
         const ingestionService = new IngestionService(
           repoConnector,
           storageAdapter,
@@ -195,6 +231,7 @@ export const codeinsightPlugin = createBackendPlugin({
           undefined, // stalenessService — use default
           docGenerationService,
           diagramGenerationService,
+          indexingService,
         );
 
         const jobQueue = new InProcessJobQueue(
@@ -204,7 +241,6 @@ export const codeinsightPlugin = createBackendPlugin({
         );
 
         // QnA service — requires both LLM and embedding clients
-        const vectorStore = new PgVectorStore(knex, coreLogger);
 
         const qnaConfig: QnAConfig = {
           maxHistoryTurns:

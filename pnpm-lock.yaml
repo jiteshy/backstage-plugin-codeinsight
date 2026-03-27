@@ -283,6 +283,9 @@ importers:
       '@codeinsight/embeddings':
         specifier: workspace:*
         version: link:../../adapters/embeddings
+      '@codeinsight/indexing':
+        specifier: workspace:*
+        version: link:../../core/indexing
       '@codeinsight/ingestion':
         specifier: workspace:*
         version: link:../../core/ingestion

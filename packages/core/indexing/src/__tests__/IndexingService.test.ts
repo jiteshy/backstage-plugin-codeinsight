@@ -71,6 +71,7 @@ function makeVectorStore(
       deleteCalls.push(ids);
     }),
     search: jest.fn().mockResolvedValue([]),
+    searchKeyword: jest.fn().mockResolvedValue([]),
   };
 }
 

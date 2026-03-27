@@ -37,7 +37,7 @@ export class CodeInsightClient implements CodeInsightApi {
   async getJobStatus(
     repoId: string,
     jobId: string,
-  ): Promise<{ status: string; filesProcessed?: number; errorMessage?: string }> {
+  ): Promise<{ status: string; filesProcessed?: number; errorMessage?: string; indexingStatus?: string; indexingError?: string }> {
     const base = await this.baseUrl();
     const response = await this.fetchApi.fetch(
       `${base}/repos/${encodeURIComponent(repoId)}/jobs/${encodeURIComponent(jobId)}`,
@@ -45,7 +45,7 @@ export class CodeInsightClient implements CodeInsightApi {
     if (!response.ok) {
       throw new Error(`Failed to get job status: ${response.statusText}`);
     }
-    return (await response.json()) as { status: string; filesProcessed?: number; errorMessage?: string };
+    return (await response.json()) as { status: string; filesProcessed?: number; errorMessage?: string; indexingStatus?: string; indexingError?: string };
   }
 
   async getRepoStatus(

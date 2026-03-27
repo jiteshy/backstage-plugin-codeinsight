@@ -38,15 +38,13 @@ export async function up(knex: Knex): Promise<void> {
 
   if (hasPgvector) {
     // VECTOR column added separately (Knex has no native pgvector type).
-    // Dimension 1536 = text-embedding-3-small default (matches codeinsight.embeddings.dimensions config default).
-    // To switch models/dimensions: truncate ci_qna_embeddings, drop + re-add this column,
-    // then re-run the full index (IndexingService.indexRepo for each repo).
+    // Initial dimension is 3072; migration 014 corrects this to 1536 (text-embedding-3-small default).
+    // On startup, syncEmbeddingDimension() automatically aligns the column to the configured model.
     await knex.schema.raw(
-      'ALTER TABLE ci_qna_embeddings ADD COLUMN embedding VECTOR(1536) NOT NULL',
+      'ALTER TABLE ci_qna_embeddings ADD COLUMN embedding VECTOR(3072) NOT NULL',
     );
-    await knex.schema.raw(
-      'CREATE INDEX idx_qna_embeddings_ivfflat ON ci_qna_embeddings USING ivfflat (embedding vector_cosine_ops)',
-    );
+    // Both IVFFlat and HNSW cap at 2000 dimensions in this pgvector version.
+    // Sequential scan is used for cosine similarity queries (acceptable for dev-scale repos).
   }
 
   // ci_qna_sessions

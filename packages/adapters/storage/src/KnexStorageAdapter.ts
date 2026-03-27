@@ -92,6 +92,8 @@ interface JobRow {
   files_skipped: number;
   tokens_consumed: number;
   error_message: string | null;
+  indexing_status: string | null;
+  indexing_error: string | null;
   started_at: Date | null;
   completed_at: Date | null;
   created_at: Date;
@@ -200,6 +202,8 @@ function jobFromRow(row: JobRow): IngestionJob {
     filesSkipped: row.files_skipped,
     tokensConsumed: row.tokens_consumed,
     errorMessage: row.error_message,
+    indexingStatus: row.indexing_status as IngestionJob['indexingStatus'],
+    indexingError: row.indexing_error,
     startedAt: row.started_at ? new Date(row.started_at) : null,
     completedAt: row.completed_at ? new Date(row.completed_at) : null,
     createdAt: new Date(row.created_at),
@@ -632,6 +636,8 @@ export class KnexStorageAdapter implements StorageAdapter {
       files_skipped: job.filesSkipped,
       tokens_consumed: job.tokensConsumed,
       error_message: job.errorMessage ?? null,
+      indexing_status: job.indexingStatus ?? null,
+      indexing_error: job.indexingError ?? null,
       started_at: job.startedAt ?? null,
       completed_at: job.completedAt ?? null,
       created_at: job.createdAt,
@@ -662,6 +668,10 @@ export class KnexStorageAdapter implements StorageAdapter {
       row.tokens_consumed = update.tokensConsumed;
     if (update.errorMessage !== undefined)
       row.error_message = update.errorMessage;
+    if (update.indexingStatus !== undefined)
+      row.indexing_status = update.indexingStatus ?? null;
+    if (update.indexingError !== undefined)
+      row.indexing_error = update.indexingError ?? null;
     if (update.startedAt !== undefined) row.started_at = update.startedAt;
     if (update.completedAt !== undefined) row.completed_at = update.completedAt;
 

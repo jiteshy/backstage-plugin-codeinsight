@@ -14,6 +14,22 @@ export interface IndexingResult {
   chunksDeleted: number;
 }
 
+/** Optional configuration for IndexingService. */
+export interface IndexingConfig {
+  /**
+   * Token limit for the embedding model. Default: 8192.
+   * All current OpenAI embedding models (text-embedding-3-small,
+   * text-embedding-3-large, ada-002) share this limit.
+   */
+  modelTokenLimit?: number;
+  /**
+   * Characters per token estimate. Default: 3.
+   * Passed to ChunkingService and used to derive the per-text char cap
+   * sent to the embedding API: `modelTokenLimit * charsPerToken`.
+   */
+  charsPerToken?: number;
+}
+
 // ---------------------------------------------------------------------------
 // IndexingService
 // ---------------------------------------------------------------------------
@@ -31,6 +47,12 @@ export interface IndexingResult {
 export class IndexingService {
   private static readonly EMBED_BATCH_SIZE = 100;
 
+  // Safety cap: text longer than this is truncated before embedding.
+  // Derived as modelTokenLimit * charsPerToken so it scales with the
+  // configured model. ChunkingService already splits chunks well below
+  // this limit — this is a last-resort guard.
+  private readonly maxEmbedChars: number;
+
   private readonly chunkingService: ChunkingService;
 
   constructor(
@@ -38,8 +60,12 @@ export class IndexingService {
     private readonly vectorStore: VectorStore,
     storageAdapter: StorageAdapter,
     private readonly logger?: Logger,
+    config?: IndexingConfig,
   ) {
-    this.chunkingService = new ChunkingService(storageAdapter, logger);
+    const charsPerToken = config?.charsPerToken ?? 3;
+    const modelTokenLimit = config?.modelTokenLimit ?? 8_192;
+    this.maxEmbedChars = modelTokenLimit * charsPerToken;
+    this.chunkingService = new ChunkingService(storageAdapter, logger, { charsPerToken });
   }
 
   // -------------------------------------------------------------------------
@@ -86,7 +112,11 @@ export class IndexingService {
     let indexed = 0;
     for (let i = 0; i < toIndex.length; i += IndexingService.EMBED_BATCH_SIZE) {
       const batch = toIndex.slice(i, i + IndexingService.EMBED_BATCH_SIZE);
-      const texts = batch.map(({ chunk }) => chunk.content);
+      const texts = batch.map(({ chunk }) =>
+        chunk.content.length > this.maxEmbedChars
+          ? chunk.content.slice(0, this.maxEmbedChars)
+          : chunk.content,
+      );
 
       const embeddings = await this.embeddingClient.embed(texts);
 

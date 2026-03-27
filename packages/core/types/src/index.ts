@@ -4,6 +4,7 @@ export type {
   ArtifactType,
   EdgeType,
   FileType,
+  IndexingStatus,
   JobStatus,
   JobTrigger,
   ParseStatus,

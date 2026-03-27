@@ -38,7 +38,7 @@ export interface CodeInsightApi {
   getJobStatus(
     repoId: string,
     jobId: string,
-  ): Promise<{ status: string; filesProcessed?: number; errorMessage?: string }>;
+  ): Promise<{ status: string; filesProcessed?: number; errorMessage?: string; indexingStatus?: string; indexingError?: string }>;
   getRepoStatus(
     repoId: string,
   ): Promise<{ status: string; lastCommitSha?: string; updatedAt?: string }>;

@@ -21,13 +21,17 @@ import type {
 } from './types';
 
 // ---------------------------------------------------------------------------
-// Token estimation — ~4 chars per token (rough GPT/Claude estimate)
+// Token estimation
 // ---------------------------------------------------------------------------
 
-const CHARS_PER_TOKEN = 4;
+// Default: 3 chars/token. Code (TypeScript operators, SVG paths, numbers)
+// is denser than prose — using 4 caused oversized chunks to slip through the
+// split threshold. 3 is still an estimate; use ChunkingConfig.charsPerToken
+// to override for a specific deployment.
+const DEFAULT_CHARS_PER_TOKEN = 3;
 
-export function estimateTokens(text: string): number {
-  return Math.ceil(text.length / CHARS_PER_TOKEN);
+export function estimateTokens(text: string, charsPerToken = DEFAULT_CHARS_PER_TOKEN): number {
+  return Math.ceil(text.length / charsPerToken);
 }
 
 // ---------------------------------------------------------------------------
@@ -36,6 +40,7 @@ export function estimateTokens(text: string): number {
 
 export class ChunkingService {
   private readonly maxChunkTokens: number;
+  private readonly charsPerToken: number;
 
   constructor(
     private readonly storageAdapter: StorageAdapter,
@@ -43,6 +48,7 @@ export class ChunkingService {
     config?: ChunkingConfig,
   ) {
     this.maxChunkTokens = config?.maxChunkTokens ?? 1000;
+    this.charsPerToken = config?.charsPerToken ?? DEFAULT_CHARS_PER_TOKEN;
   }
 
   // -------------------------------------------------------------------------
@@ -145,7 +151,7 @@ export class ChunkingService {
       const baseId = buildChunkId(repoId, node.filePath, node.symbolName, 'code');
 
       // Check if oversized — split if needed
-      if (estimateTokens(sourceCode) > this.maxChunkTokens) {
+      if (estimateTokens(sourceCode, this.charsPerToken) > this.maxChunkTokens) {
         const subChunks = this.splitOversizedCode(
           sourceCode,
           baseId,
@@ -196,14 +202,14 @@ export class ChunkingService {
         filePath,
       };
 
-      if (estimateTokens(doc.markdown) > this.maxChunkTokens) {
+      if (estimateTokens(doc.markdown, this.charsPerToken) > this.maxChunkTokens) {
         const subChunks = this.splitOversizedText(
           doc.markdown,
           chunkId,
           repoId,
           filePath,
           fileSha,
-          'doc',
+          'doc_section',
           metadata,
         );
         docChunks.push(...subChunks);
@@ -213,7 +219,7 @@ export class ChunkingService {
           chunkId,
           repoId,
           content: doc.markdown,
-          layer: 'doc',
+          layer: 'doc_section',
           filePath,
           fileSha,
           metadata,
@@ -255,7 +261,7 @@ export class ChunkingService {
         chunkId,
         repoId,
         content: text,
-        layer: 'diagram',
+        layer: 'diagram_desc',
         filePath,
         fileSha,
         metadata: {
@@ -327,7 +333,7 @@ export class ChunkingService {
   ): Chunk[] {
     const lines = source.split('\n');
     const targetLines = Math.ceil(
-      lines.length / Math.ceil(estimateTokens(source) / this.maxChunkTokens),
+      lines.length / Math.ceil(estimateTokens(source, this.charsPerToken) / this.maxChunkTokens),
     );
 
     const blocks: string[] = [];
@@ -399,7 +405,7 @@ export class ChunkingService {
     let currentTokens = 0;
 
     for (const para of paragraphs) {
-      const paraTokens = estimateTokens(para);
+      const paraTokens = estimateTokens(para, this.charsPerToken);
 
       if (currentTokens + paraTokens > targetTokens && currentBlock.length > 0) {
         blocks.push(currentBlock.join('\n\n'));
@@ -419,7 +425,7 @@ export class ChunkingService {
     if (blocks.length <= 1) {
       const lines = text.split('\n');
       const targetLines = Math.ceil(
-        lines.length / Math.ceil(estimateTokens(text) / this.maxChunkTokens),
+        lines.length / Math.ceil(estimateTokens(text, this.charsPerToken) / this.maxChunkTokens),
       );
       return this.forceSplitLines(
         lines,

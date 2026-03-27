@@ -351,13 +351,25 @@ export class IngestionService {
             chunksSkipped: indexResult.chunksSkipped,
             chunksDeleted: indexResult.chunksDeleted,
           });
+          await this.storageAdapter.updateJob(jobId, {
+            indexingStatus: 'completed',
+          }).catch(() => {});
         } catch (indexErr) {
+          const indexErrMsg = indexErr instanceof Error ? indexErr.message : String(indexErr);
           this.logger.error('QnA indexing failed (non-fatal)', {
             repoId,
             jobId,
-            error: String(indexErr),
+            error: indexErrMsg,
           });
+          await this.storageAdapter.updateJob(jobId, {
+            indexingStatus: 'failed',
+            indexingError: indexErrMsg,
+          }).catch(() => {});
         }
+      } else {
+        await this.storageAdapter.updateJob(jobId, {
+          indexingStatus: 'skipped',
+        }).catch(() => {});
       }
 
       // Update repo status to ready
