@@ -15,7 +15,7 @@ export async function up(knex: Knex): Promise<void> {
     // and will need to be manually migrated once pgvector is available.
   }
 
-  const hasPgvector = await knex.schema
+  const hasPgvector = await knex
     .raw("SELECT 1 FROM pg_extension WHERE extname = 'vector'")
     .then((res: { rows?: unknown[] }) => (res.rows?.length ?? 0) > 0)
     .catch(() => false);
@@ -38,11 +38,11 @@ export async function up(knex: Knex): Promise<void> {
 
   if (hasPgvector) {
     // VECTOR column added separately (Knex has no native pgvector type).
-    // Dimension 3072 = text-embedding-3-large (OpenAI default for CodeInsight).
+    // Dimension 1536 = text-embedding-3-small default (matches codeinsight.embeddings.dimensions config default).
     // To switch models/dimensions: truncate ci_qna_embeddings, drop + re-add this column,
     // then re-run the full index (IndexingService.indexRepo for each repo).
     await knex.schema.raw(
-      'ALTER TABLE ci_qna_embeddings ADD COLUMN embedding VECTOR(3072) NOT NULL',
+      'ALTER TABLE ci_qna_embeddings ADD COLUMN embedding VECTOR(1536) NOT NULL',
     );
     await knex.schema.raw(
       'CREATE INDEX idx_qna_embeddings_ivfflat ON ci_qna_embeddings USING ivfflat (embedding vector_cosine_ops)',
