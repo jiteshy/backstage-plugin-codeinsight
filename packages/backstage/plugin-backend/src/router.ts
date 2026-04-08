@@ -41,6 +41,7 @@ export async function createRouter(
   // ---------------------------------------------------------------------------
 
   const VALID_TRIGGERS = new Set<string>(['manual', 'webhook', 'schedule']);
+  const KNOWN_GIT_HOSTS = new Set(['github.com', 'gitlab.com', 'bitbucket.org']);
 
   router.post('/repos/:repoId/ingest', async (req, res) => {
     const { repoId } = req.params;
@@ -48,6 +49,24 @@ export async function createRouter(
 
     if (!repoUrl) {
       res.status(400).json({ error: 'repoUrl is required' });
+      return;
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(repoUrl);
+    } catch {
+      res.status(400).json({ error: 'repoUrl must be a valid URL (e.g. https://github.com/owner/repo)' });
+      return;
+    }
+    if (parsedUrl.protocol !== 'https:') {
+      res.status(400).json({ error: 'repoUrl must use HTTPS' });
+      return;
+    }
+    if (!KNOWN_GIT_HOSTS.has(parsedUrl.hostname)) {
+      res.status(400).json({
+        error: `Unsupported Git host: ${parsedUrl.hostname}. Supported hosts: github.com, gitlab.com, bitbucket.org`,
+      });
       return;
     }
 

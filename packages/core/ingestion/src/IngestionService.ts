@@ -186,8 +186,15 @@ export class IngestionService {
     repoId: string,
     repoUrl: string,
   ): Promise<void> {
-    const cloneDir = path.join(this.config.tempDir, repoId);
+    const tempDirResolved = path.resolve(this.config.tempDir);
+    const cloneDir = path.resolve(this.config.tempDir, repoId);
     try {
+      // Guard against path traversal: repoId must be non-empty and must not
+      // escape the configured temp directory (e.g. repoId = '../../etc').
+      if (!repoId || !cloneDir.startsWith(tempDirResolved + path.sep)) {
+        throw new Error(`Invalid repoId produces unsafe clone path: ${repoId}`);
+      }
+
       // Mark job running
       await this.storageAdapter.updateJob(jobId, {
         status: 'running',

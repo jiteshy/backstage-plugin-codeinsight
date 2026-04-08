@@ -37,11 +37,12 @@ export class CodeInsightClient implements CodeInsightApi {
   async getJobStatus(
     repoId: string,
     jobId: string,
-  ): Promise<{ status: string; filesProcessed?: number; errorMessage?: string; indexingStatus?: string; indexingError?: string }> {
+  ): Promise<{ status: string; filesProcessed?: number; errorMessage?: string; indexingStatus?: string; indexingError?: string } | null> {
     const base = await this.baseUrl();
     const response = await this.fetchApi.fetch(
       `${base}/repos/${encodeURIComponent(repoId)}/jobs/${encodeURIComponent(jobId)}`,
     );
+    if (response.status === 404) return null;
     if (!response.ok) {
       throw new Error(`Failed to get job status: ${response.statusText}`);
     }
@@ -113,6 +114,11 @@ export class CodeInsightClient implements CodeInsightApi {
         body: JSON.stringify({ question }),
       },
     );
+    if (response.status === 404) {
+      const err = new Error('Session expired');
+      err.name = 'SessionExpiredError';
+      throw err;
+    }
     if (!response.ok) {
       throw new Error(`Failed to ask: ${response.statusText}`);
     }

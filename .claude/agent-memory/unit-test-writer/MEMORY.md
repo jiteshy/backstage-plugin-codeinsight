@@ -110,6 +110,11 @@
 - `makeSearchKnex(resolvedRows)` factory returns `{ knex, tableResult, whereResult, orderByRawResult, filterResult }`. Assertions for `whereIn`/`whereRaw` filter calls go against `orderByRawResult`; for limit call in base case use `orderByRawResult.limit`; for limit in filter cases use `filterResult.limit`.
 - Linter (ESLint + Prettier) in this project aggressively rewrites diffs on save — if an Edit fails with "file modified since read", always re-read before editing again.
 
+## IngestionService Path Traversal Guard Behavior
+- The guard in `runPipeline` throws BEFORE the inner `try/catch`, so a traversal repoId causes the error to surface via the fire-and-forget `.catch()` handler (`'Unhandled error in ingestion pipeline'`) rather than the inner error handler (`'Ingestion pipeline failed'`).
+- Consequence: `updateJob` is NOT called with `status: 'failed'` when the guard fires. Only `logger.error` with `'Unhandled error in ingestion pipeline'` is observable.
+- To test: `storage.updateJob` should NOT be asserted for `'failed'` status; assert `logger.error` with the correct message key and `error` containing `'unsafe clone path'`.
+
 ## Project Structure (test-relevant)
 - `packages/backstage/plugin-backend/` — backend plugin, uses `@backstage/*` (OK here)
 - `packages/backstage/plugin/` — frontend plugin, uses `@backstage/*` (OK here)

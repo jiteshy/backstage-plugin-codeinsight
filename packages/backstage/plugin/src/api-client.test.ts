@@ -133,6 +133,15 @@ describe('CodeInsightClient', () => {
       expect(result).toEqual(responseBody);
     });
 
+    it('returns null when the server responds with 404', async () => {
+      const fetchApi = mockFetchApi(null, { ok: false, status: 404, statusText: 'Not Found' });
+      const { client } = createClient({ fetchApi });
+
+      const result = await client.getJobStatus('my-repo', 'job-missing');
+
+      expect(result).toBeNull();
+    });
+
     it('throws when the response is not ok', async () => {
       const fetchApi = mockFetchApi(null, { ok: false, statusText: 'Not Found' });
       const { client } = createClient({ fetchApi });
@@ -735,6 +744,33 @@ describe('CodeInsightClient', () => {
       const result = await client.askQnAStream('my-repo', 'sess-1', 'q', jest.fn());
 
       expect(result).toEqual([]);
+    });
+
+    it('throws a SessionExpiredError when the ask-stream endpoint returns 404', async () => {
+      const streamFetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        body: null,
+        json: jest.fn().mockResolvedValue(null),
+      });
+
+      const discoveryApi = mockDiscoveryApi();
+      const client = new CodeInsightClient({
+        discoveryApi,
+        fetchApi: { fetch: streamFetch },
+      });
+
+      let caughtError: Error | undefined;
+      try {
+        await client.askQnAStream('my-repo', 'sess-expired', 'q', jest.fn());
+      } catch (err) {
+        caughtError = err as Error;
+      }
+
+      expect(caughtError).toBeDefined();
+      expect(caughtError!.name).toBe('SessionExpiredError');
+      expect(caughtError!.message).toBe('Session expired');
     });
 
     it('throws when the initial POST response is not ok', async () => {
