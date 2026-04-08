@@ -309,6 +309,12 @@ export class KnexStorageAdapter implements StorageAdapter {
     await this.knex('ci_repositories').where('repo_id', repoId).update(update);
   }
 
+  async deleteRepo(repoId: string): Promise<void> {
+    // All child tables (repo_files, cig_nodes, artifacts, jobs, qna_*) have
+    // ON DELETE CASCADE FKs to ci_repositories, so a single delete suffices.
+    await this.knex('ci_repositories').where('repo_id', repoId).delete();
+  }
+
   // -------------------------------------------------------------------------
   // File tracking
   // -------------------------------------------------------------------------

@@ -86,6 +86,17 @@ export class CodeInsightClient implements CodeInsightApi {
     return (await response.json()) as DiagramSection[];
   }
 
+  async deleteRepo(repoId: string): Promise<void> {
+    const base = await this.baseUrl();
+    const response = await this.fetchApi.fetch(
+      `${base}/repos/${encodeURIComponent(repoId)}`,
+      { method: 'DELETE' },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to delete repo: ${response.statusText}`);
+    }
+  }
+
   async createQnASession(repoId: string): Promise<{ sessionId: string }> {
     const base = await this.baseUrl();
     const response = await this.fetchApi.fetch(
