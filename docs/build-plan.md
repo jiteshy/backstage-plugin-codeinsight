@@ -1003,12 +1003,18 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 6.1 — Config & Schema Gaps
+### 6.1 — Config & Schema Gaps ✅ COMPLETED
 
 | Task | Status | Description |
 |------|--------|-------------|
-| 6.1.1 | ⬜ | Add `codeinsight.qna` namespace to `config.d.ts` and `QnAConfig` to `CodeInsightConfig` |
-| 6.1.2 | ⬜ | Widen `EmbeddingConfig.provider` from `'openai'` literal to `'openai' \| string` |
+| 6.1.1 | ✅ | Add `codeinsight.qna` namespace to `config.d.ts` and `QnAConfig` to `CodeInsightConfig` |
+| 6.1.2 | ✅ | Widen `EmbeddingConfig.provider` from `'openai'` literal to `'openai' \| string` |
+
+**Notes:**
+- `QnAConfig` defined once in `@codeinsight/types` (removed duplicate from `QnAService.ts`)
+- `@codeinsight/qna` re-exports `QnAConfig` from `@codeinsight/types` for backwards compatibility
+- `plugin.ts` now imports `QnAConfig` from `@codeinsight/types` (canonical location)
+- `config.d.ts` `qna` block matches the 5 keys read by `plugin.ts`
 
 ---
 

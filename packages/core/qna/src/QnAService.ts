@@ -6,6 +6,7 @@ import type {
   LLMClient,
   Logger,
   QnAAnswer,
+  QnAConfig,
   QnAMessage,
   QnASession,
   QnASource,
@@ -19,23 +20,6 @@ import {
   type ContextAssemblyConfig,
 } from './ContextAssemblyService';
 import { RetrievalService } from './RetrievalService';
-
-// ---------------------------------------------------------------------------
-// Config
-// ---------------------------------------------------------------------------
-
-export interface QnAConfig {
-  /** Max conversation turns to include in prompt (default: 6). */
-  maxHistoryTurns?: number;
-  /** Compress older turns after this many messages (default: 10). */
-  compressAfterTurns?: number;
-  /** Max tokens for assembled context (default: 8000). */
-  maxContextTokens?: number;
-  /** Max tokens for LLM answer (default: 2000). */
-  maxAnswerTokens?: number;
-  /** LLM temperature (default: 0.3). */
-  temperature?: number;
-}
 
 // ---------------------------------------------------------------------------
 // Constants

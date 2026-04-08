@@ -15,7 +15,8 @@ export type {
 } from './ContextAssemblyService';
 
 export { QnAService } from './QnAService';
-export type { QnAConfig } from './QnAService';
+// QnAConfig is now canonical in @codeinsight/types; re-exported here for backwards compatibility.
+export type { QnAConfig } from '@codeinsight/types';
 
 export {
   LAYER_CODE,

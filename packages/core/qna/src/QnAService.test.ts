@@ -2,6 +2,7 @@ import type {
   ActiveContext,
   EmbeddingClient,
   LLMClient,
+  QnAConfig,
   QnAMessage,
   QnASession,
   StorageAdapter,
@@ -9,7 +10,7 @@ import type {
   VectorStore,
 } from '@codeinsight/types';
 
-import { QnAService, type QnAConfig } from './QnAService';
+import { QnAService } from './QnAService';
 
 // ---------------------------------------------------------------------------
 // Mock factories

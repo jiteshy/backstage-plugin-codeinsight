@@ -55,5 +55,6 @@ export type {
   LLMConfig,
   EmbeddingConfig,
   IngestionConfig,
+  QnAConfig,
   CodeInsightConfig,
 } from './config';
