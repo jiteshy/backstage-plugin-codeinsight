@@ -35,10 +35,11 @@ export interface DiagramSection {
 
 export interface CodeInsightApi {
   triggerIngestion(repoId: string, repoUrl: string): Promise<{ jobId: string }>;
+  /** Returns null when the job is not found (e.g. server restarted and lost in-memory state). */
   getJobStatus(
     repoId: string,
     jobId: string,
-  ): Promise<{ status: string; filesProcessed?: number; errorMessage?: string; indexingStatus?: string; indexingError?: string }>;
+  ): Promise<{ status: string; filesProcessed?: number; errorMessage?: string; indexingStatus?: string; indexingError?: string } | null>;
   getRepoStatus(
     repoId: string,
   ): Promise<{ status: string; lastCommitSha?: string; updatedAt?: string }>;

@@ -1050,13 +1050,30 @@ function QnAContent({
         prev.map(m => m.id === assistantId ? { ...m, isStreaming: false, sources } : m),
       );
     } catch (err) {
+      const isSessionExpired = err instanceof Error && err.name === 'SessionExpiredError';
       setMessages(prev =>
         prev.map(m =>
           m.id === assistantId
-            ? { ...m, content: `Error: ${String(err)}`, isStreaming: false }
+            ? {
+                ...m,
+                content: isSessionExpired
+                  ? 'Session expired. Starting a new conversation...'
+                  : `Error: ${String(err)}`,
+                isStreaming: false,
+              }
             : m,
         ),
       );
+      if (isSessionExpired) {
+        // Auto-recover: create a fresh session. Keep the expiry notice visible
+        // so the user can read it; messages will be cleared on the next send.
+        try {
+          const { sessionId: sid } = await api.createQnASession(repoId);
+          setSessionId(sid);
+        } catch {
+          // If session creation also fails, leave the error message in place
+        }
+      }
     } finally {
       setIsAsking(false);
     }
@@ -1289,6 +1306,14 @@ function CodeInsightContentInner() {
       try {
         const result = await api.getJobStatus(repoId, activeJobId);
         if (cancelled) return;
+        // null means the job no longer exists (server restarted). Clear silently.
+        if (result === null) {
+          sessionStorage.removeItem(jobStorageKey(repoId));
+          sessionStorage.removeItem(jobTypeKey(repoId));
+          setActiveJobId(null);
+          setJobIsFirstRun(false);
+          return;
+        }
         if (result.status === 'running') setJobLabel('Analyzing repository...');
         if (TERMINAL_STATUSES.has(result.status)) {
           const wasFirstRun = sessionStorage.getItem(jobTypeKey(repoId)) === 'first';

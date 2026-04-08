@@ -18,7 +18,8 @@ export interface RepoCloneConfig {
 }
 
 export interface LLMConfig {
-  // `(string & {})` preserves IDE autocomplete for known providers while accepting extensions.
+  // `(string & {})` preserves IDE autocomplete for known values while accepting any provider string.
+  // eslint-disable-next-line @typescript-eslint/ban-types
   provider: 'anthropic' | 'openai' | (string & {});
   apiKey: string;
   model: string;
@@ -28,6 +29,7 @@ export interface LLMConfig {
 
 export interface EmbeddingConfig {
   // `(string & {})` preserves 'openai' IDE autocomplete while accepting any provider string.
+  // eslint-disable-next-line @typescript-eslint/ban-types
   provider: 'openai' | (string & {});
   apiKey: string;
   model?: string;

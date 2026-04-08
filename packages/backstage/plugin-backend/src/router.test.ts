@@ -235,6 +235,63 @@ describe('createRouter', () => {
       expect(res.body).toMatchObject({ error: expect.stringContaining('repoUrl') });
     });
 
+    // ----- 6.2.1: URL validation -----
+
+    it('returns 400 when repoUrl is not a valid URL', async () => {
+      const res = await request(
+        server,
+        'POST',
+        '/repos/my-repo/ingest',
+        { repoUrl: 'not-a-url' },
+      );
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ error: expect.stringContaining('valid URL') });
+    });
+
+    it('returns 400 when repoUrl uses http instead of https', async () => {
+      const res = await request(
+        server,
+        'POST',
+        '/repos/my-repo/ingest',
+        { repoUrl: 'http://github.com/org/repo' },
+      );
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ error: expect.stringContaining('HTTPS') });
+    });
+
+    it('returns 400 when repoUrl hostname is not a supported Git host', async () => {
+      const res = await request(
+        server,
+        'POST',
+        '/repos/my-repo/ingest',
+        { repoUrl: 'https://internal.example.com/org/repo' },
+      );
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ error: expect.stringContaining('Unsupported Git host') });
+    });
+
+    it('accepts gitlab.com as a valid host', async () => {
+      jobQueue.enqueue.mockResolvedValue('job-gl');
+      const res = await request(
+        server,
+        'POST',
+        '/repos/my-repo/ingest',
+        { repoUrl: 'https://gitlab.com/org/repo' },
+      );
+      expect(res.status).toBe(202);
+    });
+
+    it('accepts bitbucket.org as a valid host', async () => {
+      jobQueue.enqueue.mockResolvedValue('job-bb');
+      const res = await request(
+        server,
+        'POST',
+        '/repos/my-repo/ingest',
+        { repoUrl: 'https://bitbucket.org/org/repo' },
+      );
+      expect(res.status).toBe(202);
+    });
+
     it('returns 400 for an invalid trigger value', async () => {
       const res = await request(
         server,

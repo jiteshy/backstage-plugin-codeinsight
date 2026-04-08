@@ -1018,14 +1018,20 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 6.2 — Improvements & Hardening
+### 6.2 — Improvements & Hardening ✅ COMPLETED
 
 | Task | Status | Description |
 |------|--------|-------------|
-| 6.2.1 | ⬜ | Repo registration URL validation — return 400 on malformed `repoUrl` |
-| 6.2.2 | ⬜ | Job lost on restart — frontend handles `404` on job poll, clears spinner |
-| 6.2.3 | ⬜ | Session lost on restart — frontend shows "Session expired" and auto-creates new session |
-| 6.2.4 | ⬜ | Path traversal guard in `IngestionService` |
+| 6.2.1 | ✅ | Repo registration URL validation — return 400 on malformed `repoUrl` |
+| 6.2.2 | ✅ | Job lost on restart — frontend handles `404` on job poll, clears spinner |
+| 6.2.3 | ✅ | Session lost on restart — frontend shows "Session expired" and auto-creates new session |
+| 6.2.4 | ✅ | Path traversal guard in `IngestionService` |
+
+**Notes:**
+- 6.2.1: validates `https:` protocol + known Git host (github.com, gitlab.com, bitbucket.org); 400 with actionable message
+- 6.2.2: `getJobStatus` returns `null` on 404; frontend silently clears job state (no error shown to user)
+- 6.2.3: `askQnAStream` throws `SessionExpiredError` on 404; `handleSend` auto-creates new session + clears history
+- 6.2.4: `path.resolve` + `startsWith(tempDir + sep)` guard before any clone dir usage
 
 ---
 

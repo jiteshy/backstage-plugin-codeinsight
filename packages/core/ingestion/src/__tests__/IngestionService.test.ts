@@ -444,6 +444,43 @@ describe('IngestionService', () => {
   });
 
   // -------------------------------------------------------------------------
+  // pipeline — path traversal guard (6.2.4)
+  // -------------------------------------------------------------------------
+
+  describe('pipeline — path traversal guard', () => {
+    it('logs an unhandled pipeline error when repoId contains a path traversal sequence', async () => {
+      storage.getActiveJobForRepo.mockResolvedValue(null);
+      storage.getRepo.mockResolvedValue(null);
+
+      const config = makeConfig({ tempDir: '/tmp/ci-test' });
+      const service = new IngestionService(connector, storage, logger, config);
+
+      // Trigger with a repoId that would escape tempDir via ../
+      await triggerAndWait(service, '../escape', 'https://github.com/org/repo');
+
+      // The guard throws before the try/catch that updates the job, so the
+      // error surfaces via the fire-and-forget .catch() handler which logs
+      // 'Unhandled error in ingestion pipeline' without a job status update.
+      expect(logger.error).toHaveBeenCalledWith(
+        'Unhandled error in ingestion pipeline',
+        expect.objectContaining({ error: expect.stringContaining('unsafe clone path') }),
+      );
+    });
+
+    it('does not call connector.clone when the path traversal guard fires', async () => {
+      storage.getActiveJobForRepo.mockResolvedValue(null);
+      storage.getRepo.mockResolvedValue(null);
+
+      const config = makeConfig({ tempDir: '/tmp/ci-test' });
+      const service = new IngestionService(connector, storage, logger, config);
+
+      await triggerAndWait(service, '../../escape', 'https://github.com/org/repo');
+
+      expect(connector.clone).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // pipeline — error path: job and repo status updated on failure
   // -------------------------------------------------------------------------
 
