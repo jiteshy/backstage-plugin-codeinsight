@@ -1035,13 +1035,20 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 6.3 — Good-to-Have: Repo Re-registration
+### 6.3 — Good-to-Have: Repo Re-registration ✅ COMPLETED
 
 | Task | Status | Description |
 |------|--------|-------------|
-| 6.3.1 | ⬜ | `StorageAdapter.deleteRepo()` + `KnexStorageAdapter` implementation |
-| 6.3.2 | ⬜ | `DELETE /repos/:repoId` backend route |
-| 6.3.3 | ⬜ | Frontend "Reset & Re-discover" overflow menu with confirmation dialog |
+| 6.3.1 | ✅ | `StorageAdapter.deleteRepo()` + `KnexStorageAdapter` implementation |
+| 6.3.2 | ✅ | `DELETE /repos/:repoId` backend route |
+| 6.3.3 | ✅ | Frontend "Reset & Re-discover" overflow menu with confirmation dialog |
+
+**Notes:**
+- `deleteRepo` uses single DELETE on `ci_repositories`; all child rows cascade via FK `ON DELETE CASCADE`
+- Route returns 204 No Content on success
+- Frontend: `MoreVert` overflow menu → confirmation Dialog → `deleteRepo` + `triggerIngestion` atomically
+- All state reset (docs, diagrams, jobs, sessionStorage) before fresh ingestion starts
+- Main button and overflow button both disabled during reset to prevent double-trigger
 
 ---
 

@@ -1,8 +1,17 @@
 # Code Reviewer Agent Memory
 
-## Project State (as of 2026-04-04)
+## Project State (as of 2026-04-08)
+- Phase 6.3 (Repo Re-registration) implemented and reviewed — 0 critical, 1 major, 3 minor, 1 suggestion. Safe to commit.
 - Phase 6.0 (Pre-Beta Critical Bug Fixes) implemented and reviewed — 0 critical, 1 major, 4 minor, 2 suggestions. Safe to commit.
 - Phases 1–5 all complete; see prior entries below.
+
+## Phase 6.3 Patterns Observed
+- `deleteRepo` is a single Knex DELETE on `ci_repositories`; cascade confirmed in all child migrations (002–006, 011). `ci_llm_cache` and `ci_embedding_cache` have NO FK to `ci_repositories` (they are keyed by content SHA, not repo), so LLM/embedding cache is NOT purged on delete — this is correct behaviour (cache reuse after re-ingest).
+- `handleReset` uses `setDocs([])` (not null) so `isFirstRun = true` holds even if `triggerIngestion` fails. Correct.
+- `setRefreshToken(t => t + 1)` in `handleReset` fires BEFORE `deleteRepo` completes in the network sense — it fires synchronously after await resolves, so the GET /docs re-fetch races against the just-started ingestion. Since getDocs returns `[]` for a new repo, this is harmless (returns same value as the local state override).
+- The `!response.ok` check in `deleteRepo` on the client covers 204 correctly since `response.ok` is true for all 2xx status codes including 204.
+- Missing test: no test for "deleteRepo called on non-existent repo" (DB sends 0 rows deleted but no error — the route returns 204 unconditionally). This is acceptable for v1 since idempotency is desirable here.
+- `resetLoading` disables the overflow menu icon but NOT the main "Discover Insights / Sync Changes" button explicitly during the period between delete completing and ingestion being queued. The button IS disabled via `triggerLoading || resetLoading || !!activeJobId`. During the brief window inside handleReset where `resetLoading` is true, button is correctly disabled.
 
 ## Phase 6.0 Patterns Observed
 - `AbortSignal` added to `LLMOptions` interface; flows correctly through all layers (router → QnAService → LLMClient → SDK)
