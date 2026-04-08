@@ -248,17 +248,20 @@ describe('OpenAILLMClient', () => {
         // no-op
       }
 
-      expect(mockCompletionsCreate).toHaveBeenCalledWith({
-        model: 'gpt-4-turbo',
-        max_tokens: 4096,
-        temperature: 0,
-        stop: undefined,
-        stream: true,
-        messages: [
-          { role: 'system', content: 'You are helpful.' },
-          { role: 'user', content: 'Say hi.' },
-        ],
-      });
+      expect(mockCompletionsCreate).toHaveBeenCalledWith(
+        {
+          model: 'gpt-4-turbo',
+          max_tokens: 4096,
+          temperature: 0,
+          stop: undefined,
+          stream: true,
+          messages: [
+            { role: 'system', content: 'You are helpful.' },
+            { role: 'user', content: 'Say hi.' },
+          ],
+        },
+        { signal: undefined },
+      );
     });
 
     it('yields delta content from each streaming chunk', async () => {
@@ -333,6 +336,7 @@ describe('OpenAILLMClient', () => {
           stop: ['STOP'],
           stream: true,
         }),
+        expect.objectContaining({ signal: undefined }),
       );
     });
   });

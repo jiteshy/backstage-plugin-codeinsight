@@ -23,6 +23,8 @@ export interface LLMOptions {
   maxTokens?: number;
   temperature?: number;
   stopSequences?: string[];
+  /** Abort signal — when triggered the stream/completion should terminate early. */
+  signal?: AbortSignal;
 }
 
 export interface LLMClient {

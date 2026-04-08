@@ -58,17 +58,20 @@ export class OpenAILLMClient implements LLMClient {
     userPrompt: string,
     opts?: LLMOptions,
   ): AsyncIterable<string> {
-    const stream = await this.client.chat.completions.create({
-      model: this.model,
-      max_tokens: opts?.maxTokens ?? this.defaultMaxTokens,
-      temperature: opts?.temperature ?? this.defaultTemperature,
-      stop: opts?.stopSequences,
-      stream: true,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    });
+    const stream = await this.client.chat.completions.create(
+      {
+        model: this.model,
+        max_tokens: opts?.maxTokens ?? this.defaultMaxTokens,
+        temperature: opts?.temperature ?? this.defaultTemperature,
+        stop: opts?.stopSequences,
+        stream: true,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      },
+      { signal: opts?.signal },
+    );
 
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content;

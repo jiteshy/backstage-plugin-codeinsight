@@ -1209,7 +1209,9 @@ function CodeInsightContentInner() {
   const api = useApi(codeInsightApiRef);
 
   const annotation = entity.metadata.annotations?.[GITHUB_ANNOTATION];
-  const repoId = annotation ? annotation.replaceAll('/', '-') : null;
+  // Use '~' as separator to avoid collisions: 'org-a/my-repo' and 'org-a-my/repo'
+  // would both become 'org-a-my-repo' with '-', but produce distinct IDs with '~'.
+  const repoId = annotation ? annotation.replace('/', '~') : null;
   const repoUrl = annotation ? `https://github.com/${annotation}` : null;
 
   // Remote data

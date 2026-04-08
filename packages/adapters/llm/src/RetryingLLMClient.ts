@@ -118,6 +118,10 @@ export class RetryingLLMClient implements LLMClient {
     opts?: LLMOptions,
   ): AsyncIterable<string> {
     let lastErr: unknown;
+    // Once we've yielded the first chunk the caller has begun rendering.
+    // Retrying would re-yield from the beginning, producing duplicate tokens.
+    // Only retry if the error occurs before any output is emitted.
+    let started = false;
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       if (attempt > 0) {
@@ -126,11 +130,13 @@ export class RetryingLLMClient implements LLMClient {
 
       try {
         for await (const chunk of this.inner.stream(systemPrompt, userPrompt, opts)) {
+          started = true;
           yield chunk;
         }
         return; // stream completed successfully
       } catch (err) {
-        if (!isRateLimitError(err) || attempt >= MAX_RETRIES) {
+        // Do not retry once tokens have been emitted — resuming would duplicate output.
+        if (started || !isRateLimitError(err) || attempt >= MAX_RETRIES) {
           throw err;
         }
         lastErr = err;

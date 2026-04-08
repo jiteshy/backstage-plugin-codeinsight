@@ -304,6 +304,50 @@ describe('QnAService', () => {
       expect(assistantCall.role).toBe('assistant');
       expect(assistantCall.content).toBe('This is the answer.');
     });
+
+    it('passes the AbortSignal through to llmClient.stream() opts', async () => {
+      const session = makeSession();
+      const storage = makeStorage({
+        getSession: jest.fn().mockResolvedValue(session),
+        getSessionMessages: jest.fn().mockResolvedValue([]),
+        getSessionMessageCount: jest.fn().mockResolvedValue(2),
+      });
+      const llmClient = makeLLMClient();
+      const svc = new QnAService(llmClient, makeEmbeddingClient(), storage, makeVectorStore());
+
+      const controller = new AbortController();
+      const { signal } = controller;
+
+      // Consume the stream to drive execution through to the llmClient.stream() call
+      for await (const _ of svc.askStream('sess-1', 'Hello?', signal)) {
+        // no-op
+      }
+
+      // Verify that llmClient.stream was called with opts containing the signal
+      expect(llmClient.stream).toHaveBeenCalledTimes(1);
+      const streamOpts = (llmClient.stream as jest.Mock).mock.calls[0][2] as Record<string, unknown>;
+      expect(streamOpts).toBeDefined();
+      expect(streamOpts.signal).toBe(signal);
+    });
+
+    it('passes undefined signal to llmClient.stream() when no signal is provided', async () => {
+      const session = makeSession();
+      const storage = makeStorage({
+        getSession: jest.fn().mockResolvedValue(session),
+        getSessionMessages: jest.fn().mockResolvedValue([]),
+        getSessionMessageCount: jest.fn().mockResolvedValue(2),
+      });
+      const llmClient = makeLLMClient();
+      const svc = new QnAService(llmClient, makeEmbeddingClient(), storage, makeVectorStore());
+
+      // Call without a signal
+      for await (const _ of svc.askStream('sess-1', 'Hello?')) {
+        // no-op
+      }
+
+      const streamOpts = (llmClient.stream as jest.Mock).mock.calls[0][2] as Record<string, unknown>;
+      expect(streamOpts.signal).toBeUndefined();
+    });
   });
 
   describe('extractSources', () => {

@@ -267,14 +267,29 @@ export async function createRouter(
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
+    const controller = new AbortController();
+    req.on('close', () => controller.abort());
+
     try {
-      const stream = qnaService.askStream(sessionId, question);
+      const stream = qnaService.askStream(sessionId, question, controller.signal);
       for await (const token of stream) {
         res.write(`data: ${JSON.stringify({ token })}\n\n`);
       }
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } catch (err) {
+      // Suppress abort errors — expected when the client disconnects.
+      // - 'AbortError'         native DOMException / OpenAI SDK
+      // - 'APIUserAbortError'  Anthropic SDK wraps AbortError under this name
+      const isAbort =
+        err instanceof Error &&
+        (err.name === 'AbortError' ||
+          err.name === 'APIUserAbortError' ||
+          err.message === 'Request was aborted.');
+      if (isAbort) {
+        res.end();
+        return;
+      }
       const message = err instanceof Error ? err.message : String(err);
       res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
       res.end();

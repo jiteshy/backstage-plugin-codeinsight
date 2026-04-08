@@ -204,14 +204,17 @@ describe('AnthropicLLMClient', () => {
         // no-op
       }
 
-      expect(mockStream).toHaveBeenCalledWith({
-        model: 'claude-3-opus-20240229',
-        max_tokens: 4096,
-        temperature: 0,
-        stop_sequences: undefined,
-        system: 'You are helpful.',
-        messages: [{ role: 'user', content: 'Say hi.' }],
-      });
+      expect(mockStream).toHaveBeenCalledWith(
+        {
+          model: 'claude-3-opus-20240229',
+          max_tokens: 4096,
+          temperature: 0,
+          stop_sequences: undefined,
+          system: 'You are helpful.',
+          messages: [{ role: 'user', content: 'Say hi.' }],
+        },
+        { signal: undefined },
+      );
     });
 
     it('yields text from content_block_delta text_delta events', async () => {
@@ -288,6 +291,7 @@ describe('AnthropicLLMClient', () => {
           temperature: 0.3,
           stop_sequences: ['DONE'],
         }),
+        expect.objectContaining({ signal: undefined }),
       );
     });
   });

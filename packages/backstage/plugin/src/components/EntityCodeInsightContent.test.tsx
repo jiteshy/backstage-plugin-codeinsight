@@ -257,7 +257,7 @@ describe('EntityCodeInsightContent', () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Use the button above to get started/i),
+          screen.getByText(/DISCOVER INSIGHTS.*button above to get started/i),
         ).toBeInTheDocument();
       });
     });
@@ -297,7 +297,7 @@ describe('EntityCodeInsightContent', () => {
       renderContent();
 
       await waitFor(() => {
-        expect(mockApi.getDocs).toHaveBeenCalledWith('org-my-repo');
+        expect(mockApi.getDocs).toHaveBeenCalledWith('org~my-repo');
       });
     });
 
@@ -307,7 +307,7 @@ describe('EntityCodeInsightContent', () => {
       renderContent();
 
       await waitFor(() => {
-        expect(mockApi.getDiagrams).toHaveBeenCalledWith('org-my-repo');
+        expect(mockApi.getDiagrams).toHaveBeenCalledWith('org~my-repo');
       });
     });
 
@@ -315,7 +315,7 @@ describe('EntityCodeInsightContent', () => {
       renderContent();
 
       await waitFor(() => {
-        expect(mockApi.getRepoStatus).toHaveBeenCalledWith('org-my-repo');
+        expect(mockApi.getRepoStatus).toHaveBeenCalledWith('org~my-repo');
       });
     });
   });
@@ -545,7 +545,7 @@ describe('QnAContent', () => {
       await renderAndOpenQnATab();
 
       await waitFor(() => {
-        expect(mockApi.createQnASession).toHaveBeenCalledWith('org-my-repo');
+        expect(mockApi.createQnASession).toHaveBeenCalledWith('org~my-repo');
       });
     });
 
@@ -716,7 +716,7 @@ describe('QnAContent', () => {
 
       await waitFor(() => {
         expect(mockApi.askQnAStream).toHaveBeenCalledWith(
-          'org-my-repo',
+          'org~my-repo',
           'sess-send',
           'What is the architecture?',
           expect.any(Function),
