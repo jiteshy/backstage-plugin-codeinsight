@@ -72,6 +72,16 @@ function createMockStorage(): jest.Mocked<StorageAdapter> {
     updateJob: jest.fn().mockResolvedValue(undefined),
     getJob: jest.fn().mockResolvedValue(undefined),
     getActiveJobForRepo: jest.fn().mockResolvedValue(undefined),
+    deleteRepo: jest.fn().mockResolvedValue(undefined),
+    createSession: jest.fn().mockResolvedValue('session-id'),
+    getSession: jest.fn().mockResolvedValue(null),
+    updateSessionActiveContext: jest.fn().mockResolvedValue(undefined),
+    touchSession: jest.fn().mockResolvedValue(undefined),
+    addMessage: jest.fn().mockResolvedValue('message-id'),
+    upsertChunk: jest.fn().mockResolvedValue(undefined),
+    upsertMessage: jest.fn().mockResolvedValue(undefined),
+    getSessionMessages: jest.fn().mockResolvedValue([]),
+    getSessionMessageCount: jest.fn().mockResolvedValue(0),
   } as jest.Mocked<StorageAdapter>;
 }
 

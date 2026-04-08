@@ -79,6 +79,8 @@ function mockStorageAdapter() {
     createJob: jest.fn(),
     updateJob: jest.fn(),
     getActiveJobForRepo: jest.fn(),
+    deleteRepo: jest.fn().mockResolvedValue(undefined),
+    getSessionMessages: jest.fn().mockResolvedValue([]),
   };
 }
 
@@ -654,6 +656,39 @@ describe('createRouter', () => {
 
       const res = await request(server, 'GET', '/repos/unknown-repo/status');
       expect(res.status).toBe(404);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // DELETE /repos/:repoId  (6.3 — repo re-registration)
+  // -------------------------------------------------------------------------
+
+  describe('DELETE /repos/:repoId', () => {
+    it('returns 204 and calls deleteRepo on success', async () => {
+      storageAdapter.deleteRepo.mockResolvedValue(undefined);
+
+      const res = await request(server, 'DELETE', '/repos/repo-1');
+
+      expect(res.status).toBe(204);
+      expect(storageAdapter.deleteRepo).toHaveBeenCalledWith('repo-1');
+    });
+
+    it('returns 500 when deleteRepo throws', async () => {
+      storageAdapter.deleteRepo.mockRejectedValue(new Error('DB error'));
+
+      const res = await request(server, 'DELETE', '/repos/repo-1');
+
+      expect(res.status).toBe(500);
+      expect(res.body).toMatchObject({ error: 'DB error' });
+    });
+
+    it('URL-encoded repoId is decoded correctly', async () => {
+      storageAdapter.deleteRepo.mockResolvedValue(undefined);
+
+      const res = await request(server, 'DELETE', '/repos/org~my-repo');
+
+      expect(res.status).toBe(204);
+      expect(storageAdapter.deleteRepo).toHaveBeenCalledWith('org~my-repo');
     });
   });
 });

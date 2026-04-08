@@ -18,14 +18,23 @@ import Box from '@material-ui/core/Box';
 import Button from '@material-ui/core/Button';
 import Chip from '@material-ui/core/Chip';
 import CircularProgress from '@material-ui/core/CircularProgress';
+import Dialog from '@material-ui/core/Dialog';
+import DialogActions from '@material-ui/core/DialogActions';
+import DialogContent from '@material-ui/core/DialogContent';
+import DialogContentText from '@material-ui/core/DialogContentText';
+import DialogTitle from '@material-ui/core/DialogTitle';
 import Divider from '@material-ui/core/Divider';
 import Fab from '@material-ui/core/Fab';
+import IconButton from '@material-ui/core/IconButton';
+import Menu from '@material-ui/core/Menu';
+import MenuItem from '@material-ui/core/MenuItem';
 import { makeStyles } from '@material-ui/core/styles';
 import Tab from '@material-ui/core/Tab';
 import Tabs from '@material-ui/core/Tabs';
 import TextField from '@material-ui/core/TextField';
 import Tooltip from '@material-ui/core/Tooltip';
 import Typography from '@material-ui/core/Typography';
+import MoreVertIcon from '@material-ui/icons/MoreVert';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { codeInsightApiRef, DiagramSection, DocSection, QnASource } from '../api';
@@ -1250,6 +1259,11 @@ function CodeInsightContentInner() {
   // Active inner tab
   const [activeTab, setActiveTab] = useState<ContentTab>('docs');
 
+  // Reset (re-registration) flow
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
   // Restore in-progress job from sessionStorage (survives route navigation)
   useEffect(() => {
     if (!repoId) return;
@@ -1381,6 +1395,42 @@ function CodeInsightContentInner() {
     }
   }, [api, repoId, repoUrl, isFirstRun]);
 
+  const handleReset = useCallback(async () => {
+    if (!repoId || !repoUrl) return;
+    setResetLoading(true);
+    setResetDialogOpen(false);
+    try {
+      await api.deleteRepo(repoId);
+      // Clear all local state so the UI returns to first-run state.
+      // Use [] (not null) so isFirstRun = true — if triggerIngestion fails, the
+      // UI shows "Discover Insights" instead of "Sync Changes" on a broken repo.
+      sessionStorage.removeItem(jobStorageKey(repoId));
+      sessionStorage.removeItem(jobTypeKey(repoId));
+      setDocs([]);
+      setDiagrams([]);
+      setLastSynced(null);
+      setLastOutcome(null);
+      setActiveJobId(null);
+      setJobIsFirstRun(false);
+      setTriggerError(null);
+      setLoadError(null);
+      setDiagramLoadError(null);
+      // Do NOT call setRefreshToken here — it would also retrigger getDocs/getDiagrams effects.
+      // Repo status will update naturally when the job polling loop fires after triggerIngestion.
+      // Immediately kick off a fresh full ingestion
+      const { jobId } = await api.triggerIngestion(repoId, repoUrl);
+      sessionStorage.setItem(jobStorageKey(repoId), jobId);
+      sessionStorage.setItem(jobTypeKey(repoId), 'first');
+      setJobIsFirstRun(true);
+      setJobLabel('Queued...');
+      setActiveJobId(jobId);
+    } catch (err) {
+      setTriggerError(`Reset failed: ${String(err)}`);
+    } finally {
+      setResetLoading(false);
+    }
+  }, [api, repoId, repoUrl]);
+
   // No annotation guard
   if (!annotation || !repoId || !repoUrl) {
     return (
@@ -1458,7 +1508,7 @@ function CodeInsightContentInner() {
                   variant={isFirstRun ? 'contained' : 'outlined'}
                   color="primary"
                   size="small"
-                  disabled={triggerLoading || !!activeJobId}
+                  disabled={triggerLoading || resetLoading || !!activeJobId}
                   onClick={handleAnalyze}
                   startIcon={
                     triggerLoading ? <CircularProgress size={14} color="inherit" /> : undefined
@@ -1468,9 +1518,56 @@ function CodeInsightContentInner() {
                 </Button>
               </span>
             </Tooltip>
+
+            {/* Overflow menu — advanced actions (reset) */}
+            <Tooltip title="More options">
+              <span>
+                <IconButton
+                  size="small"
+                  aria-label="more options"
+                  disabled={resetLoading || !!activeJobId}
+                  onClick={e => setMenuAnchor(e.currentTarget)}
+                >
+                  {resetLoading
+                    ? <CircularProgress size={16} />
+                    : <MoreVertIcon fontSize="small" />
+                  }
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Menu
+              anchorEl={menuAnchor}
+              open={Boolean(menuAnchor)}
+              onClose={() => setMenuAnchor(null)}
+            >
+              <MenuItem onClick={() => { setMenuAnchor(null); setResetDialogOpen(true); }}>
+                Reset &amp; Re-discover
+              </MenuItem>
+            </Menu>
           </Box>
         </Box>
       </Box>
+
+      {/* Reset confirmation dialog */}
+      <Dialog open={resetDialogOpen} onClose={() => setResetDialogOpen(false)}>
+        <DialogTitle>Reset &amp; Re-discover</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will permanently delete all generated documentation, diagrams, and Q&amp;A data for
+            this repository. A fresh full analysis will start immediately after.
+            <br /><br />
+            <strong>This action cannot be undone.</strong>
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setResetDialogOpen(false)} color="default">
+            Cancel
+          </Button>
+          <Button onClick={handleReset} color="secondary" variant="contained">
+            Reset &amp; Re-discover
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Divider />
 

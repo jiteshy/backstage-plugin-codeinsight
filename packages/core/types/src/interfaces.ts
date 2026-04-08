@@ -97,6 +97,8 @@ export interface StorageAdapter {
   getRepo(repoId: string): Promise<Repository | null>;
   upsertRepo(repo: Repository): Promise<void>;
   updateRepoStatus(repoId: string, status: RepoStatus, lastCommitSha?: string): Promise<void>;
+  /** Hard-delete a repo and all associated data (artifacts, QnA, jobs). Cascades via FK. */
+  deleteRepo(repoId: string): Promise<void>;
 
   // File tracking
   upsertRepoFiles(files: RepoFile[]): Promise<void>;

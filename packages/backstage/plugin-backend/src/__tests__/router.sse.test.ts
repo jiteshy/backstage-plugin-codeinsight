@@ -88,6 +88,7 @@ function mockStorageAdapter() {
     createJob: jest.fn(),
     updateJob: jest.fn(),
     getActiveJobForRepo: jest.fn(),
+    deleteRepo: jest.fn().mockResolvedValue(undefined),
     getSessionMessages: jest.fn().mockResolvedValue([]),
   };
 }

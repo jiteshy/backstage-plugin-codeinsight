@@ -448,7 +448,7 @@ describe('IngestionService', () => {
   // -------------------------------------------------------------------------
 
   describe('pipeline — path traversal guard', () => {
-    it('logs an unhandled pipeline error when repoId contains a path traversal sequence', async () => {
+    it('logs a pipeline error when repoId contains a path traversal sequence', async () => {
       storage.getActiveJobForRepo.mockResolvedValue(null);
       storage.getRepo.mockResolvedValue(null);
 
@@ -458,11 +458,10 @@ describe('IngestionService', () => {
       // Trigger with a repoId that would escape tempDir via ../
       await triggerAndWait(service, '../escape', 'https://github.com/org/repo');
 
-      // The guard throws before the try/catch that updates the job, so the
-      // error surfaces via the fire-and-forget .catch() handler which logs
-      // 'Unhandled error in ingestion pipeline' without a job status update.
+      // The guard is inside the pipeline try/catch, so it is recorded as a
+      // normal job failure and logged as 'Ingestion pipeline failed'.
       expect(logger.error).toHaveBeenCalledWith(
-        'Unhandled error in ingestion pipeline',
+        'Ingestion pipeline failed',
         expect.objectContaining({ error: expect.stringContaining('unsafe clone path') }),
       );
     });

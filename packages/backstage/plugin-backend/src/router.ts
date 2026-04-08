@@ -107,6 +107,23 @@ export async function createRouter(
   });
 
   // ---------------------------------------------------------------------------
+  // Delete repo — hard-delete all data for a repo (for re-registration flow)
+  // DELETE /repos/:repoId
+  // ---------------------------------------------------------------------------
+
+  router.delete('/repos/:repoId', async (req, res) => {
+    const { repoId } = req.params;
+    try {
+      await storageAdapter.deleteRepo(repoId);
+      logger.info('Repo deleted', { repoId });
+      res.status(204).end();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // ---------------------------------------------------------------------------
   // 1.9.4 — Get repo status
   // GET /repos/:repoId/status
   // ---------------------------------------------------------------------------
