@@ -1,5 +1,22 @@
 # Code Reviewer Agent Memory
 
+## Project State (as of 2026-04-04)
+- Phase 6.0 (Pre-Beta Critical Bug Fixes) implemented and reviewed — 0 critical, 1 major, 4 minor, 2 suggestions. Safe to commit.
+- Phases 1–5 all complete; see prior entries below.
+
+## Phase 6.0 Patterns Observed
+- `AbortSignal` added to `LLMOptions` interface; flows correctly through all layers (router → QnAService → LLMClient → SDK)
+- `CachingLLMClient.stream()` is a pass-through — signal reaches inner client correctly
+- `RetryingLLMClient.stream()` `started` guard correctly placed: set to `true` on first yielded chunk, checked before any retry
+- Anthropic SDK: `messages.stream(params, { signal })` — second-argument pattern is correct per SDK docs
+- OpenAI SDK: `chat.completions.create(params, { signal })` — second-argument pattern is correct per SDK docs
+- Repo ID fix: uses `.replace('/', '~')` — NOT `.replaceAll('/',' ~')`. Only replaces the FIRST slash. Functional for `org/repo` (one slash) but not for nested slugs like `org/team/repo` (which GitHub does not officially support, so this is acceptable for v1).
+- Build plan Phase 6.0 marked complete correctly
+
+## Known Issue (Phase 6.0)
+- `EntityCodeInsightContent.tsx` line 1214: `annotation.replace('/', '~')` only replaces the first slash. Functional for standard `org/repo` GitHub slugs (which always have exactly one slash) — not a bug in practice.
+- CONFIRMED BUG: `router.ts` line 282: `err.name === 'AbortError'` does NOT match Anthropic SDK's `APIUserAbortError` (name is `'APIUserAbortError'`, not `'AbortError'`). OpenAI SDK catches the AbortError internally and returns gracefully (no throw). So Anthropic aborts hit the error path and write an error SSE frame to a closed connection. Fix: add `|| err instanceof Error && err.message.includes('aborted')` or import `APIUserAbortError` from the SDK and check `instanceof`.
+
 ## Project State (as of 2026-03-20)
 - Phase 1.0 (scaffold), 1.1 (types), 1.2 (plugin scaffold) implemented
 - Phase 1.3 (DB migrations) implemented, reviewed — 3 fixes required before merge (see Known Issues)

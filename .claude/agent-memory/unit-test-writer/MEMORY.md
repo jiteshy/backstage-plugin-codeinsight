@@ -55,6 +55,13 @@
 - DocGenerator mock factory: `{ generateDocs: jest.fn().mockResolvedValue({ totalTokensUsed: N }) }` — pass as 7th constructor arg; `stalenessService` (6th) can be `undefined` to use the default
 - Doc generation failure is non-fatal: mock `generateDocs` to reject, assert final `updateJob` status is `'completed'` and `tokensConsumed` is `0`
 
+## RetryingLLMClient Test Patterns
+- Back-off `sleep()` is a private `setTimeout`-based promise — bypass by `jest.spyOn(global, 'setTimeout').mockImplementation((fn) => { fn(); return 0; })` in `beforeEach`. Restore with `setTimeoutSpy.mockRestore()` in `afterEach`. This avoids the complexity of `jest.useFakeTimers()` + async timer advancement.
+- `jest.useFakeTimers()` + `jest.runAllTimers()` does NOT work for this pattern: the timers are scheduled AFTER the async `await complete()` call reaches the sleep, which happens on a later microtask tick. Mock setTimeout directly instead.
+- "started guard" test: use a generator that yields one token then throws a 429; assert inner.stream was called exactly once (no retry) and the caught token was received before the error.
+- Pre-token retry test: first mock returns a generator that throws immediately; second returns a successful generator. Assert inner.stream called twice and all tokens from second generator are collected.
+- SSE router tests that inject `qnaService` are placed in a separate file (`router.sse.test.ts` next to `router.test.ts`) to keep SSE-specific HTTP helpers (chunked response collection) isolated from the main router tests.
+
 ## LLM Adapter Unit Test Patterns
 - SDK modules (`@anthropic-ai/sdk`, `openai`) mocked with `jest.mock('module', () => ({ __esModule: true, default: jest.fn().mockImplementation(() => ({ ... })) }))` — use `__esModule: true` for default exports
 - Mock method references (`mockCreate`, `mockStream`) declared BEFORE `jest.mock()` call (Jest hoisting safe because they are `const` declarations in module scope, not `let`/`var`)
