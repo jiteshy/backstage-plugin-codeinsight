@@ -979,10 +979,64 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-## Phase 6: Integration & Cross-Feature Enrichment
-**Goal:** The three features work together. Webhooks keep everything fresh automatically.
+## Phase 6: Pre-Beta Hardening
+**Goal:** Fix confirmed bugs and close config/API gaps before any external user testing. Full plan in `docs/phase-6-hardening-plan.md`.
 
 **Depends on:** Phases 1-5 complete
+
+---
+
+### 6.0 — Critical Bug Fixes ✅ COMPLETED
+
+| Task | Status | Description |
+|------|--------|-------------|
+| 6.0.1 | ✅ | Repo ID collision fix — use `~` separator instead of `-` so `org-a/my-repo` and `org-a-my/repo` produce distinct IDs |
+| 6.0.2 | ✅ | SSE disconnect → LLM abort — wire `AbortController` to `req.on('close')`, propagate `AbortSignal` through `QnAService.askStream()` → `LLMClient.stream()` → Anthropic/OpenAI SDKs |
+| 6.0.3 | ✅ | Stream retry token duplication — add `started` flag to `RetryingLLMClient.stream()`; once first token is emitted, disable retry to prevent duplicate output |
+
+**Notes:**
+- `LLMOptions.signal?: AbortSignal` added to interface in `@codeinsight/types`
+- Both `AnthropicLLMClient` and `OpenAILLMClient` pass signal as SDK request option (second argument)
+- `AbortError` in router SSE handler suppressed (expected on disconnect, not an error)
+- Pre-existing test failures in `CIGPersistenceService.test.ts` and `CachingEmbeddingClient.test.ts` confirmed unrelated to this work
+- 265 tests passing across all affected packages
+
+---
+
+### 6.1 — Config & Schema Gaps
+
+| Task | Status | Description |
+|------|--------|-------------|
+| 6.1.1 | ⬜ | Add `codeinsight.qna` namespace to `config.d.ts` and `QnAConfig` to `CodeInsightConfig` |
+| 6.1.2 | ⬜ | Widen `EmbeddingConfig.provider` from `'openai'` literal to `'openai' \| string` |
+
+---
+
+### 6.2 — Improvements & Hardening
+
+| Task | Status | Description |
+|------|--------|-------------|
+| 6.2.1 | ⬜ | Repo registration URL validation — return 400 on malformed `repoUrl` |
+| 6.2.2 | ⬜ | Job lost on restart — frontend handles `404` on job poll, clears spinner |
+| 6.2.3 | ⬜ | Session lost on restart — frontend shows "Session expired" and auto-creates new session |
+| 6.2.4 | ⬜ | Path traversal guard in `IngestionService` |
+
+---
+
+### 6.3 — Good-to-Have: Repo Re-registration
+
+| Task | Status | Description |
+|------|--------|-------------|
+| 6.3.1 | ⬜ | `StorageAdapter.deleteRepo()` + `KnexStorageAdapter` implementation |
+| 6.3.2 | ⬜ | `DELETE /repos/:repoId` backend route |
+| 6.3.3 | ⬜ | Frontend "Reset & Re-discover" overflow menu with confirmation dialog |
+
+---
+
+## Phase 7: Integration & Cross-Feature Enrichment
+**Goal:** The three features work together. Webhooks keep everything fresh automatically.
+
+**Depends on:** Phases 1-6 complete
 
 ---
 

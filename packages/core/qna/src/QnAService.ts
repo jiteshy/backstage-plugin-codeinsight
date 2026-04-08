@@ -180,6 +180,7 @@ export class QnAService {
   async *askStream(
     sessionId: string,
     question: string,
+    signal?: AbortSignal,
   ): AsyncGenerator<string> {
     const session = await this.loadSession(sessionId);
 
@@ -197,6 +198,7 @@ export class QnAService {
     const stream = this.llmClient.stream(SYSTEM_PROMPT, userPrompt, {
       maxTokens: this.maxAnswerTokens,
       temperature: this.temperature,
+      signal,
     });
 
     for await (const token of stream) {

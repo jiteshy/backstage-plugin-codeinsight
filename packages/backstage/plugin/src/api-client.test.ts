@@ -488,7 +488,7 @@ describe('CodeInsightClient', () => {
     }
 
     /** Builds a second fetch mock (for the /messages GET call) with a JSON response. */
-    function mockMessagesFetch(messages: Array<{ role: string; sources?: unknown[] | null }>) {
+    function _mockMessagesFetch(messages: Array<{ role: string; sources?: unknown[] | null }>) {
       return jest.fn().mockResolvedValue({
         ok: true,
         status: 200,

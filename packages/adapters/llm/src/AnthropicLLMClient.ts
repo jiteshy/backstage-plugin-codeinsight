@@ -45,14 +45,17 @@ export class AnthropicLLMClient implements LLMClient {
     userPrompt: string,
     opts?: LLMOptions,
   ): AsyncIterable<string> {
-    const stream = this.client.messages.stream({
-      model: this.model,
-      max_tokens: opts?.maxTokens ?? this.defaultMaxTokens,
-      temperature: opts?.temperature ?? this.defaultTemperature,
-      stop_sequences: opts?.stopSequences,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-    });
+    const stream = this.client.messages.stream(
+      {
+        model: this.model,
+        max_tokens: opts?.maxTokens ?? this.defaultMaxTokens,
+        temperature: opts?.temperature ?? this.defaultTemperature,
+        stop_sequences: opts?.stopSequences,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }],
+      },
+      { signal: opts?.signal },
+    );
 
     for await (const event of stream) {
       if (
