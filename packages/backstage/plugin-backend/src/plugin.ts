@@ -14,10 +14,9 @@ import type { IndexingConfig } from '@codeinsight/indexing';
 import { InProcessJobQueue, IngestionService } from '@codeinsight/ingestion';
 import { createLLMClient } from '@codeinsight/llm';
 import { QnAService } from '@codeinsight/qna';
-import type { QnAConfig } from '@codeinsight/qna';
 import { GitRepoConnector } from '@codeinsight/repo';
 import { KnexStorageAdapter } from '@codeinsight/storage';
-import type { EmbeddingConfig, IngestionConfig, LLMConfig, Logger, RepoCloneConfig } from '@codeinsight/types';
+import type { EmbeddingConfig, IngestionConfig, LLMConfig, Logger, QnAConfig, RepoCloneConfig } from '@codeinsight/types';
 import { PgVectorStore, syncEmbeddingDimension } from '@codeinsight/vector-store';
 
 import { createRouter } from './router';

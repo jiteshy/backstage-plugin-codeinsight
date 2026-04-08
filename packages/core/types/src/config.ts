@@ -18,7 +18,8 @@ export interface RepoCloneConfig {
 }
 
 export interface LLMConfig {
-  provider: 'anthropic' | 'openai';
+  // `(string & {})` preserves IDE autocomplete for known providers while accepting extensions.
+  provider: 'anthropic' | 'openai' | (string & {});
   apiKey: string;
   model: string;
   maxTokens?: number;
@@ -26,7 +27,8 @@ export interface LLMConfig {
 }
 
 export interface EmbeddingConfig {
-  provider: 'openai';
+  // `(string & {})` preserves 'openai' IDE autocomplete while accepting any provider string.
+  provider: 'openai' | (string & {});
   apiKey: string;
   model?: string;
   dimensions?: number;
@@ -47,12 +49,26 @@ export interface IngestionConfig {
   };
 }
 
+export interface QnAConfig {
+  /** Max conversation turns to include in prompt (default: 6). */
+  maxHistoryTurns?: number;
+  /** Compress older turns after this many messages (default: 10). */
+  compressAfterTurns?: number;
+  /** Max tokens for assembled retrieval context (default: 8000). */
+  maxContextTokens?: number;
+  /** Max tokens for LLM answer generation (default: 2000). */
+  maxAnswerTokens?: number;
+  /** LLM temperature for answer generation (default: 0.3). */
+  temperature?: number;
+}
+
 export interface CodeInsightConfig {
   database: DatabaseConfig;
   repo: RepoCloneConfig;
   llm?: LLMConfig;
   embedding?: EmbeddingConfig;
   ingestion: IngestionConfig;
+  qna?: QnAConfig;
   features: {
     docs: boolean;
     diagrams: boolean;

@@ -103,5 +103,22 @@ export interface Config {
       /** Temperature for LLM calls. Default: 0.2. */
       temperature?: number;
     };
+
+    /**
+     * QnA chat settings.
+     * @visibility backend
+     */
+    qna?: {
+      /** Max conversation turns to include in the prompt window. Default: 6. */
+      maxHistoryTurns?: number;
+      /** Compress older turns after this many messages. Default: 10. */
+      compressAfterTurns?: number;
+      /** Max tokens for assembled retrieval context. Default: 8000. */
+      maxContextTokens?: number;
+      /** Max tokens for LLM answer generation. Default: 2000. */
+      maxAnswerTokens?: number;
+      /** LLM temperature for answer generation. Default: 0.3. */
+      temperature?: number;
+    };
   };
 }
