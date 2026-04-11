@@ -304,13 +304,29 @@ export async function createRouter(
     res.flushHeaders();
 
     const controller = new AbortController();
-    req.on('close', () => controller.abort());
+    // Use res.on('close') rather than req.on('close'): in newer Node.js
+    // versions, express.json() fully consumes the request body and the
+    // IncomingMessage emits 'close' immediately after body parsing — before
+    // the LLM stream even starts — causing a spurious early abort.
+    // res 'close' fires only when the HTTP socket itself closes (true client
+    // disconnect); the writableEnded guard prevents a false-positive abort
+    // when the response ends normally via res.end().
+    res.on('close', () => {
+      if (!res.writableEnded) {
+        controller.abort();
+      }
+    });
 
     try {
+      logger.debug('ask-stream: starting stream', { sessionId, questionLen: question.length });
       const stream = qnaService.askStream(sessionId, question, controller.signal);
+      let tokenCount = 0;
       for await (const token of stream) {
+        if (tokenCount === 0) logger.debug('ask-stream: first token received', { sessionId });
+        tokenCount++;
         res.write(`data: ${JSON.stringify({ token })}\n\n`);
       }
+      logger.info('ask-stream: stream complete', { tokenCount });
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } catch (err) {
@@ -323,10 +339,15 @@ export async function createRouter(
           err.name === 'APIUserAbortError' ||
           err.message === 'Request was aborted.');
       if (isAbort) {
+        logger.warn('ask-stream: aborted (client disconnect or signal)', {
+          sessionId,
+          errName: err instanceof Error ? err.name : 'unknown',
+        });
         res.end();
         return;
       }
       const message = err instanceof Error ? err.message : String(err);
+      logger.error('ask-stream: error during streaming', { sessionId, error: message });
       res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
       res.end();
     }

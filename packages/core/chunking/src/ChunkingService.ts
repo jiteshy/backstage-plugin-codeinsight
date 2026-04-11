@@ -257,18 +257,34 @@ export class ChunkingService {
         'diagram',
       );
 
-      diagramChunks.push({
-        chunkId,
-        repoId,
-        content: text,
-        layer: 'diagram_desc',
+      const diagramMetadata: ChunkMetadata = {
+        diagramType: diagram.diagramType,
         filePath,
-        fileSha,
-        metadata: {
-          diagramType: diagram.diagramType,
+      };
+
+      if (estimateTokens(text, this.charsPerToken) > this.maxChunkTokens) {
+        const subChunks = this.splitOversizedText(
+          text,
+          chunkId,
+          repoId,
           filePath,
-        },
-      });
+          fileSha,
+          'diagram_desc',
+          diagramMetadata,
+        );
+        diagramChunks.push(...subChunks);
+        oversizedSplit += subChunks.length - 1;
+      } else {
+        diagramChunks.push({
+          chunkId,
+          repoId,
+          content: text,
+          layer: 'diagram_desc',
+          filePath,
+          fileSha,
+          metadata: diagramMetadata,
+        });
+      }
     }
 
     const chunks = [...codeChunks, ...docChunks, ...diagramChunks];
@@ -508,13 +524,16 @@ export function buildChunkId(
   return `${repoId}:${filePath}:${symbol}:${layer}`;
 }
 
-/** Build text content for a diagram chunk from its description + title. */
+/** Build text content for a diagram chunk from its description + title.
+ *
+ * Raw Mermaid source is intentionally excluded: it is a dense programmatic
+ * notation that inflates token counts without contributing to semantic search
+ * quality. The title and description capture the diagram's meaning.
+ */
 export function buildDiagramChunkText(diagram: DiagramContent): string | null {
   const parts: string[] = [];
   if (diagram.title) parts.push(`# ${diagram.title}`);
   if (diagram.description) parts.push(diagram.description);
-  // Include the Mermaid source as context (it's useful for structural queries)
-  if (diagram.mermaid) parts.push(`\`\`\`mermaid\n${diagram.mermaid}\n\`\`\``);
 
   const text = parts.join('\n\n').trim();
   return text || null;

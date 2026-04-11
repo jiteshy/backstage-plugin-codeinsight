@@ -747,7 +747,7 @@ git commit -m "feat(chunking): export FileSummaryService from package"
 - Modify: `packages/core/indexing/src/IndexingService.ts`
 - Modify: `packages/core/indexing/src/__tests__/IndexingService.test.ts`
 
-- [ ] **Step 1: Write failing tests for IndexingService with LLMClient**
+- [x] **Step 1: Write failing tests for IndexingService with LLMClient**
 
 Add a new `describe` block at the end of `packages/core/indexing/src/__tests__/IndexingService.test.ts`.
 
@@ -845,7 +845,7 @@ describe('IndexingService with LLMClient (file_summary layer)', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests to verify the new tests fail**
+- [x] **Step 2: Run tests to verify the new tests fail**
 
 ```bash
 pnpm --filter @codeinsight/indexing test
@@ -853,7 +853,7 @@ pnpm --filter @codeinsight/indexing test
 
 Expected: The new tests FAIL — `IndexingService` constructor does not yet accept `llmClient`.
 
-- [ ] **Step 3: Update `IndexingService.ts`**
+- [x] **Step 3: Update `IndexingService.ts`**
 
 Replace `packages/core/indexing/src/IndexingService.ts` with:
 
@@ -1051,7 +1051,7 @@ export function computeContentSha(text: string): string {
 }
 ```
 
-- [ ] **Step 4: Run all indexing tests**
+- [x] **Step 4: Run all indexing tests**
 
 ```bash
 pnpm --filter @codeinsight/indexing test
@@ -1059,7 +1059,7 @@ pnpm --filter @codeinsight/indexing test
 
 Expected: All tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/core/indexing/src/IndexingService.ts packages/core/indexing/src/__tests__/IndexingService.test.ts

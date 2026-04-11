@@ -226,7 +226,7 @@ describe('ChunkingService', () => {
   });
 
   describe('buildDiagramChunkText', () => {
-    it('combines title, description, and mermaid', () => {
+    it('combines title and description (no mermaid source)', () => {
       const text = buildDiagramChunkText({
         kind: 'diagram',
         diagramType: 'flowchart',
@@ -236,26 +236,27 @@ describe('ChunkingService', () => {
       });
       expect(text).toContain('# Auth Flow');
       expect(text).toContain('Shows authentication flow');
-      expect(text).toContain('```mermaid');
+      // Raw Mermaid source is excluded — it inflates token counts without
+      // contributing to semantic search quality.
+      expect(text).not.toContain('```mermaid');
     });
 
-    it('returns null for empty diagram', () => {
+    it('returns null when neither title nor description present', () => {
+      const text = buildDiagramChunkText({
+        kind: 'diagram',
+        diagramType: 'flowchart',
+        mermaid: 'graph TD\n  A-->B',
+      });
+      expect(text).toBeNull();
+    });
+
+    it('returns null for completely empty diagram', () => {
       const text = buildDiagramChunkText({
         kind: 'diagram',
         diagramType: 'flowchart',
         mermaid: '',
       });
       expect(text).toBeNull();
-    });
-
-    it('works with only mermaid source', () => {
-      const text = buildDiagramChunkText({
-        kind: 'diagram',
-        diagramType: 'flowchart',
-        mermaid: 'graph TD\n  A-->B',
-      });
-      expect(text).toContain('```mermaid');
-      expect(text).not.toContain('# ');
     });
   });
 
@@ -657,21 +658,23 @@ describe('ChunkingService', () => {
       expect(result.chunks[0].metadata.subChunkIndex).toBeUndefined();
     });
 
-    it('does not split diagram chunks (emits single chunk regardless of size)', async () => {
+    it('splits oversized diagram chunks just like code and doc chunks', async () => {
       cloneDir = await createTempRepo({});
 
-      const largeMermaid = Array.from(
-        { length: 200 },
-        (_, i) => `  node${i}["Module ${i} with a long label to increase token count"] --> node${i + 1}`,
-      ).join('\n');
+      // Build a long description (not Mermaid source) to trigger the split path.
+      // At 3 chars/token and maxChunkTokens=100, we need >300 chars.
+      const longDescription = Array.from(
+        { length: 30 },
+        (_, i) => `Paragraph ${i}: This module handles a critical part of the system pipeline.`,
+      ).join('\n\n');
 
       const storage = createMockStorage({
         diagramArtifacts: [
           makeDiagramArtifact(
             'huge-diagram',
-            `graph TD\n${largeMermaid}`,
+            'graph TD\n  A-->B',
             'Huge Diagram',
-            'A very large diagram for testing oversized behavior.',
+            longDescription,
           ),
         ],
       });
@@ -679,9 +682,14 @@ describe('ChunkingService', () => {
       const svc = new ChunkingService(storage, undefined, { maxChunkTokens: 100 });
       const result = await svc.chunkRepo('repo-1', cloneDir);
 
-      // Diagrams are not split — single chunk emitted
-      expect(result.stats.diagramChunks).toBe(1);
-      expect(result.chunks[0].metadata.subChunkIndex).toBeUndefined();
+      // Oversized diagram is split into multiple sub-chunks
+      expect(result.stats.diagramChunks).toBeGreaterThan(1);
+      expect(result.stats.oversizedSplit).toBeGreaterThan(0);
+      // Every sub-chunk carries subChunkIndex and totalSubChunks metadata
+      for (const chunk of result.chunks) {
+        expect(chunk.metadata.subChunkIndex).toBeDefined();
+        expect(chunk.metadata.totalSubChunks).toBeDefined();
+      }
     });
   });
 

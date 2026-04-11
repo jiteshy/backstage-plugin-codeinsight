@@ -1164,8 +1164,12 @@ function QnAContent({
               <Box className={classes.qnaAssistantBubble}>
                 {msg.content ? (
                   <MarkdownContent content={stripSourceRefs(msg.content)} />
-                ) : (
+                ) : msg.isStreaming ? (
                   <CircularProgress size={14} />
+                ) : (
+                  <Typography variant="body2" color="textSecondary" style={{ fontStyle: 'italic' }}>
+                    No response received.
+                  </Typography>
                 )}
                 {msg.isStreaming && <Box component="span" className={classes.qnaCursor} />}
 
