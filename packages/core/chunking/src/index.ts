@@ -6,6 +6,16 @@ export {
   estimateTokens,
 } from './ChunkingService';
 
+export {
+  FileSummaryService,
+  buildFileSummaryChunkId,
+} from './FileSummaryService';
+
+export type {
+  FileSummaryConfig,
+  FileSummaryStats,
+} from './FileSummaryService';
+
 export type {
   Chunk,
   ChunkLayer,
