@@ -217,7 +217,7 @@ export const codeinsightPlugin = createBackendPlugin({
           charsPerToken: 3,
         };
         const indexingService = embeddingClient
-          ? new IndexingService(embeddingClient, vectorStore, storageAdapter, coreLogger, indexingConfig)
+          ? new IndexingService(embeddingClient, vectorStore, storageAdapter, coreLogger, indexingConfig, llmClient)
           : undefined;
 
         if (indexingService) {
