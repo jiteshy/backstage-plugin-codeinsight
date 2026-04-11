@@ -369,3 +369,30 @@ describe('IndexingService', () => {
     expect(vectorStore.upsert).toHaveBeenCalledTimes(3);
   });
 });
+
+describe('IndexingService with LLMClient (file_summary layer)', () => {
+  it('does not produce file_summary chunks when llmClient is absent', async () => {
+    const storage = makeStorage({
+      getRepoFiles: jest.fn().mockResolvedValue([
+        {
+          repoId: 'repo-1',
+          filePath: 'src/version.ts',
+          currentSha: 'file-sha-1',
+          fileType: 'source',
+          language: 'typescript',
+          parseStatus: 'parsed',
+        },
+      ]),
+    });
+    const embed = makeEmbeddingClient();
+    const vs = makeVectorStore();
+
+    // No llmClient passed
+    const svc = new IndexingService(embed, vs, storage);
+    await svc.indexRepo('repo-1', '/tmp/clone');
+
+    const allUpserted = vs.upsertCalls.flat();
+    const summaryChunks = allUpserted.filter(c => c.layer === 'file_summary');
+    expect(summaryChunks).toHaveLength(0);
+  });
+});

@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 
-import { ChunkingService } from '@codeinsight/chunking';
-import type { EmbeddingClient, Logger, StorageAdapter, VectorChunk, VectorStore } from '@codeinsight/types';
+import { ChunkingService, FileSummaryService } from '@codeinsight/chunking';
+import type { EmbeddingClient, LLMClient, Logger, StorageAdapter, VectorChunk, VectorStore } from '@codeinsight/types';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,8 +24,10 @@ export interface IndexingConfig {
   modelTokenLimit?: number;
   /**
    * Characters per token estimate. Default: 3.
-   * Passed to ChunkingService and used to derive the per-text char cap
-   * sent to the embedding API: `modelTokenLimit * charsPerToken`.
+   * Passed to ChunkingService for chunk splitting decisions.
+   * The embedding safety cap uses a more conservative 2 chars/token to
+   * account for dense content (Mermaid, minified code) that has fewer
+   * chars per actual token than typical prose or TypeScript.
    */
   charsPerToken?: number;
 }
@@ -37,23 +39,23 @@ export interface IndexingConfig {
 /**
  * Orchestrates the QnA indexing pipeline:
  *
- *   ChunkingService → delta filter → EmbeddingClient (batched) → VectorStore
+ *   ChunkingService + FileSummaryService → delta filter → EmbeddingClient (batched) → VectorStore
  *
- * Delta behaviour: chunks whose `content_sha` matches what is already stored
+ * Delta behaviour: chunks whose `contentSha` matches what is already stored
  * in the vector store are skipped — no redundant embedding API calls.
+ *
+ * For `file_summary` layer chunks, `contentSha` is set to the source file's
+ * `currentSha` (not a hash of the summary text) to prevent unnecessary LLM
+ * re-runs when the file content has not changed.
  *
  * Batch size for embedding calls: 100 (OpenAI default limit).
  */
 export class IndexingService {
   private static readonly EMBED_BATCH_SIZE = 100;
 
-  // Safety cap: text longer than this is truncated before embedding.
-  // Derived as modelTokenLimit * charsPerToken so it scales with the
-  // configured model. ChunkingService already splits chunks well below
-  // this limit — this is a last-resort guard.
   private readonly maxEmbedChars: number;
-
   private readonly chunkingService: ChunkingService;
+  private readonly fileSummaryService: FileSummaryService | undefined;
 
   constructor(
     private readonly embeddingClient: EmbeddingClient,
@@ -61,11 +63,15 @@ export class IndexingService {
     storageAdapter: StorageAdapter,
     private readonly logger?: Logger,
     config?: IndexingConfig,
+    llmClient?: LLMClient,
   ) {
     const charsPerToken = config?.charsPerToken ?? 3;
     const modelTokenLimit = config?.modelTokenLimit ?? 8_192;
-    this.maxEmbedChars = modelTokenLimit * charsPerToken;
+    this.maxEmbedChars = modelTokenLimit;
     this.chunkingService = new ChunkingService(storageAdapter, logger, { charsPerToken });
+    this.fileSummaryService = llmClient
+      ? new FileSummaryService(storageAdapter, llmClient, logger, { charsPerToken })
+      : undefined;
   }
 
   // -------------------------------------------------------------------------
@@ -76,28 +82,42 @@ export class IndexingService {
    * Build (or incrementally update) the vector index for a repository.
    *
    * @param repoId   Repository ID
-   * @param cloneDir Path to the cloned repo on disk (needed for code chunks)
+   * @param cloneDir Path to the cloned repo on disk (needed for code and file_summary chunks)
    */
   async indexRepo(repoId: string, cloneDir: string): Promise<IndexingResult> {
     this.logger?.info('IndexingService: starting', { repoId });
 
-    // 1. Produce chunks from all layers
-    const { chunks } = await this.chunkingService.chunkRepo(repoId, cloneDir);
-
-    // 2. Load existing index state for delta detection
+    // 1. Load existing index state first — FileSummaryService needs it for delta skip
     const existing = await this.vectorStore.listChunks(repoId);
     const existingMap = new Map(existing.map(c => [c.chunkId, c.contentSha]));
 
-    // 3. Compute contentSha for each chunk once, then identify which need (re-)embedding
+    // 2. Produce chunks from all layers (run in parallel where possible)
+    const [{ chunks: regularChunks }, summaryResult] = await Promise.all([
+      this.chunkingService.chunkRepo(repoId, cloneDir),
+      this.fileSummaryService
+        ? this.fileSummaryService.summarize(repoId, cloneDir, existingMap)
+        : Promise.resolve({ chunks: [], stats: null }),
+    ]);
+
+    const chunks = [...regularChunks, ...summaryResult.chunks];
+
+    // 3. Compute contentSha for each chunk:
+    //    - file_summary: use fileSha (source file SHA) for LLM-stability
+    //    - all others: SHA-256 of chunk content
     const chunksWithSha = chunks.map(chunk => ({
       chunk,
-      contentSha: computeContentSha(chunk.content),
+      contentSha:
+        chunk.layer === 'file_summary'
+          ? chunk.fileSha
+          : computeContentSha(chunk.content),
     }));
+
+    // 4. Identify which chunks need (re-)embedding
     const toIndex = chunksWithSha.filter(
       ({ chunk, contentSha }) => existingMap.get(chunk.chunkId) !== contentSha,
     );
 
-    // 4. Identify stale chunks (chunks no longer produced by ChunkingService)
+    // 5. Identify stale chunks (no longer produced by any service)
     const currentIds = new Set(chunks.map(c => c.chunkId));
     const deletedIds = [...existingMap.keys()].filter(id => !currentIds.has(id));
     if (deletedIds.length > 0) {
@@ -108,15 +128,29 @@ export class IndexingService {
       });
     }
 
-    // 5. Embed + upsert in batches
+    // 6. Embed + upsert in batches
     let indexed = 0;
     for (let i = 0; i < toIndex.length; i += IndexingService.EMBED_BATCH_SIZE) {
       const batch = toIndex.slice(i, i + IndexingService.EMBED_BATCH_SIZE);
-      const texts = batch.map(({ chunk }) =>
-        chunk.content.length > this.maxEmbedChars
-          ? chunk.content.slice(0, this.maxEmbedChars)
-          : chunk.content,
-      );
+      const texts = batch.map(({ chunk }) => {
+        if (chunk.content.length > this.maxEmbedChars) {
+          this.logger?.warn('IndexingService: chunk exceeds maxEmbedChars, truncating', {
+            repoId,
+            chunkId: chunk.chunkId,
+            layer: chunk.layer,
+            contentLength: chunk.content.length,
+            maxEmbedChars: this.maxEmbedChars,
+          });
+          return chunk.content.slice(0, this.maxEmbedChars);
+        }
+        return chunk.content;
+      });
+
+      this.logger?.debug('IndexingService: embedding batch', {
+        repoId,
+        batchStart: i,
+        batchSize: batch.length,
+      });
 
       const embeddings = await this.embeddingClient.embed(texts);
 
