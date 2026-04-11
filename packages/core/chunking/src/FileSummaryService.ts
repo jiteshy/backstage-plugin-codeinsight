@@ -206,7 +206,7 @@ export class FileSummaryService {
     const symbolList = nodes
       .map(n => `${n.symbolType} ${n.symbolName} (lines ${n.startLine}–${n.endLine})`)
       .join('\n');
-    return `${header}\n\n[Exported symbols]\n${symbolList}`;
+    return `${header}\n\n[Symbols]\n${symbolList}`;
   }
 
   private async callLLM(filePath: string, content: string): Promise<string | null> {
@@ -262,6 +262,26 @@ export class FileSummaryService {
       produced.push(
         this.makeSlideChunk(repoId, filePath, fileSha, currentBlock.join('\n\n'), index, language),
       );
+    }
+
+    // Fallback: if splitting on blank lines produced only one oversized block,
+    // split by line count to stay within the token budget.
+    if (produced.length === 1 && estimateTokens(produced[0].content, this.charsPerToken) > targetTokens) {
+      const lines = content.split('\n');
+      const totalTokens = estimateTokens(content, this.charsPerToken);
+      const targetLines = Math.ceil(
+        lines.length / Math.ceil(totalTokens / targetTokens),
+      );
+      produced.length = 0;
+      index = 0;
+      for (let i = 0; i < lines.length; i += targetLines) {
+        const slice = lines.slice(i, i + targetLines).join('\n').trim();
+        if (slice.length > 0) {
+          produced.push(
+            this.makeSlideChunk(repoId, filePath, fileSha, slice, index++, language),
+          );
+        }
+      }
     }
 
     return produced.filter(c => c.content.trim().length > 0);
