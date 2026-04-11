@@ -155,4 +155,97 @@ describe('FileSummaryService', () => {
       expect(userPrompt).not.toContain('[Symbols]');
     });
   });
+
+  describe('sliding window tier — large non-source file (> 3000 tokens)', () => {
+    it('produces multiple chunks without calling LLM', async () => {
+      // Large config file — ~6000 tokens, no paragraph breaks → triggers line-based fallback
+      const para = 'a'.repeat(100); // ~33 tokens per paragraph
+      const largeContent = Array.from({ length: 200 }, (_, i) => `key_${i}: ${para}`).join('\n');
+      mockReadFile.mockResolvedValue(largeContent);
+
+      const nonSourceFile: RepoFile = {
+        repoId: REPO_ID,
+        filePath: 'config/app.yaml',
+        currentSha: 'sha-yaml',
+        fileType: 'config',
+        language: 'yaml',
+        parseStatus: 'parsed',
+      };
+      const storage = makeStorage([nonSourceFile]);
+      const llm = makeLLMClient();
+      const service = new FileSummaryService(storage, llm);
+
+      const { chunks, stats } = await service.summarize(REPO_ID, CLONE_DIR, EXISTING_SHAS);
+
+      expect(chunks.length).toBeGreaterThan(1);
+      expect(llm.complete).not.toHaveBeenCalled();
+      expect(stats.slidingChunks).toBe(chunks.length);
+      // All chunks have correct fileSha and layer
+      for (const c of chunks) {
+        expect(c.fileSha).toBe('sha-yaml');
+        expect(c.layer).toBe('file_summary');
+      }
+    });
+  });
+
+  describe('delta skip', () => {
+    it('skips file and does not call LLM when contentSha matches currentSha', async () => {
+      const file = makeRepoFile('src/version.ts', 'sha-unchanged');
+      const storage = makeStorage([file]);
+      const llm = makeLLMClient();
+      const service = new FileSummaryService(storage, llm);
+
+      // Simulate existing chunk with contentSha = file's currentSha
+      const existingShas = new Map([
+        [buildFileSummaryChunkId(REPO_ID, 'src/version.ts'), 'sha-unchanged'],
+      ]);
+
+      const { chunks, stats } = await service.summarize(REPO_ID, CLONE_DIR, existingShas);
+
+      expect(chunks).toHaveLength(0);
+      expect(llm.complete).not.toHaveBeenCalled();
+      expect(mockReadFile).not.toHaveBeenCalled();
+      expect(stats.skipped).toBe(1);
+    });
+  });
+
+  describe('error handling', () => {
+    it('skips file and logs warning when file cannot be read from clone', async () => {
+      mockReadFile.mockRejectedValue(new Error('ENOENT'));
+      const file = makeRepoFile('src/missing.ts');
+      const storage = makeStorage([file]);
+      const llm = makeLLMClient();
+      const logger = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+      const service = new FileSummaryService(storage, llm, logger);
+
+      const { chunks, stats } = await service.summarize(REPO_ID, CLONE_DIR, EXISTING_SHAS);
+
+      expect(chunks).toHaveLength(0);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'FileSummaryService: could not read file from clone',
+        expect.objectContaining({ filePath: 'src/missing.ts' }),
+      );
+      expect(stats.skipped).toBe(1);
+    });
+
+    it('skips file and logs warning when LLM call fails', async () => {
+      const mediumContent = 'x'.repeat(600 * 3);
+      mockReadFile.mockResolvedValue(mediumContent);
+      const file = makeRepoFile('src/lib/github.ts');
+      const storage = makeStorage([file]);
+      const llm = makeLLMClient();
+      llm.complete.mockRejectedValue(new Error('LLM timeout'));
+      const logger = { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+      const service = new FileSummaryService(storage, llm, logger);
+
+      const { chunks, stats } = await service.summarize(REPO_ID, CLONE_DIR, EXISTING_SHAS);
+
+      expect(chunks).toHaveLength(0);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'FileSummaryService: LLM call failed',
+        expect.objectContaining({ filePath: 'src/lib/github.ts' }),
+      );
+      expect(stats.skipped).toBe(1);
+    });
+  });
 });
