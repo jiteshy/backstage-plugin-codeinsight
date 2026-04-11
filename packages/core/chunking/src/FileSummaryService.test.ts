@@ -88,6 +88,7 @@ describe('FileSummaryService', () => {
       expect(chunks).toHaveLength(1);
       expect(chunks[0].content).toBe('This file implements the GitHub provider.');
       expect(chunks[0].fileSha).toBe('sha-abc');
+      expect(chunks[0].layer).toBe('file_summary');
       expect(llm.complete).toHaveBeenCalledTimes(1);
       // LLM prompt must include the full file content
       const userPrompt = llm.complete.mock.calls[0][1] as string;
@@ -97,7 +98,7 @@ describe('FileSummaryService', () => {
     });
   });
 
-  describe('LLM tier — large source file with CIG nodes (> 3000 tokens)', () => {
+  describe('LLM tier — large source file (> 3000 tokens)', () => {
     it('calls LLM with first-N-lines excerpt and symbol list, not full content', async () => {
       // ~4000 tokens (above full summary threshold of 3000 at 3 chars/token = 9000 chars)
       const largeContent = Array.from({ length: 200 }, (_, i) => `// line ${i}\nconst x${i} = ${'a'.repeat(40)};`).join('\n');
@@ -127,7 +128,7 @@ describe('FileSummaryService', () => {
       const userPrompt = llm.complete.mock.calls[0][1] as string;
       // Must contain the excerpt header and symbol list — but NOT the full content
       expect(userPrompt).toContain('[First 5 lines]');
-      expect(userPrompt).toContain('[Symbols]');
+      expect(userPrompt).toContain('[Symbols]'); // section header used in buildExcerpt()
       expect(userPrompt).toContain('function fetchProjects (lines 10–45)');
       expect(userPrompt.length).toBeLessThan(largeContent.length);
       expect(stats.llmSummaries).toBe(1);
@@ -143,9 +144,12 @@ describe('FileSummaryService', () => {
       const llm = makeLLMClient('Deployment script.');
       const service = new FileSummaryService(storage, llm, undefined, { maxExcerptLines: 5 });
 
-      const { chunks } = await service.summarize(REPO_ID, CLONE_DIR, EXISTING_SHAS);
+      const { chunks, stats } = await service.summarize(REPO_ID, CLONE_DIR, EXISTING_SHAS);
 
       expect(chunks).toHaveLength(1);
+      expect(chunks[0].content).toBe('Deployment script.');
+      expect(chunks[0].fileSha).toBe('sha-sh');
+      expect(stats.llmSummaries).toBe(1);
       const userPrompt = llm.complete.mock.calls[0][1] as string;
       expect(userPrompt).toContain('[First 5 lines]');
       expect(userPrompt).not.toContain('[Symbols]');
