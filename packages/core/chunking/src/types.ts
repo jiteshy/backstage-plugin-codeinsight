@@ -4,7 +4,7 @@
 
 /** Chunk layer determines retrieval priority and search behavior.
  * Values must match the LAYER_* constants in @codeinsight/qna/layers.ts. */
-export type ChunkLayer = 'code' | 'doc_section' | 'diagram_desc';
+export type ChunkLayer = 'code' | 'doc_section' | 'diagram_desc' | 'file_summary';
 
 /** Metadata attached to every chunk for retrieval context. */
 export interface ChunkMetadata {
