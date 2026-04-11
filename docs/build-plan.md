@@ -793,7 +793,7 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-## Phase 5: QnA Pipeline
+## Phase 5: QnA Pipeline ✅ COMPLETED
 **Goal:** Chat tab where users ask questions about the repo and get grounded, sourced answers.
 
 **Depends on:** Phase 1 (CIG), Phase 2 (doc sections to index), Phase 3 (diagram descriptions to index)
@@ -976,6 +976,32 @@ Replace low-value diagrams with high-value architecture diagrams.
 - `askQnAStream` streams tokens via fetch ReadableStream, then fetches `/messages` to retrieve `sources` from the persisted assistant message
 - `SourceCard` builds GitHub blob URLs: `${repoUrl}/blob/HEAD/${filePath}#L${startLine}`
 - Blinking cursor shown during streaming via CSS `@keyframes blink`
+
+---
+
+### 5.8 — QnA File Summary Layer ✅ COMPLETED
+
+**Goal:** Populate `LAYER_FILE_SUMMARY` so conceptual queries ("how does X work?") have meaningful context to retrieve. Previously this layer was defined but never produced — leaving half the search space empty for non-code queries.
+
+| Task | Status | Description |
+|------|--------|-------------|
+| 5.8.1 | ✅ | `FileSummaryService` with tiered strategy: raw (< 500 tokens), LLM medium (500–3000), LLM large source (excerpt + CIG symbols), sliding window (large non-source/non-code) |
+| 5.8.2 | ✅ | Delta stability: `contentSha` for `file_summary` chunks = `fileSha` (source file SHA), not SHA of summary text — prevents LLM re-runs on unchanged files |
+| 5.8.3 | ✅ | `IndexingService` wired: accepts optional `llmClient`, calls `FileSummaryService.summarize()` before chunking, passes existing SHAs for delta skip |
+| 5.8.4 | ✅ | `ChunkingService` hardening: remove Mermaid source from diagram chunks (token bloat without semantic value); add oversized diagram chunk splitting to match code/doc behavior |
+| 5.8.5 | ✅ | SSE abort fix: `req.on('close')` → `res.on('close')` with `writableEnded` guard; demote start/first-token logs from `info` to `debug`; add `sessionId` to first-token log |
+| 5.8.6 | ✅ | Frontend: "No response received." fallback for empty non-streaming assistant messages |
+
+**Acceptance:** ✅ Conceptual QnA queries return relevant file-level context. File summary chunks appear in retrieval results for "how does X work?" questions. 11 FileSummaryService tests + updated ChunkingService tests pass.
+
+**Notes:**
+- `FileSummaryService` in `@codeinsight/chunking`: reads files directly from cloned repo, no storage needed
+- LLM prompt: 4–6 sentences covering purpose, key behaviours, and non-obvious details
+- Large source excerpt: first 60 lines + `[Symbols]` section listing CIG node names
+- Sliding window: paragraph-boundary split (`\n\n`) with line-based fallback for dense files (JSON/YAML)
+- `buildFileSummaryChunkId(repoId, filePath)` → `${repoId}:${filePath}:file_summary`
+- `ChunkLayer` union extended: `'code' | 'doc_section' | 'diagram_desc' | 'file_summary'`
+- Delta: `existingShas` map passed from `IndexingService`; `existingShas.get(chunkId) === repoFile.currentSha` skips LLM call
 
 ---
 
