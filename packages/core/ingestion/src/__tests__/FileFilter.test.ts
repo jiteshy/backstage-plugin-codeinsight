@@ -171,6 +171,63 @@ describe('FileFilter', () => {
   });
 
   // -----------------------------------------------------------------------
+  // shouldExclude — .yarn and minified filenames
+  // -----------------------------------------------------------------------
+
+  describe('shouldExclude — .yarn and minified filenames', () => {
+    it.each([
+      '.yarn/plugins/@yarnpkg/plugin-backstage.cjs',
+      '.yarn/cache/express-npm-4.18.2.zip',
+      '.yarn/releases/yarn-3.6.0.cjs',
+    ])('excludes .yarn path: %s', (path) => {
+      expect(filter.shouldExclude(path)).toBe(true);
+    });
+
+    it.each([
+      'dist/bundle.min.js',
+      'static/vendor.min.css',
+      'public/app.min.mjs',
+      'assets/lib.min.js',
+    ])('excludes minified filename: %s', (path) => {
+      expect(filter.shouldExclude(path)).toBe(true);
+    });
+
+    it('does not exclude normal .cjs or .js files', () => {
+      expect(filter.shouldExclude('src/plugin.cjs')).toBe(false);
+      expect(filter.shouldExclude('lib/utils.js')).toBe(false);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // isMinified
+  // -----------------------------------------------------------------------
+
+  describe('isMinified', () => {
+    it('detects minified content (avg line length > 500)', () => {
+      // Single very long line simulating a minified bundle
+      const minified = 'a'.repeat(2000);
+      expect(filter.isMinified(minified)).toBe(true);
+    });
+
+    it('does not flag normal source code', () => {
+      const normal = [
+        'import React from "react";',
+        '',
+        'export function App() {',
+        '  return <div>Hello</div>;',
+        '}',
+      ].join('\n');
+      expect(filter.isMinified(normal)).toBe(false);
+    });
+
+    it('does not flag a large but readable file', () => {
+      // 500 lines of normal-length code
+      const normal = Array.from({ length: 500 }, (_, i) => `const x${i} = ${i};`).join('\n');
+      expect(filter.isMinified(normal)).toBe(false);
+    });
+  });
+
+  // -----------------------------------------------------------------------
   // isHeaderGenerated
   // -----------------------------------------------------------------------
 

@@ -20,6 +20,7 @@ const DEFAULT_EXCLUDED_DIRS: ReadonlySet<string> = new Set([
   'node_modules',
   'vendor',
   '.git',
+  '.yarn',
   'dist',
   'build',
   'out',
@@ -118,6 +119,12 @@ const EXCLUDED_FILENAMES: ReadonlySet<string> = new Set([
   'Thumbs.db',
   '.gitattributes',
 ]);
+
+// Matches filenames like bundle.min.js, vendor.min.css, app.min.mjs
+const MINIFIED_FILENAME_RE = /\.min\.[a-z]+$/i;
+
+// Average line length above this threshold strongly suggests minified content
+const MINIFIED_AVG_LINE_LENGTH = 500;
 
 const GENERATED_MARKERS: readonly string[] = [
   '// generated',
@@ -460,6 +467,11 @@ export class FileFilter {
       return true;
     }
 
+    // Minified filename pattern (e.g. bundle.min.js, vendor.min.css)
+    if (MINIFIED_FILENAME_RE.test(fileName)) {
+      return true;
+    }
+
     // Excluded extensions
     const ext = extname(fileName).toLowerCase();
     if (this.excludedExtensions.has(ext)) {
@@ -491,6 +503,18 @@ export class FileFilter {
   isHeaderGenerated(headerLines: string): boolean {
     const lower = headerLines.toLowerCase();
     return GENERATED_MARKERS.some(marker => lower.includes(marker));
+  }
+
+  /**
+   * Returns true if the file content looks minified (very long average line length).
+   * Call this after reading file content to catch bundled/minified files that
+   * slip through path-based filters (e.g. a .cjs bundle in a non-standard dir).
+   */
+  isMinified(content: string): boolean {
+    const lines = content.split('\n');
+    const totalChars = lines.reduce((sum, l) => sum + l.length, 0);
+    const avgLineLength = totalChars / (lines.length || 1);
+    return avgLineLength > MINIFIED_AVG_LINE_LENGTH;
   }
 
   /**

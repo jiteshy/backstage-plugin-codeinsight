@@ -12,7 +12,7 @@
  *   Both call the same backend endpoint — the label sets the right expectation.
  */
 import { InfoCard, MarkdownContent } from '@backstage/core-components';
-import { useApi } from '@backstage/core-plugin-api';
+import { alertApiRef, useApi } from '@backstage/core-plugin-api';
 import { useEntity } from '@backstage/plugin-catalog-react';
 import Box from '@material-ui/core/Box';
 import Button from '@material-ui/core/Button';
@@ -148,13 +148,6 @@ const useStyles = makeStyles(theme => ({
     fontSize: '0.8rem',
     whiteSpace: 'nowrap',
   },
-  dismissBtn: {
-    minWidth: 'auto',
-    padding: '0 6px',
-    fontSize: '0.75rem',
-    lineHeight: '1.4',
-  },
-
   // ── Tabs + content ───────────────────────────────────────────────────────
   tabContent: { padding: theme.spacing(2) },
 
@@ -1237,6 +1230,7 @@ function CodeInsightContentInner() {
   const { entity } = useEntity();
   const classes = useStyles();
   const api = useApi(codeInsightApiRef);
+  const alertApi = useApi(alertApiRef);
 
   const annotation = entity.metadata.annotations?.[GITHUB_ANNOTATION];
   // Use '~' as separator to avoid collisions: 'org-a/my-repo' and 'org-a-my/repo'
@@ -1257,7 +1251,6 @@ function CodeInsightContentInner() {
   const [jobIsFirstRun, setJobIsFirstRun] = useState(false);
   const [jobLabel, setJobLabel] = useState('Queued...');
   const [triggerLoading, setTriggerLoading] = useState(false);
-  const [triggerError, setTriggerError] = useState<string | null>(null);
   const [lastOutcome, setLastOutcome] = useState<JobOutcome | null>(null);
 
   // Active inner tab
@@ -1266,6 +1259,7 @@ function CodeInsightContentInner() {
   // Reset (re-registration) flow
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetOnlyDialogOpen, setResetOnlyDialogOpen] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
 
   // Restore in-progress job from sessionStorage (survives route navigation)
@@ -1344,12 +1338,20 @@ function CodeInsightContentInner() {
             setDocs(null);
             setDiagrams(null);
           }
-          setLastOutcome({
+          const outcome: JobOutcome = {
             status: result.status as JobOutcome['status'],
             filesProcessed: result.filesProcessed,
             errorMessage: result.errorMessage,
             indexingStatus: result.indexingStatus,
             indexingError: result.indexingError,
+          };
+          setLastOutcome(outcome);
+          // Show toast for terminal outcome
+          const msg = outcomeMessage(outcome);
+          alertApi.post({
+            message: msg.text,
+            severity: outcome.status === 'failed' ? 'error' : 'success',
+            display: 'transient',
           });
           setRefreshToken(t => t + 1);
         }
@@ -1359,7 +1361,7 @@ function CodeInsightContentInner() {
           sessionStorage.removeItem(jobTypeKey(repoId));
           setActiveJobId(null);
           setJobIsFirstRun(false);
-          setTriggerError(`Lost contact with job: ${String(err)}`);
+          alertApi.post({ message: `Lost contact with job: ${String(err)}`, severity: 'error' });
         }
       }
     };
@@ -1370,7 +1372,7 @@ function CodeInsightContentInner() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [api, repoId, activeJobId]);
+  }, [api, alertApi, repoId, activeJobId]);
 
   const hasDocs = docs !== null && docs.length > 0;
   // "First run" = docs loaded (not null) and empty — no prior analysis
@@ -1382,7 +1384,6 @@ function CodeInsightContentInner() {
   const handleAnalyze = useCallback(async () => {
     if (!repoId || !repoUrl) return;
     setTriggerLoading(true);
-    setTriggerError(null);
     setLastOutcome(null);
     setJobLabel('Queued...');
     const triggerIsFirstRun = isFirstRun;
@@ -1393,11 +1394,11 @@ function CodeInsightContentInner() {
       setJobIsFirstRun(triggerIsFirstRun);
       setActiveJobId(jobId);
     } catch (err) {
-      setTriggerError(String(err));
+      alertApi.post({ message: String(err), severity: 'error' });
     } finally {
       setTriggerLoading(false);
     }
-  }, [api, repoId, repoUrl, isFirstRun]);
+  }, [api, alertApi, repoId, repoUrl, isFirstRun]);
 
   const handleReset = useCallback(async () => {
     if (!repoId || !repoUrl) return;
@@ -1416,7 +1417,6 @@ function CodeInsightContentInner() {
       setLastOutcome(null);
       setActiveJobId(null);
       setJobIsFirstRun(false);
-      setTriggerError(null);
       setLoadError(null);
       setDiagramLoadError(null);
       // Do NOT call setRefreshToken here — it would also retrigger getDocs/getDiagrams effects.
@@ -1429,11 +1429,35 @@ function CodeInsightContentInner() {
       setJobLabel('Queued...');
       setActiveJobId(jobId);
     } catch (err) {
-      setTriggerError(`Reset failed: ${String(err)}`);
+      alertApi.post({ message: `Reset failed: ${String(err)}`, severity: 'error' });
     } finally {
       setResetLoading(false);
     }
-  }, [api, repoId, repoUrl]);
+  }, [api, alertApi, repoId, repoUrl]);
+
+  const handleResetOnly = useCallback(async () => {
+    if (!repoId) return;
+    setResetLoading(true);
+    setResetOnlyDialogOpen(false);
+    try {
+      await api.deleteRepo(repoId);
+      sessionStorage.removeItem(jobStorageKey(repoId));
+      sessionStorage.removeItem(jobTypeKey(repoId));
+      setDocs([]);
+      setDiagrams([]);
+      setLastSynced(null);
+      setLastOutcome(null);
+      setActiveJobId(null);
+      setJobIsFirstRun(false);
+      setLoadError(null);
+      setDiagramLoadError(null);
+      alertApi.post({ message: 'Repository data cleared. Use "Discover Insights" to re-analyze.', severity: 'info', display: 'transient' });
+    } catch (err) {
+      alertApi.post({ message: `Reset failed: ${String(err)}`, severity: 'error' });
+    } finally {
+      setResetLoading(false);
+    }
+  }, [api, alertApi, repoId]);
 
   // No annotation guard
   if (!annotation || !repoId || !repoUrl) {
@@ -1452,13 +1476,8 @@ function CodeInsightContentInner() {
     ? `Last synced: ${new Date(lastSynced).toLocaleString()}`
     : null;
 
-  // Inline status message (left of button, same row, no vertical shift)
-  const inlineStatus = (() => {
-    if (triggerError) return { text: triggerError, color: 'error' as const, spinner: false };
-    if (activeJobId) return { text: jobLabel, color: 'textSecondary' as const, spinner: true };
-    if (lastOutcome) return { ...outcomeMessage(lastOutcome), spinner: false };
-    return null;
-  })();
+  // Inline status — only shown while a job is running (spinner + label)
+  const inlineStatus = activeJobId ? { text: jobLabel } : null;
 
   const buttonLabel = triggerLoading ? 'Starting...' : isFirstRun ? 'Discover Insights' : 'Sync Changes';
   const buttonTooltip = isFirstRun
@@ -1486,22 +1505,13 @@ function CodeInsightContentInner() {
             <Typography className={classes.timestamp}>{lastSyncedLabel}</Typography>
           )}
           <Box className={classes.headerActions}>
-            {/* Inline status — appears left of button, same row, zero vertical shift */}
+            {/* Inline status — spinner + label while job is running */}
             {inlineStatus && (
               <Box className={classes.inlineStatus}>
-                {inlineStatus.spinner && <CircularProgress size={12} />}
-                <Typography className={classes.inlineStatusText} color={inlineStatus.color}>
+                <CircularProgress size={12} />
+                <Typography className={classes.inlineStatusText} color="textSecondary">
                   {inlineStatus.text}
                 </Typography>
-                {!inlineStatus.spinner && (
-                  <Button
-                    className={classes.dismissBtn}
-                    size="small"
-                    onClick={() => { setLastOutcome(null); setTriggerError(null); }}
-                  >
-                    ×
-                  </Button>
-                )}
               </Box>
             )}
 
@@ -1544,6 +1554,9 @@ function CodeInsightContentInner() {
               open={Boolean(menuAnchor)}
               onClose={() => setMenuAnchor(null)}
             >
+              <MenuItem onClick={() => { setMenuAnchor(null); setResetOnlyDialogOpen(true); }}>
+                Reset
+              </MenuItem>
               <MenuItem onClick={() => { setMenuAnchor(null); setResetDialogOpen(true); }}>
                 Reset &amp; Re-discover
               </MenuItem>
@@ -1552,7 +1565,28 @@ function CodeInsightContentInner() {
         </Box>
       </Box>
 
-      {/* Reset confirmation dialog */}
+      {/* Reset-only confirmation dialog */}
+      <Dialog open={resetOnlyDialogOpen} onClose={() => setResetOnlyDialogOpen(false)}>
+        <DialogTitle>Reset</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            This will permanently delete all generated documentation, diagrams, and Q&amp;A data for
+            this repository. No new analysis will be started automatically.
+            <br /><br />
+            <strong>This action cannot be undone.</strong>
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setResetOnlyDialogOpen(false)} color="default">
+            Cancel
+          </Button>
+          <Button onClick={handleResetOnly} color="secondary" variant="contained">
+            Reset
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Reset & Re-discover confirmation dialog */}
       <Dialog open={resetDialogOpen} onClose={() => setResetDialogOpen(false)}>
         <DialogTitle>Reset &amp; Re-discover</DialogTitle>
         <DialogContent>

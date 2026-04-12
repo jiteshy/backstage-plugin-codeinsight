@@ -1,5 +1,6 @@
 import { createApp } from '@backstage/app-defaults';
 import { AppRouter, FlatRoutes } from '@backstage/core-app-api';
+import { AlertDisplay } from '@backstage/core-components';
 import {
   CatalogEntityPage,
   CatalogIndexPage,
@@ -44,6 +45,7 @@ const app = createApp({
 
 export default app.createRoot(
   <AppRouter>
+    <AlertDisplay />
     <FlatRoutes>
       <Route path="/catalog" element={<CatalogIndexPage />} />
       <Route

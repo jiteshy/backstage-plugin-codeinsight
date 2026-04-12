@@ -550,6 +550,10 @@ export class IngestionService {
           path.join(cloneDir, file.filePath),
           'utf-8',
         );
+        if (this.fileFilter.isMinified(content)) {
+          this.logger.debug('Skipping minified file', { filePath: file.filePath });
+          continue;
+        }
         results.push({ file, content });
       } catch {
         // File unreadable — skip silently (may be a symlink or binary)
