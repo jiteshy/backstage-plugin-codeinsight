@@ -183,6 +183,30 @@ export class PgVectorStore implements VectorStore {
   }
 
   // -------------------------------------------------------------------------
+  // getFileSummaries — return base-level file summary chunks
+  // -------------------------------------------------------------------------
+
+  async getFileSummaries(repoId: string): Promise<Map<string, string>> {
+    const rows = await this.knex('ci_qna_embeddings')
+      .where('repo_id', repoId)
+      .where('layer', 'file_summary')
+      .whereRaw("(metadata->>'subChunkIndex') IS NULL")
+      .select('content', 'metadata');
+
+    const result = new Map<string, string>();
+    for (const row of rows) {
+      const meta = typeof row.metadata === 'string'
+        ? JSON.parse(row.metadata)
+        : row.metadata;
+      const filePath = meta?.filePath as string | undefined;
+      if (filePath && row.content) {
+        result.set(filePath, row.content as string);
+      }
+    }
+    return result;
+  }
+
+  // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
 

@@ -11,6 +11,8 @@ import type { Artifact, CIGEdge, CIGNode, LLMClient } from '@codeinsight/types';
 export interface CIGSnapshot {
   nodes: CIGNode[];
   edges: CIGEdge[];
+  /** LLM-generated file summaries keyed by filePath. Used by LLM modules for richer prompts. */
+  fileSummaries?: Map<string, string>;
 }
 
 // ---------------------------------------------------------------------------

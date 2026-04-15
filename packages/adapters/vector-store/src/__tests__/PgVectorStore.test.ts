@@ -386,6 +386,90 @@ describe('PgVectorStore.search', () => {
 //     [.whereIn('layer', layers)]                         ← limitResult.whereIn → resolved rows
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// getFileSummaries()
+//
+// Query chain:
+//   knex('ci_qna_embeddings')
+//     .where('repo_id', repoId)              ← tableResult.where → where1Result
+//     .where('layer', 'file_summary')         ← where1Result.where → where2Result
+//     .whereRaw("(metadata->>'subChunkIndex') IS NULL")  ← where2Result.whereRaw → whereRawResult
+//     .select('content', 'metadata')         ← resolves with rows
+// ---------------------------------------------------------------------------
+
+function makeGetFileSummariesKnex(resolvedRows: Array<{ content: string; metadata: unknown }> = []) {
+  const whereRawResult = {
+    select: jest.fn().mockResolvedValue(resolvedRows),
+  };
+  const where2Result = {
+    whereRaw: jest.fn().mockReturnValue(whereRawResult),
+  };
+  const where1Result = {
+    where: jest.fn().mockReturnValue(where2Result),
+  };
+  const tableResult = {
+    where: jest.fn().mockReturnValue(where1Result),
+  };
+  const knex = jest.fn().mockReturnValue(tableResult);
+  return { knex, tableResult, where1Result, where2Result, whereRawResult };
+}
+
+describe('PgVectorStore.getFileSummaries', () => {
+  it('returns empty map when no rows exist', async () => {
+    const { knex } = makeGetFileSummariesKnex([]);
+    const store = new PgVectorStore(knex as never);
+    const result = await store.getFileSummaries('repo1');
+    expect(result).toBeInstanceOf(Map);
+    expect(result.size).toBe(0);
+  });
+
+  it('returns base file_summary chunks keyed by filePath', async () => {
+    const rows = [
+      { content: 'Express HTTP server entry point.', metadata: { filePath: 'src/server.ts' } },
+      { content: 'JWT authentication middleware.', metadata: { filePath: 'src/auth.ts' } },
+    ];
+    const { knex } = makeGetFileSummariesKnex(rows);
+    const store = new PgVectorStore(knex as never);
+    const result = await store.getFileSummaries('repo1');
+    expect(result.get('src/server.ts')).toBe('Express HTTP server entry point.');
+    expect(result.get('src/auth.ts')).toBe('JWT authentication middleware.');
+    expect(result.size).toBe(2);
+  });
+
+  it('excludes rows with no filePath in metadata', async () => {
+    const rows = [
+      { content: 'Some content', metadata: null },
+      { content: 'Valid content', metadata: { filePath: 'src/valid.ts' } },
+    ];
+    const { knex } = makeGetFileSummariesKnex(rows);
+    const store = new PgVectorStore(knex as never);
+    const result = await store.getFileSummaries('repo1');
+    expect(result.size).toBe(1);
+    expect(result.get('src/valid.ts')).toBe('Valid content');
+  });
+
+  it('parses JSON string metadata', async () => {
+    const rows = [
+      { content: 'Auth summary', metadata: JSON.stringify({ filePath: 'src/auth.ts' }) },
+    ];
+    const { knex } = makeGetFileSummariesKnex(rows);
+    const store = new PgVectorStore(knex as never);
+    const result = await store.getFileSummaries('repo1');
+    expect(result.get('src/auth.ts')).toBe('Auth summary');
+  });
+
+  it('queries with correct filter conditions', async () => {
+    const { knex, tableResult, where1Result, where2Result } = makeGetFileSummariesKnex([]);
+    const store = new PgVectorStore(knex as never);
+    await store.getFileSummaries('repo-test');
+
+    expect(knex).toHaveBeenCalledWith('ci_qna_embeddings');
+    expect(tableResult.where).toHaveBeenCalledWith('repo_id', 'repo-test');
+    expect(where1Result.where).toHaveBeenCalledWith('layer', 'file_summary');
+    expect(where2Result.whereRaw).toHaveBeenCalledWith("(metadata->>'subChunkIndex') IS NULL");
+  });
+});
+
 describe('PgVectorStore.searchKeyword', () => {
   const REPO = 'repo-1';
 

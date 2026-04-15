@@ -27,6 +27,7 @@ export class ContextBuilder {
     private readonly repoFiles: RepoFile[],
     private readonly classifierResult: ClassifierResult,
     private readonly cloneDir: string,
+    private readonly fileSummaries: Map<string, string> = new Map(),
   ) {}
 
   /**
@@ -84,6 +85,10 @@ export class ContextBuilder {
         return this.buildStateManagementVars();
       case 'frontend/routing':
         return this.buildRoutingVars();
+      case 'core/architecture':
+        return this.buildArchitectureVars();
+      case 'core/features':
+        return this.buildFeaturesVars();
       default:
         return null;
     }
@@ -128,6 +133,21 @@ export class ContextBuilder {
     }
     if (epParts.length > 0) {
       variables['entryPointFiles'] = epParts.join('\n\n');
+    }
+
+    // Key file summaries — top 5 most-imported files by in-degree
+    if (this.fileSummaries.size > 0) {
+      const topFiles = this.getFilesByInDegree(5);
+      const summaryParts: string[] = [];
+      for (const fp of topFiles) {
+        const summary = this.fileSummaries.get(fp);
+        if (summary) {
+          summaryParts.push(`### ${fp}\n${summary}`);
+        }
+      }
+      if (summaryParts.length > 0) {
+        variables['keySummaries'] = summaryParts.join('\n\n');
+      }
     }
 
     return { variables, inputFiles };
@@ -372,6 +392,105 @@ export class ContextBuilder {
     }
 
     return { variables, inputFiles };
+  }
+
+  // ----- core/architecture -----
+  private async buildArchitectureVars() {
+    if (this.fileSummaries.size === 0) return null;
+
+    const variables: Record<string, string> = {};
+
+    const topFiles = this.getFilesByInDegree(20);
+    if (topFiles.length === 0) return null;
+
+    const summaryParts: string[] = [];
+    for (const fp of topFiles) {
+      const summary = this.fileSummaries.get(fp);
+      if (summary) {
+        summaryParts.push(`### ${fp}\n${summary}`);
+      }
+    }
+    if (summaryParts.length === 0) return null;
+    variables['fileSummariesBlock'] = summaryParts.join('\n\n');
+
+    // Build inter-file import graph between the top files
+    const topFileSet = new Set(topFiles);
+    const nodeToFile = new Map<string, string>();
+    for (const n of this.nodes) {
+      nodeToFile.set(n.nodeId, n.filePath);
+    }
+
+    const graphLines = new Set<string>();
+    for (const edge of this.edges) {
+      if (edge.edgeType !== 'imports') continue;
+      const fromFile = nodeToFile.get(edge.fromNodeId);
+      const toFile = nodeToFile.get(edge.toNodeId);
+      if (fromFile && toFile && fromFile !== toFile &&
+          topFileSet.has(fromFile) && topFileSet.has(toFile)) {
+        graphLines.add(`${fromFile} → ${toFile}`);
+        if (graphLines.size >= 100) break;
+      }
+    }
+    if (graphLines.size > 0) {
+      variables['importGraphBlock'] = [...graphLines].join('\n');
+    }
+
+    // Track the top files as inputs so staleness propagates when their summaries change
+    const inputFiles = topFiles
+      .map(fp => this.repoFileMap.get(fp))
+      .filter((rf): rf is RepoFile => rf !== undefined)
+      .map(rf => ({ filePath: rf.filePath, sha: rf.currentSha }));
+
+    return { variables, inputFiles };
+  }
+
+  // ----- core/features -----
+  private async buildFeaturesVars() {
+    const FEATURE_PATTERNS = [
+      'service', 'handler', 'controller', 'provider',
+      'manager', 'repository', 'use-case', 'usecase',
+    ];
+
+    const inputFiles: Array<{ filePath: string; sha: string }> = [];
+
+    const inDegreeRanked = this.getFilesByInDegree(200);
+    const byPattern = this.repoFiles.filter(f =>
+      f.fileType === 'source' &&
+      FEATURE_PATTERNS.some(p => f.filePath.toLowerCase().includes(p)),
+    );
+
+    if (byPattern.length === 0) return null;
+
+    const inDegreeIndex = new Map(inDegreeRanked.map((fp, i) => [fp, i]));
+    byPattern.sort((a, b) => {
+      const ai = inDegreeIndex.get(a.filePath) ?? 9999;
+      const bi = inDegreeIndex.get(b.filePath) ?? 9999;
+      return ai - bi;
+    });
+
+    const topFeatureFiles = byPattern.slice(0, 25);
+
+    const summaryParts: string[] = [];
+    for (const rf of topFeatureFiles) {
+      const summary = this.fileSummaries.get(rf.filePath);
+      if (summary) {
+        summaryParts.push(`### ${rf.filePath}\n${summary}`);
+        inputFiles.push({ filePath: rf.filePath, sha: rf.currentSha });
+      } else {
+        const content = await this.readFileSafe(rf.filePath);
+        if (content) {
+          summaryParts.push(`### ${rf.filePath}\n${content.slice(0, 500)}`);
+          inputFiles.push({ filePath: rf.filePath, sha: rf.currentSha });
+        }
+      }
+    }
+
+    if (summaryParts.length === 0) return null;
+
+    return {
+      variables: { featureSummariesBlock: summaryParts.join('\n\n') },
+      inputFiles,
+    };
   }
 
   // ----- backend/api-reference -----
@@ -738,6 +857,45 @@ export class ContextBuilder {
         const scoreB = (b.metadata?.['entryPointScore'] as number) || 0;
         return scoreB - scoreA;
       });
+  }
+
+  /**
+   * Return the top N source file paths ranked by import in-degree (most imported first).
+   * Only considers CIG edges of type 'imports'. Config/schema/test files are excluded.
+   */
+  private getFilesByInDegree(topN: number): string[] {
+    // Build a node index: nodeId → filePath
+    const nodeFilePath = new Map<string, string>();
+    for (const node of this.nodes) {
+      nodeFilePath.set(node.nodeId, node.filePath);
+    }
+
+    // Build a set of source-file paths (exclude config, test, etc.)
+    const sourceFilePaths = new Set(
+      this.repoFiles
+        .filter(f => f.fileType === 'source')
+        .map(f => f.filePath),
+    );
+
+    // Count distinct source files that import each destination file
+    const inDegree = new Map<string, Set<string>>();
+    for (const edge of this.edges) {
+      if (edge.edgeType !== 'imports') continue;
+      const toFilePath = nodeFilePath.get(edge.toNodeId);
+      const fromFilePath = nodeFilePath.get(edge.fromNodeId);
+      if (!toFilePath || !fromFilePath) continue;
+      if (!sourceFilePaths.has(toFilePath)) continue;
+
+      const importers = inDegree.get(toFilePath) ?? new Set<string>();
+      importers.add(fromFilePath);
+      inDegree.set(toFilePath, importers);
+    }
+
+    // Sort descending by importer count
+    return [...inDegree.entries()]
+      .sort((a, b) => b[1].size - a[1].size)
+      .slice(0, topN)
+      .map(([fp]) => fp);
   }
 
   /** Read a file from the clone dir. Throws on failure. Guards against path traversal. */

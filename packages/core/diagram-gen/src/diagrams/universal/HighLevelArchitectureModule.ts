@@ -1,7 +1,7 @@
 import type { LLMClient } from '@codeinsight/types';
 
 import type { CIGSnapshot, DiagramModule, MermaidDiagram } from '../../types';
-import { extractMermaid } from '../../utils';
+import { buildFileSummaryBlock, extractMermaid } from '../../utils';
 
 /**
  * HighLevelArchitectureModule — LLM-assisted, always-on.
@@ -77,8 +77,10 @@ Output ONLY valid Mermaid flowchart TD syntax with subgraphs. No explanation, no
 Keep node labels ≤ 25 characters. Use subgraph blocks for architectural layers.
 Emit at most 20 nodes total. Use short IDs (A, B, API, SVC, DB, etc.).`;
 
-    const userPrompt = `Generate a Mermaid flowchart TD showing the high-level architecture of this codebase.
+    const summaryBlock = buildFileSummaryBlock(cig);
 
+    const userPrompt = `Generate a Mermaid flowchart TD showing the high-level architecture of this codebase.
+${summaryBlock ? `\n## Key File Summaries (most-imported source files)\n${summaryBlock}\n\nUse these summaries to understand what each layer does and how they interact.\n` : ''}
 Use subgraphs for each detected architectural layer. Show data flow from client/API through layers to data stores.
 Show external integrations as leaf nodes.
 

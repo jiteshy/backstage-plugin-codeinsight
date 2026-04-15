@@ -32,6 +32,7 @@ interface DocGenerator {
   generateDocs(
     repoId: string,
     cloneDir: string,
+    fileSummaries?: Map<string, string>,
   ): Promise<{ totalTokensUsed: number; detectedSignals: Record<string, string> }>;
 }
 
@@ -45,6 +46,7 @@ interface DiagramGenerator {
   generateDiagrams(
     repoId: string,
     detectedSignals?: Record<string, string>,
+    fileSummaries?: Map<string, string>,
   ): Promise<{ totalTokensUsed: number }>;
 }
 
@@ -54,6 +56,7 @@ interface DiagramGenerator {
 // ---------------------------------------------------------------------------
 
 interface Indexer {
+  precomputeSummaries(repoId: string, cloneDir: string): Promise<Map<string, string>>;
   indexRepo(
     repoId: string,
     cloneDir: string,
@@ -303,6 +306,23 @@ export class IngestionService {
         });
       }
 
+      // Pre-compute file summaries so doc and diagram generators can use them.
+      // Non-fatal — if this fails generators receive an empty map and degrade gracefully.
+      let fileSummaries: Map<string, string> = new Map();
+      if (this.indexer) {
+        try {
+          this.logger.info('Pre-computing file summaries', { repoId, jobId });
+          fileSummaries = await this.indexer.precomputeSummaries(repoId, cloneDir);
+          this.logger.info('File summaries ready', { repoId, jobId, count: fileSummaries.size });
+        } catch (err) {
+          this.logger.warn('File summary pre-computation failed (non-fatal)', {
+            repoId,
+            jobId,
+            error: String(err),
+          });
+        }
+      }
+
       // Run doc generation (if an LLM client is configured).
       // Must run before the finally block that deletes cloneDir.
       let tokensConsumed = 0;
@@ -310,7 +330,7 @@ export class IngestionService {
       if (this.docGenerator) {
         try {
           this.logger.info('Starting doc generation', { repoId, jobId });
-          const docResult = await this.docGenerator.generateDocs(repoId, cloneDir);
+          const docResult = await this.docGenerator.generateDocs(repoId, cloneDir, fileSummaries);
           tokensConsumed = docResult.totalTokensUsed;
           detectedSignals = docResult.detectedSignals;
           this.logger.info('Doc generation complete', {
@@ -333,7 +353,7 @@ export class IngestionService {
       if (this.diagramGenerator) {
         try {
           this.logger.info('Starting diagram generation', { repoId, jobId });
-          const diagramResult = await this.diagramGenerator.generateDiagrams(repoId, detectedSignals);
+          const diagramResult = await this.diagramGenerator.generateDiagrams(repoId, detectedSignals, fileSummaries);
           tokensConsumed += diagramResult.totalTokensUsed;
           this.logger.info('Diagram generation complete', {
             repoId,

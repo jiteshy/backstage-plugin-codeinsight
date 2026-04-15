@@ -1,7 +1,7 @@
 import type { LLMClient } from '@codeinsight/types';
 
 import type { CIGSnapshot, DiagramModule, MermaidDiagram } from '../../types';
-import { extractMermaid } from '../../utils';
+import { buildFileSummaryBlock, extractMermaid } from '../../utils';
 
 /**
  * ApiEntityMappingModule — Hybrid (AST + optional LLM).
@@ -96,7 +96,7 @@ export class ApiEntityMappingModule implements DiagramModule {
     }
 
     if (llmClient && (routeInfos.length > 0 || schemaNodes.length > 0)) {
-      return this.generateWithLLM(routeInfos, schemaNodes, nodeById, llmClient);
+      return this.generateWithLLM(routeInfos, schemaNodes, nodeById, llmClient, buildFileSummaryBlock(cig));
     }
 
     return this.generateAST(routeInfos, schemaNodes);
@@ -164,6 +164,7 @@ export class ApiEntityMappingModule implements DiagramModule {
     schemaNodes: Array<{ nodeId: string; symbolName: string; filePath: string }>,
     _nodeById: Map<string, unknown>,
     llmClient: LLMClient,
+    summaryBlock?: string | null,
   ): Promise<MermaidDiagram | null> {
     const routeList = routeInfos
       .slice(0, 20)
@@ -186,7 +187,7 @@ Use short node IDs. Keep labels ≤ 25 chars. Emit at most 25 nodes total.
 Group routes by resource (e.g. /users routes → Users subgroup).`;
 
     const userPrompt = `Generate a Mermaid graph LR showing Routes → Services → Entities.
-
+${summaryBlock ? `\n## Key File Summaries\n${summaryBlock}\n` : ''}
 API routes detected:
 ${routeList || '  (no route metadata)'}
 

@@ -15,6 +15,8 @@ const CORE_MODULES: string[] = [
   'core/dependencies',
   'core/testing',
   'core/deployment',
+  'core/architecture',
+  'core/features',
 ];
 
 /** Full set of valid module IDs the LLM is allowed to select. */

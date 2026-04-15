@@ -70,6 +70,12 @@ export interface VectorStore {
   listChunks(repoId: string): Promise<Array<{ chunkId: string; contentSha: string }>>;
   /** Remove specific chunks by ID (used when source chunks are deleted). */
   deleteChunks(repoId: string, chunkIds: string[]): Promise<void>;
+  /**
+   * Return LLM-generated file summaries keyed by filePath.
+   * Only base-level summaries (Tier 1/2/3a) are returned.
+   * Sliding-window sub-chunks (subChunkIndex present in metadata) are excluded.
+   */
+  getFileSummaries(repoId: string): Promise<Map<string, string>>;
 }
 
 // ---------------------------------------------------------------------------

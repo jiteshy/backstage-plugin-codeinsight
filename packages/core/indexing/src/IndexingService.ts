@@ -56,6 +56,9 @@ export class IndexingService {
   private readonly maxEmbedChars: number;
   private readonly chunkingService: ChunkingService;
   private readonly fileSummaryService: FileSummaryService | undefined;
+  private _precomputedSummaryChunks: import('@codeinsight/chunking').Chunk[] | undefined;
+  /** Cached existingMap from precomputeSummaries() — reused by indexRepo() to avoid a second listChunks() round-trip. */
+  private _precomputedExistingMap: Map<string, string> | undefined;
 
   constructor(
     private readonly embeddingClient: EmbeddingClient,
@@ -87,16 +90,32 @@ export class IndexingService {
   async indexRepo(repoId: string, cloneDir: string): Promise<IndexingResult> {
     this.logger?.info('IndexingService: starting', { repoId });
 
-    // 1. Load existing index state first — FileSummaryService needs it for delta skip
-    const existing = await this.vectorStore.listChunks(repoId);
-    const existingMap = new Map(existing.map(c => [c.chunkId, c.contentSha]));
+    // 1. Load existing index state first — FileSummaryService needs it for delta skip.
+    // If precomputeSummaries() already fetched this, reuse the cached map to avoid a
+    // second listChunks() round-trip within the same pipeline run.
+    const precomputedExistingMap = this._precomputedExistingMap;
+    this._precomputedExistingMap = undefined; // clear cache after use
+    let existingMap: Map<string, string>;
+    if (precomputedExistingMap !== undefined) {
+      existingMap = precomputedExistingMap;
+    } else {
+      const existing = await this.vectorStore.listChunks(repoId);
+      existingMap = new Map(existing.map(c => [c.chunkId, c.contentSha]));
+    }
 
-    // 2. Produce chunks from all layers (run in parallel where possible)
+    // 2. Produce chunks from all layers (run in parallel where possible).
+    // Use pre-computed summary chunks if precomputeSummaries() was called first —
+    // this avoids running FileSummaryService (and its LLM calls) a second time.
+    const precomputed = this._precomputedSummaryChunks;
+    this._precomputedSummaryChunks = undefined; // clear cache after use
+
     const [{ chunks: regularChunks }, summaryResult] = await Promise.all([
       this.chunkingService.chunkRepo(repoId, cloneDir),
-      this.fileSummaryService
-        ? this.fileSummaryService.summarize(repoId, cloneDir, existingMap)
-        : Promise.resolve({ chunks: [], stats: null }),
+      precomputed !== undefined
+        ? Promise.resolve({ chunks: precomputed, stats: null })
+        : this.fileSummaryService
+          ? this.fileSummaryService.summarize(repoId, cloneDir, existingMap)
+          : Promise.resolve({ chunks: [], stats: null }),
     ]);
 
     const chunks = [...regularChunks, ...summaryResult.chunks];
@@ -189,6 +208,60 @@ export class IndexingService {
 
     this.logger?.info('IndexingService: complete', { repoId, ...result });
     return result;
+  }
+
+  /**
+   * Pre-compute file summaries before doc/diagram generation.
+   *
+   * Loads existing summaries from VectorStore (for delta runs), runs
+   * FileSummaryService only for changed files, caches the resulting chunks
+   * so indexRepo() can reuse them without re-running any LLM calls.
+   *
+   * Returns a Map<filePath, summaryText> combining existing + new summaries.
+   */
+  async precomputeSummaries(
+    repoId: string,
+    cloneDir: string,
+  ): Promise<Map<string, string>> {
+    // Load existing summaries from the store (delta run: already indexed files)
+    let existingSummaries: Map<string, string>;
+    try {
+      existingSummaries = await this.vectorStore.getFileSummaries(repoId);
+    } catch {
+      existingSummaries = new Map();
+    }
+
+    // Load existingShas for delta skip logic in FileSummaryService.
+    // We cache this map so indexRepo() can reuse it without a second listChunks() call.
+    const existing = await this.vectorStore.listChunks(repoId);
+    const existingMap = new Map(existing.map(c => [c.chunkId, c.contentSha]));
+    this._precomputedExistingMap = existingMap;
+
+    // If no LLM client, we can't generate new summaries — return existing
+    if (!this.fileSummaryService) {
+      this._precomputedSummaryChunks = [];
+      return existingSummaries;
+    }
+
+    // Generate new summaries for changed/new files only
+    const { chunks: newChunks } = await this.fileSummaryService.summarize(
+      repoId,
+      cloneDir,
+      existingMap,
+    );
+
+    // Cache for reuse in indexRepo()
+    this._precomputedSummaryChunks = newChunks;
+
+    // Build merged map: existing first, then overlay new results
+    const merged = new Map(existingSummaries);
+    for (const chunk of newChunks) {
+      const filePath = chunk.metadata?.['filePath'] as string | undefined;
+      if (filePath && chunk.content) {
+        merged.set(filePath, chunk.content);
+      }
+    }
+    return merged;
   }
 }
 
