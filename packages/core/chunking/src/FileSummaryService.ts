@@ -1,10 +1,40 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
-import type { CIGNode, LLMClient, Logger, StorageAdapter } from '@codeinsight/types';
+import type { CIGNode, LLMClient, Logger, RepoFile, StorageAdapter } from '@codeinsight/types';
 
 import { estimateTokens } from './ChunkingService';
 import type { Chunk } from './types';
+
+// ---------------------------------------------------------------------------
+// Semaphore — bounds concurrency for parallel LLM calls
+// ---------------------------------------------------------------------------
+
+class Semaphore {
+  private current = 0;
+  private readonly queue: Array<() => void> = [];
+
+  constructor(private readonly max: number) {}
+
+  async acquire(): Promise<void> {
+    if (this.current < this.max) {
+      this.current++;
+      return;
+    }
+    return new Promise<void>(resolve => {
+      this.queue.push(resolve);
+    });
+  }
+
+  release(): void {
+    if (this.queue.length > 0) {
+      const next = this.queue.shift()!;
+      next();
+    } else {
+      this.current--;
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -19,6 +49,8 @@ export interface FileSummaryConfig {
   maxExcerptLines?: number;
   /** Chars per token for estimation. Default: 3. */
   charsPerToken?: number;
+  /** Max concurrent LLM calls. Default: 10. */
+  maxConcurrency?: number;
 }
 
 export interface FileSummaryStats {
@@ -37,6 +69,7 @@ const DEFAULT_RAW_TOKEN_THRESHOLD = 500;
 const DEFAULT_FULL_SUMMARY_THRESHOLD = 3000;
 const DEFAULT_MAX_EXCERPT_LINES = 60;
 const DEFAULT_CHARS_PER_TOKEN = 3;
+const DEFAULT_MAX_CONCURRENCY = 10;
 
 const SYSTEM_PROMPT =
   'You summarize source files for a code search index. Be concise, specific, ' +
@@ -51,6 +84,7 @@ export class FileSummaryService {
   private readonly fullSummaryThreshold: number;
   private readonly maxExcerptLines: number;
   private readonly charsPerToken: number;
+  private readonly maxConcurrency: number;
 
   constructor(
     private readonly storageAdapter: StorageAdapter,
@@ -62,6 +96,7 @@ export class FileSummaryService {
     this.fullSummaryThreshold = config?.fullSummaryThreshold ?? DEFAULT_FULL_SUMMARY_THRESHOLD;
     this.maxExcerptLines = config?.maxExcerptLines ?? DEFAULT_MAX_EXCERPT_LINES;
     this.charsPerToken = config?.charsPerToken ?? DEFAULT_CHARS_PER_TOKEN;
+    this.maxConcurrency = config?.maxConcurrency ?? DEFAULT_MAX_CONCURRENCY;
   }
 
   /**
@@ -101,92 +136,43 @@ export class FileSummaryService {
     };
     const chunks: Chunk[] = [];
 
-    for (const repoFile of repoFiles) {
-      const baseChunkId = buildFileSummaryChunkId(repoId, repoFile.filePath);
+    // FileFilter classifies CSS/SCSS/HTML/Markdown as 'source' so they are
+    // included in the pipeline, but LLM-summarising style/markup files wastes
+    // tokens and produces low-value chunks for code QnA retrieval. Treat them
+    // as non-source so large ones go through the cheaper sliding-window path.
+    const NON_LLM_LANGUAGES = new Set([
+      'css', 'scss', 'sass', 'less', 'stylus', 'html', 'markdown', 'mdx',
+    ]);
 
-      // Delta skip: contentSha stored for file_summary is the source fileSha.
-      // If it matches currentSha the file hasn't changed — keep existing chunk.
-      if (existingShas.get(baseChunkId) === repoFile.currentSha) {
-        stats.skipped++;
-        continue;
-      }
+    const semaphore = new Semaphore(this.maxConcurrency);
 
-      // Read from clone
-      let rawContent: string;
-      try {
-        rawContent = await fs.readFile(path.join(cloneDir, repoFile.filePath), 'utf-8');
-      } catch {
-        this.logger?.warn('FileSummaryService: could not read file from clone', {
-          filePath: repoFile.filePath,
+    const tasks = repoFiles.map(repoFile =>
+      this.processFile(repoId, cloneDir, repoFile, existingShas, nodesByFilePath, NON_LLM_LANGUAGES, semaphore),
+    );
+
+    const results = await Promise.allSettled(tasks);
+
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      if (result.status === 'rejected') {
+        this.logger?.warn('FileSummaryService: file task failed', {
+          filePath: repoFiles[i].filePath,
+          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
         });
         stats.skipped++;
         continue;
       }
 
-      const rawTokens = estimateTokens(rawContent, this.charsPerToken);
-      const fileNodes = nodesByFilePath.get(repoFile.filePath) ?? [];
-      const isSourceFile = repoFile.fileType === 'source';
-      const language = repoFile.language ?? undefined;
-
-      if (rawTokens < this.rawTokenThreshold) {
-        // Tier 1: small file — store raw content
-        chunks.push({
-          chunkId: baseChunkId,
-          repoId,
-          content: rawContent.trim(),
-          layer: 'file_summary',
-          filePath: repoFile.filePath,
-          fileSha: repoFile.currentSha,
-          metadata: { filePath: repoFile.filePath, language },
-        });
-        stats.rawChunks++;
-      } else if (rawTokens <= this.fullSummaryThreshold) {
-        // Tier 2: medium file — full content → LLM summary
-        const summary = await this.callLLM(repoFile.filePath, rawContent);
-        if (summary) {
-          chunks.push({
-            chunkId: baseChunkId,
-            repoId,
-            content: summary,
-            layer: 'file_summary',
-            filePath: repoFile.filePath,
-            fileSha: repoFile.currentSha,
-            metadata: { filePath: repoFile.filePath, language },
-          });
-          stats.llmSummaries++;
-        } else {
-          stats.skipped++;
-        }
-      } else if (isSourceFile) {
-        // Tier 3a: large source file — excerpt + symbol list → LLM summary
-        const excerpt = this.buildExcerpt(rawContent, fileNodes);
-        const summary = await this.callLLM(repoFile.filePath, excerpt);
-        if (summary) {
-          chunks.push({
-            chunkId: baseChunkId,
-            repoId,
-            content: summary,
-            layer: 'file_summary',
-            filePath: repoFile.filePath,
-            fileSha: repoFile.currentSha,
-            metadata: { filePath: repoFile.filePath, language },
-          });
-          stats.llmSummaries++;
-        } else {
-          stats.skipped++;
-        }
-      } else {
-        // Tier 3b: large non-source file — sliding window, no LLM
-        const slideChunks = this.slidingWindowChunks(
-          repoId,
-          repoFile.filePath,
-          repoFile.currentSha,
-          rawContent,
-          language,
-        );
-        chunks.push(...slideChunks);
-        stats.slidingChunks += slideChunks.length;
+      const outcome = result.value;
+      if (!outcome) {
+        stats.skipped++;
+        continue;
       }
+
+      chunks.push(...outcome.chunks);
+      stats.rawChunks += outcome.rawChunks;
+      stats.llmSummaries += outcome.llmSummaries;
+      stats.slidingChunks += outcome.slidingChunks;
     }
 
     stats.totalChunks = chunks.length;
@@ -197,6 +183,116 @@ export class FileSummaryService {
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
+
+  private async processFile(
+    repoId: string,
+    cloneDir: string,
+    repoFile: RepoFile,
+    existingShas: Map<string, string>,
+    nodesByFilePath: Map<string, CIGNode[]>,
+    nonLlmLanguages: Set<string>,
+    semaphore: Semaphore,
+  ): Promise<{ chunks: Chunk[]; rawChunks: number; llmSummaries: number; slidingChunks: number } | null> {
+    const baseChunkId = buildFileSummaryChunkId(repoId, repoFile.filePath);
+
+    // Skip test files — they change frequently and produce low-value retrieval chunks
+    if (repoFile.fileType === 'test') {
+      return null;
+    }
+
+    // Delta skip: contentSha stored for file_summary is the source fileSha.
+    // If it matches currentSha the file hasn't changed — keep existing chunk.
+    if (existingShas.get(baseChunkId) === repoFile.currentSha) {
+      return null;
+    }
+
+    let rawContent: string;
+    try {
+      rawContent = await fs.readFile(path.join(cloneDir, repoFile.filePath), 'utf-8');
+    } catch {
+      this.logger?.warn('FileSummaryService: could not read file from clone', {
+        filePath: repoFile.filePath,
+      });
+      return null;
+    }
+
+    const rawTokens = estimateTokens(rawContent, this.charsPerToken);
+    const fileNodes = nodesByFilePath.get(repoFile.filePath) ?? [];
+    const isSourceFile =
+      repoFile.fileType === 'source' &&
+      !nonLlmLanguages.has(repoFile.language ?? '');
+    const language = repoFile.language ?? undefined;
+
+    const out = { chunks: [] as Chunk[], rawChunks: 0, llmSummaries: 0, slidingChunks: 0 };
+
+    if (rawTokens < this.rawTokenThreshold) {
+      // Tier 1: small file — store raw content (no LLM, no semaphore needed)
+      out.chunks.push({
+        chunkId: baseChunkId,
+        repoId,
+        content: rawContent.trim(),
+        layer: 'file_summary',
+        filePath: repoFile.filePath,
+        fileSha: repoFile.currentSha,
+        metadata: { filePath: repoFile.filePath, language },
+      });
+      out.rawChunks++;
+    } else if (rawTokens <= this.fullSummaryThreshold) {
+      // Tier 2: medium file — full content → LLM summary
+      await semaphore.acquire();
+      let summary: string | null;
+      try {
+        summary = await this.callLLM(repoFile.filePath, rawContent);
+      } finally {
+        semaphore.release();
+      }
+      if (!summary) return null;
+      out.chunks.push({
+        chunkId: baseChunkId,
+        repoId,
+        content: summary,
+        layer: 'file_summary',
+        filePath: repoFile.filePath,
+        fileSha: repoFile.currentSha,
+        metadata: { filePath: repoFile.filePath, language },
+      });
+      out.llmSummaries++;
+    } else if (isSourceFile) {
+      // Tier 3a: large source file — excerpt + symbol list → LLM summary
+      const excerpt = this.buildExcerpt(rawContent, fileNodes);
+      await semaphore.acquire();
+      let summary: string | null;
+      try {
+        summary = await this.callLLM(repoFile.filePath, excerpt);
+      } finally {
+        semaphore.release();
+      }
+      if (!summary) return null;
+      out.chunks.push({
+        chunkId: baseChunkId,
+        repoId,
+        content: summary,
+        layer: 'file_summary',
+        filePath: repoFile.filePath,
+        fileSha: repoFile.currentSha,
+        metadata: { filePath: repoFile.filePath, language },
+      });
+      out.llmSummaries++;
+    } else {
+      // Tier 3b: large non-source file — sliding window, no LLM
+      const slideChunks = this.slidingWindowChunks(
+        repoId,
+        repoFile.filePath,
+        repoFile.currentSha,
+        rawContent,
+        language,
+      );
+      out.chunks.push(...slideChunks);
+      out.slidingChunks += slideChunks.length;
+    }
+
+    return out;
+  }
 
   private buildExcerpt(content: string, nodes: CIGNode[]): string {
     const firstLines = content.split('\n').slice(0, this.maxExcerptLines).join('\n');

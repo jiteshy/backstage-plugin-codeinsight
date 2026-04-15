@@ -1,6 +1,7 @@
 import type {
   ActiveContext,
   Artifact,
+  ArtifactFeedback,
   ArtifactInput,
   ArtifactType,
   CIGEdge,
@@ -99,6 +100,7 @@ export interface StorageAdapter {
   updateRepoStatus(repoId: string, status: RepoStatus, lastCommitSha?: string): Promise<void>;
   /** Hard-delete a repo and all associated data (artifacts, QnA, jobs). Cascades via FK. */
   deleteRepo(repoId: string): Promise<void>;
+  saveFeedback(feedback: ArtifactFeedback): Promise<void>;
 
   // File tracking
   upsertRepoFiles(files: RepoFile[]): Promise<void>;

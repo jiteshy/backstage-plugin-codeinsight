@@ -213,3 +213,10 @@ export interface QnAAnswer {
   messageId: string;
   sessionId: string;
 }
+
+export interface ArtifactFeedback {
+  repoId: string;
+  artifactId: string;
+  artifactType: 'doc' | 'diagram' | 'qna';
+  rating: 1 | -1;
+}

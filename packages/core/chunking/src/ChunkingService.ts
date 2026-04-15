@@ -101,11 +101,76 @@ export class ChunkingService {
       this.storageAdapter.getArtifactsByType(repoId, 'diagram'),
     ]);
 
+    // Pre-fetch all artifact inputs in parallel — avoids N sequential DB calls
+    // in the per-artifact loops below (one query per artifact → one batch instead)
+    const allArtifacts = [...docArtifacts, ...diagramArtifacts];
+    const artifactInputResults = await Promise.all(
+      allArtifacts.map(a => this.storageAdapter.getArtifactInputs(repoId, a.artifactId)),
+    );
+    const artifactInputsMap = new Map(
+      allArtifacts.map((a, i) => [a.artifactId, artifactInputResults[i]]),
+    );
+
+    // --- Containment detection: skip nodes whose line range is fully covered by
+    //     a non-class parent node in the same file.
+    //
+    // The TypeScriptExtractor creates both an outer function node AND every
+    // nested function/arrow-function inside it. When ChunkingService reads
+    // startLine→endLine for each, the outer chunk content already contains
+    // all inner chunks — pure duplication. Example: a 50-line component with
+    // 5 nested handlers produces 6 chunks where 5 of them are subsets of the 1st.
+    //
+    // Exception: nodes that are contained ONLY within a 'class' node are kept —
+    // class methods are independently useful retrieval units even though the class
+    // body spans over them.
+    const nodeGroups = new Map<string, CIGNode[]>();
+    for (const node of nodes) {
+      if (node.symbolName === '<module>') continue;
+      const list = nodeGroups.get(node.filePath) ?? [];
+      list.push(node);
+      nodeGroups.set(node.filePath, list);
+    }
+
+    const containedNodeIds = new Set<string>();
+    for (const fileNodes of nodeGroups.values()) {
+      for (const candidate of fileNodes) {
+        for (const container of fileNodes) {
+          if (candidate.nodeId === container.nodeId) continue;
+          // Class-body → method containment is intentional; don't penalise it.
+          if (container.symbolType === 'class') continue;
+          if (
+            candidate.startLine >= container.startLine &&
+            candidate.endLine <= container.endLine &&
+            !(candidate.startLine === container.startLine &&
+              candidate.endLine === container.endLine)
+          ) {
+            containedNodeIds.add(candidate.nodeId);
+            break;
+          }
+        }
+      }
+    }
+
+    this.logger?.info('ChunkingService: containment analysis', {
+      repoId,
+      totalSymbolNodes: [...nodeGroups.values()].reduce((s, a) => s + a.length, 0),
+      containedSkipped: containedNodeIds.size,
+    });
+
     let oversizedSplit = 0;
 
     // --- Layer 1: Code chunks from CIG nodes ---
     const codeChunks: Chunk[] = [];
     for (const node of nodes) {
+      // Skip <module> nodes — these are CIG graph anchors for import edge resolution,
+      // not meaningful code units. They span the entire file (startLine:1 to endLine:N)
+      // so indexing them would embed the full file content redundantly on top of
+      // individual symbol chunks and the file_summary layer.
+      if (node.symbolName === '<module>') continue;
+
+      // Skip nodes whose content is fully covered by a parent (non-class) node.
+      if (containedNodeIds.has(node.nodeId)) continue;
+
       const repoFile = filesByPath.get(node.filePath);
       const fileSha = repoFile?.currentSha ?? node.extractedSha;
 
@@ -182,11 +247,8 @@ export class ChunkingService {
       const doc = artifact.content as DocContent;
       if (!doc.markdown.trim()) continue;
 
-      // Get artifact inputs to determine file_sha
-      const inputs = await this.storageAdapter.getArtifactInputs(
-        repoId,
-        artifact.artifactId,
-      );
+      // Get artifact inputs to determine file_sha (pre-fetched in parallel above)
+      const inputs = artifactInputsMap.get(artifact.artifactId) ?? [];
       const fileSha = inputs.length > 0
         ? computeCompositeSha(inputs)
         : artifact.inputSha;
@@ -237,10 +299,8 @@ export class ChunkingService {
       const text = buildDiagramChunkText(diagram);
       if (!text) continue;
 
-      const inputs = await this.storageAdapter.getArtifactInputs(
-        repoId,
-        artifact.artifactId,
-      );
+      // Get artifact inputs to determine file_sha (pre-fetched in parallel above)
+      const inputs = artifactInputsMap.get(artifact.artifactId) ?? [];
       const fileSha = inputs.length > 0
         ? computeCompositeSha(inputs)
         : artifact.inputSha;

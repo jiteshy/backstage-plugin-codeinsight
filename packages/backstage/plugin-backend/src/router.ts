@@ -42,6 +42,8 @@ export async function createRouter(
 
   const VALID_TRIGGERS = new Set<string>(['manual', 'webhook', 'schedule']);
   const KNOWN_GIT_HOSTS = new Set(['github.com', 'gitlab.com', 'bitbucket.org']);
+  const VALID_ARTIFACT_TYPES = new Set(['doc', 'diagram', 'qna']);
+  const VALID_RATINGS = new Set([1, -1]);
 
   router.post('/repos/:repoId/ingest', async (req, res) => {
     const { repoId } = req.params;
@@ -121,6 +123,33 @@ export async function createRouter(
       const message = err instanceof Error ? err.message : String(err);
       res.status(500).json({ error: message });
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Feedback — submit thumbs up/down for a doc section, diagram, or Q&A answer
+  // POST /repos/:repoId/feedback
+  // Body: { artifactId: string, artifactType: 'doc' | 'diagram' | 'qna', rating: 1 | -1 }
+  // ---------------------------------------------------------------------------
+
+  router.post('/repos/:repoId/feedback', async (req, res) => {
+    const { repoId } = req.params;
+    const { artifactId, artifactType, rating } = req.body ?? {};
+
+    if (!artifactId || typeof artifactId !== 'string') {
+      res.status(400).json({ error: 'artifactId is required' });
+      return;
+    }
+    if (!VALID_ARTIFACT_TYPES.has(artifactType)) {
+      res.status(400).json({ error: 'artifactType must be one of: doc, diagram, qna' });
+      return;
+    }
+    if (!VALID_RATINGS.has(rating)) {
+      res.status(400).json({ error: 'rating must be 1 or -1' });
+      return;
+    }
+
+    await storageAdapter.saveFeedback({ repoId, artifactId, artifactType, rating });
+    res.status(204).end();
   });
 
   // ---------------------------------------------------------------------------

@@ -47,6 +47,12 @@ export interface CodeInsightApi {
   getDiagrams(repoId: string): Promise<DiagramSection[]>;
   /** Hard-delete all data for a repo. The UI should trigger fresh ingestion after this. */
   deleteRepo(repoId: string): Promise<void>;
+  submitFeedback(
+    repoId: string,
+    artifactId: string,
+    artifactType: 'doc' | 'diagram' | 'qna',
+    rating: 1 | -1,
+  ): Promise<void>;
   createQnASession(repoId: string): Promise<{ sessionId: string }>;
   askQnAStream(
     repoId: string,

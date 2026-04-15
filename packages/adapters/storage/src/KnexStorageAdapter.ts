@@ -2,6 +2,7 @@ import type {
   ActiveContext,
   Artifact,
   ArtifactContent,
+  ArtifactFeedback,
   ArtifactInput,
   ArtifactType,
   CIGEdge,
@@ -116,6 +117,14 @@ interface QnAMessageRow {
   content: string;
   sources: QnASource[] | null;
   tokens_used: number;
+  created_at: Date;
+}
+
+interface FeedbackRow {
+  repo_id: string;
+  artifact_id: string;
+  artifact_type: string;
+  rating: number;
   created_at: Date;
 }
 
@@ -315,6 +324,19 @@ export class KnexStorageAdapter implements StorageAdapter {
     await this.knex('ci_repositories').where('repo_id', repoId).delete();
   }
 
+  async saveFeedback(feedback: ArtifactFeedback): Promise<void> {
+    await this.knex<FeedbackRow>('ci_artifact_feedback')
+      .insert({
+        repo_id: feedback.repoId,
+        artifact_id: feedback.artifactId,
+        artifact_type: feedback.artifactType,
+        rating: feedback.rating,
+        created_at: new Date(),
+      })
+      .onConflict(['repo_id', 'artifact_id'])
+      .merge(['rating', 'created_at']);
+  }
+
   // -------------------------------------------------------------------------
   // File tracking
   // -------------------------------------------------------------------------
@@ -401,7 +423,11 @@ export class KnexStorageAdapter implements StorageAdapter {
   async upsertCIGNodes(nodes: CIGNode[]): Promise<void> {
     if (nodes.length === 0) return;
 
-    for (const chunk of batch(nodes)) {
+    const unique = Array.from(
+      new Map(nodes.map(n => [`${n.repoId}::${n.filePath}::${n.symbolName}::${n.symbolType}`, n])).values(),
+    );
+
+    for (const chunk of batch(unique)) {
       const rows: CIGNodeRow[] = chunk.map(n => ({
         node_id: n.nodeId,
         repo_id: n.repoId,

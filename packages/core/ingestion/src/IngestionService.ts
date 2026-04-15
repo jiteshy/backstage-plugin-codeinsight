@@ -214,6 +214,10 @@ export class IngestionService {
         ? (this.config.deltaCloneDepth ?? 50)
         : (this.config.cloneDepth ?? 1);
 
+      // Remove any stale clone directory before cloning (survives if a prior run
+      // was killed before the finally-block cleanup could execute).
+      await fs.rm(cloneDir, { recursive: true, force: true }).catch(() => {});
+
       // Clone repo
       this.logger.info('Cloning repository', { repoId, repoUrl, cloneDir, depth });
       await this.repoConnector.clone(repoUrl, cloneDir, { depth });

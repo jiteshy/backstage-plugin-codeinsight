@@ -35,6 +35,8 @@ import TextField from '@material-ui/core/TextField';
 import Tooltip from '@material-ui/core/Tooltip';
 import Typography from '@material-ui/core/Typography';
 import MoreVertIcon from '@material-ui/icons/MoreVert';
+import ThumbDownIcon from '@material-ui/icons/ThumbDown';
+import ThumbUpIcon from '@material-ui/icons/ThumbUp';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { codeInsightApiRef, DiagramSection, DocSection, QnASource } from '../api';
@@ -253,7 +255,7 @@ const useStyles = makeStyles(theme => ({
   // Per-section meta row: name (left, subtle) + files·tokens (right)
   docSectionMeta: {
     display: 'flex',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: theme.spacing(1),
     marginBottom: theme.spacing(0.5),
@@ -572,6 +574,56 @@ function outcomeMessage(outcome: JobOutcome): { text: string; color: 'textSecond
 }
 
 // ---------------------------------------------------------------------------
+// ThumbsRating
+// ---------------------------------------------------------------------------
+
+interface ThumbsRatingProps {
+  repoId: string;
+  artifactId: string;
+  artifactType: 'doc' | 'diagram' | 'qna';
+}
+
+function ThumbsRating({ repoId, artifactId, artifactType }: ThumbsRatingProps) {
+  const api = useApi(codeInsightApiRef);
+  const [rating, setRating] = useState<1 | -1 | null>(null);
+
+  const handleRate = useCallback(async (value: 1 | -1) => {
+    const next = rating === value ? null : value;
+    setRating(next);
+    if (next !== null) {
+      try {
+        await api.submitFeedback(repoId, artifactId, artifactType, next);
+      } catch {
+        // Best-effort — silently revert on error
+        setRating(rating);
+      }
+    }
+  }, [api, repoId, artifactId, artifactType, rating]);
+
+  const thumbStyle = (value: 1 | -1, activeColor: string) => ({
+    padding: 4,
+    color: rating === value ? activeColor : undefined,
+    opacity: rating === null || rating === value ? 1 : 0.3,
+    transition: 'color 0.15s, opacity 0.15s',
+  });
+
+  return (
+    <Box display="inline-flex" alignItems="center" style={{ gap: 0 }}>
+      <Tooltip title="Helpful">
+        <IconButton size="small" onClick={() => handleRate(1)} style={thumbStyle(1, '#4caf50')}>
+          <ThumbUpIcon style={{ fontSize: '0.95rem' }} />
+        </IconButton>
+      </Tooltip>
+      <Tooltip title="Not helpful">
+        <IconButton size="small" onClick={() => handleRate(-1)} style={thumbStyle(-1, '#f44336')}>
+          <ThumbDownIcon style={{ fontSize: '0.95rem' }} />
+        </IconButton>
+      </Tooltip>
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // TableOfContents
 // ---------------------------------------------------------------------------
 
@@ -610,24 +662,27 @@ function TableOfContents({ sections }: { sections: DocSection[] }) {
 // DocSectionCard
 // ---------------------------------------------------------------------------
 
-function DocSectionCard({ section }: { section: DocSection }) {
+function DocSectionCard({ section, repoId }: { section: DocSection; repoId: string }) {
   const classes = useStyles();
 
   return (
     <Box id={sectionId(section.artifactId)} className={classes.docSection}>
-      {/* Section heading row: name + optional stale chip */}
+      {/* Section heading row: name + optional stale chip + thumbs rating */}
       <Box className={classes.docSectionMeta}>
-        <Typography className={classes.docSectionName}>
-          {formatModuleName(section.artifactId)}
-        </Typography>
-        {section.isStale && (
-          <Chip
-            size="small"
-            label="Stale"
-            className={classes.staleChip}
-            title={`Stale reason: ${section.staleReason ?? 'unknown'}`}
-          />
-        )}
+        <Box display="flex" alignItems="center" style={{ gap: 6 }}>
+          <Typography className={classes.docSectionName}>
+            {formatModuleName(section.artifactId)}
+          </Typography>
+          {section.isStale && (
+            <Chip
+              size="small"
+              label="Stale"
+              className={classes.staleChip}
+              title={`Stale reason: ${section.staleReason ?? 'unknown'}`}
+            />
+          )}
+        </Box>
+        <ThumbsRating repoId={repoId} artifactId={section.artifactId} artifactType="doc" />
       </Box>
       {section.markdown ? (
         <MarkdownContent content={stripLeadingHeading(section.markdown)} />
@@ -644,7 +699,7 @@ function DocSectionCard({ section }: { section: DocSection }) {
 // DiagramCard
 // ---------------------------------------------------------------------------
 
-function DiagramCard({ diagram }: { diagram: DiagramSection }) {
+function DiagramCard({ diagram, repoId }: { diagram: DiagramSection; repoId: string }) {
   const classes = useStyles();
 
   return (
@@ -665,6 +720,7 @@ function DiagramCard({ diagram }: { diagram: DiagramSection }) {
             label={diagram.llmUsed ? 'AI' : 'AST'}
             title={diagram.llmUsed ? 'Generated with LLM assistance' : 'Generated from AST — no LLM required'}
           />
+          <ThumbsRating repoId={repoId} artifactId={diagram.artifactId} artifactType="diagram" />
         </Box>
       </Box>
       <Typography className={classes.diagramMeta} style={{ marginBottom: diagram.description ? 4 : 8 }}>
@@ -744,10 +800,12 @@ function DiagramsContent({
   diagrams,
   loadError,
   isFirstRun,
+  repoId,
 }: {
   diagrams: DiagramSection[] | null;
   loadError: string | null;
   isFirstRun: boolean;
+  repoId: string;
 }) {
   const classes = useStyles();
 
@@ -816,7 +874,7 @@ function DiagramsContent({
       </Box>
       <Box className={classes.diagramsGrid}>
         {diagrams.map(diagram => (
-          <DiagramCard key={diagram.artifactId} diagram={diagram} />
+          <DiagramCard key={diagram.artifactId} diagram={diagram} repoId={repoId} />
         ))}
       </Box>
     </div>
@@ -831,10 +889,12 @@ function DocumentationContent({
   docs,
   loadError,
   isFirstRun,
+  repoId,
 }: {
   docs: DocSection[] | null;
   loadError: string | null;
   isFirstRun: boolean;
+  repoId: string;
 }) {
   const classes = useStyles();
   const topRef = useRef<HTMLDivElement>(null);
@@ -924,7 +984,7 @@ function DocumentationContent({
 
       {/* Sections — no dividers, whitespace separation only */}
       {sorted.map(section => (
-        <DocSectionCard key={section.artifactId} section={section} />
+        <DocSectionCard key={section.artifactId} section={section} repoId={repoId} />
       ))}
 
       {/* Sticky back-to-top — sticks to the bottom of the scroll container as user reads */}
@@ -1179,6 +1239,13 @@ function QnAContent({
                         repoUrl={repoUrl}
                       />
                     ))}
+                  </Box>
+                )}
+
+                {/* Thumbs rating — only shown once streaming is complete */}
+                {msg.role === 'assistant' && !msg.isStreaming && (
+                  <Box display="flex" justifyContent="flex-end" mt={0.5}>
+                    <ThumbsRating repoId={repoId} artifactId={msg.id} artifactType="qna" />
                   </Box>
                 )}
               </Box>
@@ -1627,12 +1694,12 @@ function CodeInsightContentInner() {
         {activeTab === 'docs' && (
           showGenerating
             ? <GeneratingContent label="Generating documentation..." status={jobLabel} />
-            : <DocumentationContent docs={docs} loadError={loadError} isFirstRun={isFirstRun} />
+            : <DocumentationContent docs={docs} loadError={loadError} isFirstRun={isFirstRun} repoId={repoId as string} />
         )}
         {activeTab === 'diagrams' && (
           showGenerating
             ? <GeneratingContent label="Generating diagrams..." status={jobLabel} />
-            : <DiagramsContent diagrams={diagrams} loadError={diagramLoadError} isFirstRun={isFirstRun} />
+            : <DiagramsContent diagrams={diagrams} loadError={diagramLoadError} isFirstRun={isFirstRun} repoId={repoId as string} />
         )}
         {activeTab === 'qna' && repoId && repoUrl && (
           <QnAContent

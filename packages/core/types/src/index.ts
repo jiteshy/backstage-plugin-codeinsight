@@ -23,6 +23,7 @@ export type {
   QnAChunkContent,
   ArtifactInput,
   ArtifactDependency,
+  ArtifactFeedback,
   IngestionJob,
   QnARole,
   QnASource,

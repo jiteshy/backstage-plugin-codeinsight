@@ -97,6 +97,26 @@ export class CodeInsightClient implements CodeInsightApi {
     }
   }
 
+  async submitFeedback(
+    repoId: string,
+    artifactId: string,
+    artifactType: 'doc' | 'diagram' | 'qna',
+    rating: 1 | -1,
+  ): Promise<void> {
+    const base = await this.baseUrl();
+    const response = await this.fetchApi.fetch(
+      `${base}/repos/${encodeURIComponent(repoId)}/feedback`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artifactId, artifactType, rating }),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to submit feedback: ${response.statusText}`);
+    }
+  }
+
   async createQnASession(repoId: string): Promise<{ sessionId: string }> {
     const base = await this.baseUrl();
     const response = await this.fetchApi.fetch(

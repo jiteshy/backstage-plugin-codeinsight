@@ -128,10 +128,22 @@ export class IndexingService {
       });
     }
 
-    // 6. Embed + upsert in batches
+    // 6. Embed + upsert in batches — skip any chunks with empty content
+    const toEmbed = toIndex.filter(({ chunk }) => {
+      if (chunk.content.trim().length === 0) {
+        this.logger?.warn('IndexingService: skipping empty chunk', {
+          repoId,
+          chunkId: chunk.chunkId,
+          layer: chunk.layer,
+        });
+        return false;
+      }
+      return true;
+    });
+
     let indexed = 0;
-    for (let i = 0; i < toIndex.length; i += IndexingService.EMBED_BATCH_SIZE) {
-      const batch = toIndex.slice(i, i + IndexingService.EMBED_BATCH_SIZE);
+    for (let i = 0; i < toEmbed.length; i += IndexingService.EMBED_BATCH_SIZE) {
+      const batch = toEmbed.slice(i, i + IndexingService.EMBED_BATCH_SIZE);
       const texts = batch.map(({ chunk }) => {
         if (chunk.content.length > this.maxEmbedChars) {
           this.logger?.warn('IndexingService: chunk exceeds maxEmbedChars, truncating', {
