@@ -1,7 +1,7 @@
 import type { LLMClient } from '@codeinsight/types';
 
 import type { CIGSnapshot, DiagramModule, MermaidDiagram } from '../../types';
-import { extractMermaid } from '../../utils';
+import { buildFileSummaryBlock, extractMermaid } from '../../utils';
 
 /**
  * AuthFlowModule — LLM-assisted.
@@ -115,8 +115,10 @@ Output ONLY valid Mermaid flowchart TD syntax. No explanation, no fences, no mar
 Keep node labels ≤ 30 chars. Use short IDs (REQ, AUTH, TOKEN, etc.).
 Emit at most 18 nodes. Use subgraph blocks for logical stages.`;
 
-    const userPrompt = `Generate a Mermaid flowchart TD showing the authentication and authorization flow.
+    const summaryBlock = buildFileSummaryBlock(cig);
 
+    const userPrompt = `Generate a Mermaid flowchart TD showing the authentication and authorization flow.
+${summaryBlock ? `\n## Key File Summaries (auth-related files)\n${summaryBlock}\n` : ''}
 Show the complete auth lifecycle from request to protected resource:
   Incoming Request → Auth Middleware → Token/Session Validation →
   Permission/Role Check → Protected Resource (or 401/403 rejection)

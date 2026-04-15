@@ -98,6 +98,7 @@ export class DocGenerationService {
   async generateDocs(
     repoId: string,
     cloneDir: string,
+    fileSummaries: Map<string, string> = new Map(),
   ): Promise<DocGenerationResult> {
     this.logger?.info('Starting doc generation', { repoId });
 
@@ -132,6 +133,7 @@ export class DocGenerationService {
       repoFiles,
       classifierResult,
       cloneDir,
+      fileSummaries,
     );
 
     // 4. Run Phase 1 — generate all modules in parallel with concurrency limit
@@ -334,6 +336,7 @@ export class DocGenerationService {
     repoId: string,
     cloneDir: string,
     classifierResult: ClassifierResult,
+    fileSummaries: Map<string, string> = new Map(),
   ): Promise<DocGenerationResult> {
     this.logger?.info('Starting doc generation with pre-classified result', { repoId });
 
@@ -349,6 +352,7 @@ export class DocGenerationService {
       repoFiles,
       classifierResult,
       cloneDir,
+      fileSummaries,
     );
 
     return this.runPhase1(repoId, classifierResult.promptModules, contextBuilder);

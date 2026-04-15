@@ -1078,6 +1078,30 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
+### 6.4 — P2 Doc & Diagram Quality: File Summary Enrichment ✅ COMPLETED
+**Dependencies:** 6.3, Phase 5.8 (FileSummaryService)
+
+| Task | Status | Description |
+|------|--------|-------------|
+| 6.4.1 | ✅ | Add `getFileSummaries()` to `VectorStore` interface + `PgVectorStore` implementation (queries `ci_qna_embeddings` where `layer='file_summary'` and `subChunkIndex IS NULL`) |
+| 6.4.2 | ✅ | Add `precomputeSummaries()` to `IndexingService` — runs `FileSummaryService` once, caches `_precomputedSummaryChunks` + `_precomputedExistingMap` so `indexRepo()` skips second `listChunks()` round-trip |
+| 6.4.3 | ✅ | Wire pre-compute step in `IngestionService.runPipeline()` — non-fatal try/catch; `fileSummaries: Map<string, string>` threaded to both `DocGenerationService` and `DiagramGenerationService` |
+| 6.4.4 | ✅ | `ContextBuilder`: add `getFilesByInDegree(topN)`, enrich `core/overview` with `keySummaries` block, add `buildArchitectureVars()` and `buildFeaturesVars()` with proper `inputFiles` population |
+| 6.4.5 | ✅ | `PromptRegistry`: add `core/architecture` (subsystems + import graph) and `core/features` (service/handler summaries) prompt builders; register in `ClassifierService.CORE_MODULES` |
+| 6.4.6 | ✅ | Thread `fileSummaries` through `DocGenerationService.generateDocs()` to `ContextBuilder` |
+| 6.4.7 | ✅ | Add `fileSummaries?: Map<string, string>` to `CIGSnapshot`; add `buildFileSummaryBlock(cig)` util; inject into `DiagramGenerationService.generateDiagrams()` |
+| 6.4.8 | ✅ | Inject file summary blocks into 4 LLM diagram modules: `HighLevelArchitectureModule`, `ApiEntityMappingModule`, `AuthFlowModule`, `DeploymentInfraModule` |
+
+**Acceptance:** ✅ File summaries pre-computed once per pipeline run. `core/architecture` and `core/features` doc modules active. All 4 LLM diagram modules receive ranked summary context. 16 (indexing) + 19 (doc-gen contexts) + 22 (diagram utils) tests pass.
+
+**Notes:**
+- `buildFileSummaryBlock` ranks files by import in-degree (most-imported = most architecturally central)
+- `core/architecture` and `core/features` degrade gracefully: return null when no summaries available
+- `_precomputedExistingMap` cache eliminates double `listChunks()` DB call in the hot pipeline path
+- Committed on branch `feat/p2-doc-diagram-quality-summaries` (2026-04-15)
+
+---
+
 ## Phase 7: Integration & Cross-Feature Enrichment
 **Goal:** The three features work together. Webhooks keep everything fresh automatically.
 

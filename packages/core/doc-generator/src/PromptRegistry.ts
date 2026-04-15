@@ -18,7 +18,7 @@ export interface PromptDefinition {
 // ---------------------------------------------------------------------------
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  'core/overview': `You are a technical documentation writer. Generate a clear, concise "Overview" section for a software project based on its README, package manifest, and entry point files.
+  'core/overview': `You are a technical documentation writer. Generate a clear, concise "Overview" section for a software project based on its README, package manifest, entry point files, and key file summaries.
 
 Output ONLY a markdown section starting with "## Overview". Do not include any other headers or preamble.
 
@@ -30,6 +30,7 @@ The section should cover:
 
 Rules:
 - Be specific — use names from the actual code, not generic descriptions
+- If Key File Summaries are provided, use them to describe what the project actually does at a code level, not just what the README says
 - Do not mention things not evidenced in the provided files
 - Keep it under 400 words
 - Use active voice
@@ -141,6 +142,40 @@ Rules:
 - If multiple deployment targets exist (staging vs production), document both
 - Do not invent deployment steps not evidenced in the provided files
 - Keep the section factual and operational — someone should be able to deploy from this section`,
+
+  'core/architecture': `You are a technical documentation writer. Generate an "Architecture" section for a software project based on LLM-generated summaries of its most-imported files and their import relationships.
+
+Output ONLY a markdown section starting with "## Architecture". Do not include any other headers or preamble.
+
+The section should cover:
+1. Major layers or subsystems and what each is responsible for (use actual file/module names as evidence)
+2. How data or control flows between the major layers
+3. Key abstractions — the most-imported files and why other code depends on them
+4. Any notable architectural patterns (e.g. layered, event-driven, hexagonal, MVC) if clearly evidenced
+
+Rules:
+- Be specific — name the actual files and what they do, not generic layer descriptions
+- Only describe what is evidenced in the provided summaries and import graph
+- Do not speculate about files not shown
+- Keep it under 600 words
+- Use sub-headings for each major subsystem if there are 3 or more`,
+
+  'core/features': `You are a technical documentation writer. Generate a "Features" section for a software project based on LLM-generated summaries of its service, handler, controller, and repository files.
+
+Output ONLY a markdown section starting with "## Features". Do not include any other headers or preamble.
+
+The section should cover:
+1. What the system does from a user or consumer perspective (1-2 sentence lead)
+2. The major features or capabilities, each described in 2-4 sentences
+3. For each feature: what it does, how it is implemented (which services/handlers), and what domain concept it represents
+4. How features compose — if features depend on each other, note the dependencies
+
+Rules:
+- Derive features from what the service/handler files actually do — use their summaries as evidence
+- Group related services/handlers into logical features (not one bullet per file)
+- Be specific — use the actual service names, not placeholder descriptions like "handles user data"
+- Keep it under 500 words
+- If the repo clearly has one primary feature (single-purpose tool), describe it in depth rather than forcing multiple sections`,
 
   'backend/api-reference': `You are a technical documentation writer. Generate an "API Reference" section for a backend service based on its route definitions and handler code.
 
@@ -284,6 +319,10 @@ function buildOverviewPrompt(vars: Record<string, string>): string {
 
   if (vars['entryPointFiles']) {
     parts.push(`## Entry Points\n${vars['entryPointFiles']}`);
+  }
+
+  if (vars['keySummaries']) {
+    parts.push(`## Key File Summaries\n${vars['keySummaries']}`);
   }
 
   parts.push('Generate the Overview section for this repository.');
@@ -557,6 +596,32 @@ function buildRoutingPrompt(vars: Record<string, string>): string {
   return parts.join('\n\n');
 }
 
+function buildArchitecturePrompt(vars: Record<string, string>): string {
+  const parts: string[] = [];
+
+  if (vars['fileSummariesBlock']) {
+    parts.push(`## Key File Summaries (most-imported source files)\n${vars['fileSummariesBlock']}`);
+  }
+
+  if (vars['importGraphBlock']) {
+    parts.push(`## Import Graph (between key files)\n\`\`\`\n${vars['importGraphBlock']}\n\`\`\``);
+  }
+
+  parts.push('Generate the Architecture section for this repository.');
+  return parts.join('\n\n');
+}
+
+function buildFeaturesPrompt(vars: Record<string, string>): string {
+  const parts: string[] = [];
+
+  if (vars['featureSummariesBlock']) {
+    parts.push(`## Service and Handler Summaries\n${vars['featureSummariesBlock']}`);
+  }
+
+  parts.push('Generate the Features section for this repository.');
+  return parts.join('\n\n');
+}
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -569,6 +634,8 @@ const USER_PROMPT_BUILDERS: Record<string, (vars: Record<string, string>) => str
   'core/dependencies': buildDependenciesPrompt,
   'core/testing': buildTestingPrompt,
   'core/deployment': buildDeploymentPrompt,
+  'core/architecture': buildArchitecturePrompt,
+  'core/features': buildFeaturesPrompt,
   'backend/api-reference': buildApiReferencePrompt,
   'backend/database': buildDatabasePrompt,
   'backend/auth': buildAuthPrompt,

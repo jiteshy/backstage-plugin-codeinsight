@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
+import * as fs from 'fs';
 
-import type { EmbeddingClient, StorageAdapter, VectorChunk, VectorStore } from '@codeinsight/types';
+import type { EmbeddingClient, LLMClient, StorageAdapter, VectorChunk, VectorStore } from '@codeinsight/types';
 
 import { IndexingService, computeContentSha } from '../IndexingService';
 
@@ -57,6 +58,7 @@ function makeEmbeddingClient(dim = 3): EmbeddingClient {
 
 function makeVectorStore(
   existingChunks: Array<{ chunkId: string; contentSha: string }> = [],
+  existingSummaries: Map<string, string> = new Map(),
 ): VectorStore & { upsertCalls: VectorChunk[][]; deleteCalls: string[][] } {
   const upsertCalls: VectorChunk[][] = [];
   const deleteCalls: string[][] = [];
@@ -64,6 +66,7 @@ function makeVectorStore(
     upsertCalls,
     deleteCalls,
     listChunks: jest.fn().mockResolvedValue(existingChunks),
+    getFileSummaries: jest.fn().mockResolvedValue(existingSummaries),
     upsert: jest.fn().mockImplementation(async (chunks: VectorChunk[]) => {
       upsertCalls.push(chunks);
     }),
@@ -394,5 +397,132 @@ describe('IndexingService with LLMClient (file_summary layer)', () => {
     const allUpserted = vs.upsertCalls.flat();
     const summaryChunks = allUpserted.filter(c => c.layer === 'file_summary');
     expect(summaryChunks).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// precomputeSummaries()
+// ---------------------------------------------------------------------------
+
+describe('IndexingService.precomputeSummaries', () => {
+  it('returns empty map when no llmClient is configured', async () => {
+    const storage = makeStorage();
+    const embedder = makeEmbeddingClient();
+    const vectorStore = makeVectorStore();
+    const service = new IndexingService(embedder, vectorStore, storage);
+    // no llmClient passed
+
+    const result = await service.precomputeSummaries('repo1', '/tmp/repo1');
+    expect(result).toBeInstanceOf(Map);
+    expect(result.size).toBe(0);
+  });
+
+  it('returns existing summaries as-is when no llmClient is configured', async () => {
+    const existing = new Map([['src/old.ts', 'Existing summary']]);
+    const vectorStore = makeVectorStore([], existing);
+    const service = new IndexingService(makeEmbeddingClient(), vectorStore, makeStorage());
+
+    const result = await service.precomputeSummaries('repo1', '/tmp/repo1');
+    expect(result.get('src/old.ts')).toBe('Existing summary');
+    expect(result.size).toBe(1);
+  });
+
+  it('merges existing summaries from VectorStore with new chunks on delta run', async () => {
+    const existingSummaries = new Map([
+      ['src/old.ts', 'Old file summary'],
+      ['src/unchanged.ts', 'Unchanged file summary'],
+    ]);
+    const vectorStore = makeVectorStore([], existingSummaries);
+
+    const storage = makeStorage({
+      getRepoFiles: jest.fn().mockResolvedValue([
+        {
+          repoId: 'repo1',
+          filePath: 'src/new.ts',
+          currentSha: 'sha-new',
+          fileType: 'source',
+          language: 'typescript',
+          parseStatus: 'parsed',
+        },
+      ]),
+      getCIGNodes: jest.fn().mockResolvedValue([]),
+    });
+
+    const llm: LLMClient = {
+      complete: jest.fn().mockResolvedValue('Summary of new.ts'),
+      stream: jest.fn(),
+    };
+
+    // Mock fs.readFile so FileSummaryService can "read" the file (medium file, tier 2)
+    jest.spyOn(fs.promises, 'readFile')
+      .mockResolvedValue('x'.repeat(600 * 3) as unknown as Buffer);
+
+    const service = new IndexingService(makeEmbeddingClient(), vectorStore, storage, undefined, undefined, llm);
+    const result = await service.precomputeSummaries('repo1', '/tmp/repo1');
+
+    expect(result.get('src/old.ts')).toBe('Old file summary');
+    expect(result.get('src/unchanged.ts')).toBe('Unchanged file summary');
+    expect(result.get('src/new.ts')).toBe('Summary of new.ts');
+    expect(result.size).toBe(3);
+
+    jest.restoreAllMocks();
+  });
+
+  it('caches chunks so indexRepo skips FileSummaryService re-run', async () => {
+    const vectorStore = makeVectorStore();
+    const storage = makeStorage({
+      getRepoFiles: jest.fn().mockResolvedValue([
+        {
+          repoId: 'repo1',
+          filePath: 'src/app.ts',
+          currentSha: 'sha-app',
+          fileType: 'source',
+          language: 'typescript',
+          parseStatus: 'parsed',
+        },
+      ]),
+      getCIGNodes: jest.fn().mockResolvedValue([]),
+    });
+    const llm: LLMClient = {
+      complete: jest.fn().mockResolvedValue('App summary'),
+      stream: jest.fn(),
+    };
+
+    // Mock fs.readFile so FileSummaryService can read the file (medium file → LLM call)
+    jest.spyOn(fs.promises, 'readFile')
+      .mockResolvedValue('x'.repeat(600 * 3) as unknown as Buffer);
+
+    const service = new IndexingService(makeEmbeddingClient(), vectorStore, storage, undefined, undefined, llm);
+    await service.precomputeSummaries('repo1', '/tmp/repo1');
+
+    // LLM was called once during precomputeSummaries
+    expect(llm.complete).toHaveBeenCalledTimes(1);
+
+    // indexRepo should use cached chunks — LLM should NOT be called again
+    await service.indexRepo('repo1', '/tmp/repo1');
+    expect(llm.complete).toHaveBeenCalledTimes(1); // still 1, not 2
+
+    jest.restoreAllMocks();
+  });
+
+  it('reuses _precomputedExistingMap so listChunks is only called once across precomputeSummaries + indexRepo', async () => {
+    // precomputeSummaries calls listChunks once to build the existingMap and caches it.
+    // indexRepo should detect the cache and skip its own listChunks call, resulting
+    // in exactly one total listChunks invocation for the entire pipeline run.
+    const vectorStore = makeVectorStore();
+    const storage = makeStorage({
+      getRepoFiles: jest.fn().mockResolvedValue([]),
+      getCIGNodes: jest.fn().mockResolvedValue([]),
+    });
+
+    // No llmClient — keeps the test focused purely on the existingMap cache path
+    const service = new IndexingService(makeEmbeddingClient(), vectorStore, storage);
+
+    await service.precomputeSummaries('repo1', '/tmp/repo1');
+    await service.indexRepo('repo1', '/tmp/repo1');
+
+    // listChunks should have been called exactly once (by precomputeSummaries),
+    // not twice (precomputeSummaries + indexRepo)
+    expect(vectorStore.listChunks).toHaveBeenCalledTimes(1);
   });
 });

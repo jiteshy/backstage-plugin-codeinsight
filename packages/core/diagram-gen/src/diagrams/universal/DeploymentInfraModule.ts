@@ -1,7 +1,7 @@
 import type { LLMClient } from '@codeinsight/types';
 
 import type { CIGSnapshot, DiagramModule, MermaidDiagram } from '../../types';
-import { extractMermaid } from '../../utils';
+import { buildFileSummaryBlock, extractMermaid } from '../../utils';
 
 /**
  * DeploymentInfraModule — LLM-assisted.
@@ -104,8 +104,10 @@ Output ONLY valid Mermaid flowchart LR syntax. No explanation, no fences, no mar
 Keep node labels ≤ 25 chars. Use short IDs (BUILD, TEST, DEPLOY, K8S, etc.).
 Emit at most 20 nodes. Use subgraph blocks for logical stages.`;
 
-    const userPrompt = `Generate a Mermaid flowchart LR showing the deployment and infrastructure topology.
+    const summaryBlock = buildFileSummaryBlock(cig);
 
+    const userPrompt = `Generate a Mermaid flowchart LR showing the deployment and infrastructure topology.
+${summaryBlock ? `\n## Key File Summaries\n${summaryBlock}\n` : ''}
 Show the complete deployment pipeline from code commit to running infrastructure:
   Source → Build → Test → Containerize → Deploy → Infrastructure
 

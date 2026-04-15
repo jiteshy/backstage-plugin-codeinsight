@@ -26,6 +26,7 @@ export interface DiagramGenerator {
   generateDiagrams(
     repoId: string,
     detectedSignals?: Record<string, string>,
+    fileSummaries?: Map<string, string>,
   ): Promise<{ totalTokensUsed: number }>;
 }
 
@@ -71,8 +72,12 @@ export class DiagramGenerationService implements DiagramGenerator {
   async generateDiagrams(
     repoId: string,
     externalSignals: Record<string, string> = {},
+    fileSummaries: Map<string, string> = new Map(),
   ): Promise<DiagramGenerationResult> {
     const cig = await this.loadCIG(repoId);
+    if (fileSummaries.size > 0) {
+      cig.fileSummaries = fileSummaries;
+    }
 
     // Merge AST-detected signals with any LLM-provided signals
     const astSignals = this.signalDetector.detect(cig);
