@@ -1,5 +1,5 @@
-import { buildFileSummaryBlock, extractMermaid } from '../utils';
 import type { CIGSnapshot } from '../types';
+import { buildFileSummaryBlock, extractMermaid } from '../utils';
 
 describe('extractMermaid()', () => {
   // -------------------------------------------------------------------------

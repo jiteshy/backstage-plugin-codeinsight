@@ -88,6 +88,7 @@ export class DiagramGenerationService implements DiagramGenerator {
       astSignals,
       externalSignals,
       totalSignals: allSignals,
+      fileSummariesCount: fileSummaries.size,
     });
 
     const modules = this.registry.selectModules(allSignals);

@@ -56,9 +56,11 @@ export class IndexingService {
   private readonly maxEmbedChars: number;
   private readonly chunkingService: ChunkingService;
   private readonly fileSummaryService: FileSummaryService | undefined;
-  private _precomputedSummaryChunks: import('@codeinsight/chunking').Chunk[] | undefined;
+  // Keyed by repoId so concurrent pipeline runs for different repos don't race
+  // on shared instance state (InProcessJobQueue default: 2-3 concurrent jobs).
+  private _precomputedSummaryChunks = new Map<string, import('@codeinsight/chunking').Chunk[]>();
   /** Cached existingMap from precomputeSummaries() — reused by indexRepo() to avoid a second listChunks() round-trip. */
-  private _precomputedExistingMap: Map<string, string> | undefined;
+  private _precomputedExistingMap = new Map<string, Map<string, string>>();
 
   constructor(
     private readonly embeddingClient: EmbeddingClient,
@@ -93,8 +95,8 @@ export class IndexingService {
     // 1. Load existing index state first — FileSummaryService needs it for delta skip.
     // If precomputeSummaries() already fetched this, reuse the cached map to avoid a
     // second listChunks() round-trip within the same pipeline run.
-    const precomputedExistingMap = this._precomputedExistingMap;
-    this._precomputedExistingMap = undefined; // clear cache after use
+    const precomputedExistingMap = this._precomputedExistingMap.get(repoId);
+    this._precomputedExistingMap.delete(repoId); // clear after use
     let existingMap: Map<string, string>;
     if (precomputedExistingMap !== undefined) {
       existingMap = precomputedExistingMap;
@@ -106,8 +108,8 @@ export class IndexingService {
     // 2. Produce chunks from all layers (run in parallel where possible).
     // Use pre-computed summary chunks if precomputeSummaries() was called first —
     // this avoids running FileSummaryService (and its LLM calls) a second time.
-    const precomputed = this._precomputedSummaryChunks;
-    this._precomputedSummaryChunks = undefined; // clear cache after use
+    const precomputed = this._precomputedSummaryChunks.get(repoId);
+    this._precomputedSummaryChunks.delete(repoId); // clear after use
 
     const [{ chunks: regularChunks }, summaryResult] = await Promise.all([
       this.chunkingService.chunkRepo(repoId, cloneDir),
@@ -232,14 +234,15 @@ export class IndexingService {
     }
 
     // Load existingShas for delta skip logic in FileSummaryService.
-    // We cache this map so indexRepo() can reuse it without a second listChunks() call.
+    // We cache this map keyed by repoId so indexRepo() can reuse it without a second
+    // listChunks() call — and concurrent pipeline runs for different repos don't race.
     const existing = await this.vectorStore.listChunks(repoId);
     const existingMap = new Map(existing.map(c => [c.chunkId, c.contentSha]));
-    this._precomputedExistingMap = existingMap;
+    this._precomputedExistingMap.set(repoId, existingMap);
 
     // If no LLM client, we can't generate new summaries — return existing
     if (!this.fileSummaryService) {
-      this._precomputedSummaryChunks = [];
+      this._precomputedSummaryChunks.set(repoId, []);
       return existingSummaries;
     }
 
@@ -251,7 +254,7 @@ export class IndexingService {
     );
 
     // Cache for reuse in indexRepo()
-    this._precomputedSummaryChunks = newChunks;
+    this._precomputedSummaryChunks.set(repoId, newChunks);
 
     // Build merged map: existing first, then overlay new results
     const merged = new Map(existingSummaries);
