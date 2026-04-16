@@ -37,7 +37,7 @@ export class OpenAILLMClient implements LLMClient {
   ): Promise<string> {
     const response = await this.client.chat.completions.create({
       model: this.model,
-      max_tokens: opts?.maxTokens ?? this.defaultMaxTokens,
+      max_completion_tokens: opts?.maxTokens ?? this.defaultMaxTokens,
       temperature: opts?.temperature ?? this.defaultTemperature,
       stop: opts?.stopSequences,
       messages: [
@@ -61,7 +61,7 @@ export class OpenAILLMClient implements LLMClient {
     const stream = await this.client.chat.completions.create(
       {
         model: this.model,
-        max_tokens: opts?.maxTokens ?? this.defaultMaxTokens,
+        max_completion_tokens: opts?.maxTokens ?? this.defaultMaxTokens,
         temperature: opts?.temperature ?? this.defaultTemperature,
         stop: opts?.stopSequences,
         stream: true,

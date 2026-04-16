@@ -111,7 +111,7 @@ describe('OpenAILLMClient', () => {
       expect(mockCompletionsCreate).toHaveBeenCalledTimes(1);
       expect(mockCompletionsCreate).toHaveBeenCalledWith({
         model: 'gpt-4-turbo',
-        max_tokens: 4096,
+        max_completion_tokens: 4096,
         temperature: 0,
         stop: undefined,
         messages: [
@@ -129,7 +129,7 @@ describe('OpenAILLMClient', () => {
       await client.complete('sys', 'user');
 
       expect(mockCompletionsCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ max_tokens: 4096 }),
+        expect.objectContaining({ max_completion_tokens: 4096 }),
       );
     });
 
@@ -151,7 +151,7 @@ describe('OpenAILLMClient', () => {
       await client.complete('sys', 'user');
 
       expect(mockCompletionsCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ max_tokens: 512 }),
+        expect.objectContaining({ max_completion_tokens: 512 }),
       );
     });
 
@@ -173,7 +173,7 @@ describe('OpenAILLMClient', () => {
       await client.complete('sys', 'user', { maxTokens: 128 });
 
       expect(mockCompletionsCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ max_tokens: 128 }),
+        expect.objectContaining({ max_completion_tokens: 128 }),
       );
     });
 
@@ -251,7 +251,7 @@ describe('OpenAILLMClient', () => {
       expect(mockCompletionsCreate).toHaveBeenCalledWith(
         {
           model: 'gpt-4-turbo',
-          max_tokens: 4096,
+          max_completion_tokens: 4096,
           temperature: 0,
           stop: undefined,
           stream: true,
@@ -331,7 +331,7 @@ describe('OpenAILLMClient', () => {
 
       expect(mockCompletionsCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          max_tokens: 256,
+          max_completion_tokens: 256,
           temperature: 0.2,
           stop: ['STOP'],
           stream: true,
