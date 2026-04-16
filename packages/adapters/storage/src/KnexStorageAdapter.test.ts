@@ -903,6 +903,10 @@ describe('KnexStorageAdapter', () => {
       const stats = await adapter.getTokenUsageStats('all', costMap);
       expect(stats.byRepo).toHaveLength(1);
       expect(stats.byRepo[0].qnaTokens).toBe(300);
+
+      const llmModel = stats.byModel.find(m => m.model === 'llm');
+      expect(llmModel).toBeDefined();
+      expect(llmModel!.tokens).toBe(300);
     });
 
     it('breaks down tokens by model from generation_sig', async () => {
