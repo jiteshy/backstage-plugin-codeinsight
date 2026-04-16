@@ -57,5 +57,14 @@ export type {
   EmbeddingConfig,
   IngestionConfig,
   QnAConfig,
+  UsageConfig,
   CodeInsightConfig,
 } from './config';
+
+// Usage types
+export type {
+  UsageTimeRange,
+  RepoUsageRow,
+  ModelBreakdown,
+  TokenUsageStats,
+} from './usage';

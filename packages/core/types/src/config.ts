@@ -64,6 +64,10 @@ export interface QnAConfig {
   temperature?: number;
 }
 
+export interface UsageConfig {
+  costPerMillionTokens: Record<string, number>;
+}
+
 export interface CodeInsightConfig {
   database: DatabaseConfig;
   repo: RepoCloneConfig;
@@ -71,6 +75,7 @@ export interface CodeInsightConfig {
   embedding?: EmbeddingConfig;
   ingestion: IngestionConfig;
   qna?: QnAConfig;
+  usage?: UsageConfig;
   features: {
     docs: boolean;
     diagrams: boolean;
