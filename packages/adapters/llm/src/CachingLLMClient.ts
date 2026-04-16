@@ -64,7 +64,7 @@ export class CachingLLMClient implements LLMClient {
       .insert({
         cache_key: cacheKey,
         response,
-        tokens_used: 0, // tokens not available from the LLMClient interface; Phase 2.5 can enrich
+        tokens_used: Math.ceil(response.length / 4),
         model_used: this.modelName,
         created_at: new Date(),
       })
