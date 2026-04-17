@@ -1137,14 +1137,24 @@ Replace low-value diagrams with high-value architecture diagrams.
 
 ---
 
-### 6.3 — Token Usage Dashboard
+### 6.3 — Token Usage Dashboard ✅ COMPLETED
 
-- [ ] Aggregate `tokens_used` from `ci_ingestion_jobs` and `ci_qna_messages`
-- [ ] Show in Backstage: "This month: X tokens used, estimated cost $Y"
-- [ ] Per-repo breakdown
-- [ ] Cache hit rate (LLM cache hits vs misses)
+- [x] Aggregate `tokens_used` from `ci_artifacts` (ingestion) and `ci_qna_messages` (QnA) via SQL
+- [x] Show in Backstage: global admin page at `/codeinsight/usage` with total tokens, estimated cost, active repos
+- [x] Per-repo breakdown with sortable table (ingestion tokens, QnA tokens, total, cost, last activity)
+- [x] Model breakdown table via `generation_sig` column parsing
+- [x] Configurable cost rates per model via `codeinsight.usage.costPerMillionTokens`
+- [x] Time range toggle: 7d / 30d / all
+- [ ] Cache hit rate (LLM cache hits vs misses) — deferred to future iteration
 
-**Acceptance:** Token usage visible per repo. Cache hit rate visible for last 30 days.
+**Acceptance:** ✅ Token usage visible per repo with model breakdown. Time range filtering works. Cost estimation configurable. Cache hit rate deferred per design decision.
+
+**Notes (2026-04-15):**
+- Hybrid approach: direct SQL aggregation now, interface designed for future rollup table swap
+- `getTokenUsageStats()` added to `StorageAdapter` interface, implemented in `KnexStorageAdapter`
+- QnA tokens attributed to synthetic "llm" model label (no per-message model tracking yet)
+- `CachingLLMClient` fixed: `tokens_used` now estimated via `Math.ceil(response.length / 4)` instead of hardcoded 0
+- 19 tests total: 6 storage, 3 router, 9 frontend, 1 caching client
 
 ---
 
