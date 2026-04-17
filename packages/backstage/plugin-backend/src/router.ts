@@ -4,7 +4,7 @@ import {
   RootConfigService,
 } from '@backstage/backend-plugin-api';
 import type { QnAService } from '@codeinsight/qna';
-import type { DiagramContent, DocContent, JobQueue, StorageAdapter } from '@codeinsight/types';
+import type { DiagramContent, DocContent, JobQueue, StorageAdapter, UsageTimeRange } from '@codeinsight/types';
 import express from 'express';
 import Router from 'express-promise-router';
 
@@ -15,12 +15,13 @@ export interface RouterOptions {
   jobQueue: JobQueue;
   storageAdapter: StorageAdapter;
   qnaService?: QnAService;
+  costMap?: Record<string, number>;
 }
 
 export async function createRouter(
   options: RouterOptions,
 ): Promise<express.Router> {
-  const { logger, jobQueue, storageAdapter, qnaService } = options;
+  const { logger, jobQueue, storageAdapter, qnaService, costMap = { default: 3.0 } } = options;
   const router = Router();
 
   router.use(express.json());
@@ -391,6 +392,23 @@ export async function createRouter(
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // 6.3 — Token usage dashboard
+  // GET /usage?range=7d|30d|all
+  // ---------------------------------------------------------------------------
+
+  const VALID_RANGES = new Set<string>(['7d', '30d', 'all']);
+
+  router.get('/usage', async (req, res) => {
+    const range = (req.query.range as string) || '30d';
+    if (!VALID_RANGES.has(range)) {
+      res.status(400).json({ error: `Invalid range: ${range}. Must be one of: 7d, 30d, all` });
+      return;
+    }
+    const stats = await storageAdapter.getTokenUsageStats(range as UsageTimeRange, costMap);
+    res.json(stats);
   });
 
   return router;

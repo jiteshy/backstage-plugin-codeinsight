@@ -1,5 +1,31 @@
 import { createApiRef } from '@backstage/core-plugin-api';
 
+export type UsageTimeRange = '7d' | '30d' | 'all';
+
+export interface RepoUsageRow {
+  repoId: string;
+  repoName: string;
+  ingestionTokens: number;
+  qnaTokens: number;
+  totalTokens: number;
+  estimatedCost: number;
+  lastActivity: string | null;
+}
+
+export interface ModelBreakdown {
+  model: string;
+  tokens: number;
+  estimatedCost: number;
+}
+
+export interface TokenUsageStats {
+  timeRange: UsageTimeRange;
+  totalTokens: number;
+  totalEstimatedCost: number;
+  byModel: ModelBreakdown[];
+  byRepo: RepoUsageRow[];
+}
+
 export interface QnASource {
   filePath: string;
   symbol?: string;
@@ -60,6 +86,7 @@ export interface CodeInsightApi {
     question: string,
     onToken: (token: string) => void,
   ): Promise<QnASource[]>;
+  getTokenUsage(range: UsageTimeRange): Promise<TokenUsageStats>;
 }
 
 export const codeInsightApiRef = createApiRef<CodeInsightApi>({

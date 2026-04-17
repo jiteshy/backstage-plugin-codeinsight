@@ -15,6 +15,7 @@ import type {
   Repository,
   StaleReason,
 } from './data';
+import type { TokenUsageStats, UsageTimeRange } from './usage';
 
 // ---------------------------------------------------------------------------
 // LLM
@@ -154,6 +155,12 @@ export interface StorageAdapter {
   addMessage(message: QnAMessage): Promise<string>;
   getSessionMessages(sessionId: string, limit?: number, offset?: number): Promise<QnAMessage[]>;
   getSessionMessageCount(sessionId: string): Promise<number>;
+
+  // Token Usage (Phase 6.3)
+  getTokenUsageStats(
+    timeRange: UsageTimeRange,
+    costMap: Record<string, number>,
+  ): Promise<TokenUsageStats>;
 }
 
 // ---------------------------------------------------------------------------

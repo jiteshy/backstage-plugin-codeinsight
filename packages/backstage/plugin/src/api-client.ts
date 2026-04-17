@@ -1,6 +1,6 @@
 import { DiscoveryApi, FetchApi } from '@backstage/core-plugin-api';
 
-import { CodeInsightApi, DiagramSection, DocSection, QnASource } from './api';
+import { CodeInsightApi, DiagramSection, DocSection, QnASource, TokenUsageStats, UsageTimeRange } from './api';
 
 export class CodeInsightClient implements CodeInsightApi {
   private readonly discoveryApi: DiscoveryApi;
@@ -195,5 +195,16 @@ export class CodeInsightClient implements CodeInsightApi {
     }>;
     const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
     return lastAssistant?.sources ?? [];
+  }
+
+  async getTokenUsage(range: UsageTimeRange): Promise<TokenUsageStats> {
+    const base = await this.baseUrl();
+    const response = await this.fetchApi.fetch(
+      `${base}/usage?range=${encodeURIComponent(range)}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to get token usage: ${response.statusText}`);
+    }
+    return (await response.json()) as TokenUsageStats;
   }
 }

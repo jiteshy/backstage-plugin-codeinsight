@@ -17,6 +17,8 @@ import type {
   Repository,
   StaleReason,
   StorageAdapter,
+  TokenUsageStats,
+  UsageTimeRange,
 } from '@codeinsight/types';
 import type { Knex } from 'knex';
 
@@ -809,5 +811,181 @@ export class KnexStorageAdapter implements StorageAdapter {
       .count('message_id as count')
       .first();
     return Number(result?.count ?? 0);
+  }
+
+  // -------------------------------------------------------------------------
+  // Token Usage Stats (Phase 6.3)
+  // -------------------------------------------------------------------------
+
+  private computeCutoff(timeRange: UsageTimeRange): Date | null {
+    if (timeRange === 'all') return null;
+    const now = new Date();
+    const days = timeRange === '7d' ? 7 : 30;
+    return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  }
+
+  async getTokenUsageStats(
+    timeRange: UsageTimeRange,
+    costMap: Record<string, number>,
+  ): Promise<TokenUsageStats> {
+    const cutoff = this.computeCutoff(timeRange);
+    const defaultRate = costMap['default'] ?? Math.max(...Object.values(costMap), 0);
+
+    // 1. Ingestion tokens by repo
+    let ingestionQuery = this.knex('ci_artifacts as a')
+      .join('ci_repositories as r', 'a.repo_id', 'r.repo_id')
+      .where('a.llm_used', true)
+      .groupBy('a.repo_id', 'r.name')
+      .select(
+        'a.repo_id as repo_id',
+        'r.name as repo_name',
+        this.knex.raw('COALESCE(SUM(a.tokens_used), 0)::bigint as ingestion_tokens'),
+        this.knex.raw('MAX(a.generated_at) as last_ingestion'),
+      );
+    if (cutoff) {
+      ingestionQuery = ingestionQuery.where('a.generated_at', '>=', cutoff);
+    }
+    const ingestionRows: Array<{
+      repo_id: string;
+      repo_name: string;
+      ingestion_tokens: string;
+      last_ingestion: Date | null;
+    }> = await ingestionQuery;
+
+    // 2. QnA tokens by repo
+    let qnaQuery = this.knex('ci_qna_messages as m')
+      .join('ci_qna_sessions as s', 'm.session_id', 's.session_id')
+      .join('ci_repositories as r', 's.repo_id', 'r.repo_id')
+      .groupBy('s.repo_id', 'r.name')
+      .select(
+        's.repo_id as repo_id',
+        'r.name as repo_name',
+        this.knex.raw('COALESCE(SUM(m.tokens_used), 0)::bigint as qna_tokens'),
+        this.knex.raw('MAX(m.created_at) as last_qna'),
+      );
+    if (cutoff) {
+      qnaQuery = qnaQuery.where('m.created_at', '>=', cutoff);
+    }
+    const qnaRows: Array<{
+      repo_id: string;
+      repo_name: string;
+      qna_tokens: string;
+      last_qna: Date | null;
+    }> = await qnaQuery;
+
+    // 3. Model breakdown from artifacts
+    let modelQuery = this.knex('ci_artifacts')
+      .where('llm_used', true)
+      .whereNotNull('generation_sig')
+      .groupBy(this.knex.raw("SPLIT_PART(generation_sig, ':', 1)"))
+      .select(
+        this.knex.raw("SPLIT_PART(generation_sig, ':', 1) as model"),
+        this.knex.raw('COALESCE(SUM(tokens_used), 0)::bigint as tokens'),
+      );
+    if (cutoff) {
+      modelQuery = modelQuery.where('generated_at', '>=', cutoff);
+    }
+    const modelRows: Array<{ model: string; tokens: string }> = await modelQuery;
+
+    // 4. QnA total tokens (add under generic "llm" label)
+    let qnaTotalQuery = this.knex('ci_qna_messages')
+      .select(this.knex.raw('COALESCE(SUM(tokens_used), 0)::bigint as tokens'));
+    if (cutoff) {
+      qnaTotalQuery = qnaTotalQuery.where('created_at', '>=', cutoff);
+    }
+    const qnaTotalRow: { tokens: string } = await qnaTotalQuery.first() as { tokens: string };
+    const qnaTotalTokens = Number(qnaTotalRow?.tokens ?? 0);
+
+    // Merge ingestion + QnA into byRepo map
+    const repoMap = new Map<string, {
+      repoId: string;
+      repoName: string;
+      ingestionTokens: number;
+      qnaTokens: number;
+      lastIngestion: Date | null;
+      lastQna: Date | null;
+    }>();
+
+    for (const row of ingestionRows) {
+      repoMap.set(row.repo_id, {
+        repoId: row.repo_id,
+        repoName: row.repo_name,
+        ingestionTokens: Number(row.ingestion_tokens),
+        qnaTokens: 0,
+        lastIngestion: row.last_ingestion ? new Date(row.last_ingestion) : null,
+        lastQna: null,
+      });
+    }
+
+    for (const row of qnaRows) {
+      const existing = repoMap.get(row.repo_id);
+      if (existing) {
+        existing.qnaTokens = Number(row.qna_tokens);
+        existing.lastQna = row.last_qna ? new Date(row.last_qna) : null;
+      } else {
+        repoMap.set(row.repo_id, {
+          repoId: row.repo_id,
+          repoName: row.repo_name,
+          ingestionTokens: 0,
+          qnaTokens: Number(row.qna_tokens),
+          lastIngestion: null,
+          lastQna: row.last_qna ? new Date(row.last_qna) : null,
+        });
+      }
+    }
+
+    const byRepo = Array.from(repoMap.values()).map(entry => {
+      const totalTokens = entry.ingestionTokens + entry.qnaTokens;
+      const lastActivity = entry.lastIngestion && entry.lastQna
+        ? (entry.lastIngestion > entry.lastQna ? entry.lastIngestion : entry.lastQna)
+        : entry.lastIngestion ?? entry.lastQna;
+      return {
+        repoId: entry.repoId,
+        repoName: entry.repoName,
+        ingestionTokens: entry.ingestionTokens,
+        qnaTokens: entry.qnaTokens,
+        totalTokens,
+        estimatedCost: (totalTokens / 1_000_000) * defaultRate,
+        lastActivity,
+      };
+    });
+
+    // Sort by totalTokens descending
+    byRepo.sort((a, b) => b.totalTokens - a.totalTokens);
+
+    // Build model breakdown
+    const byModel = modelRows.map(row => {
+      const tokens = Number(row.tokens);
+      const rate = costMap[row.model] ?? defaultRate;
+      return {
+        model: row.model,
+        tokens,
+        estimatedCost: (tokens / 1_000_000) * rate,
+      };
+    });
+
+    // Add QnA total under "llm" label if there are any QnA tokens
+    if (qnaTotalTokens > 0) {
+      const qnaRate = costMap['llm'] ?? defaultRate;
+      byModel.push({
+        model: 'llm',
+        tokens: qnaTotalTokens,
+        estimatedCost: (qnaTotalTokens / 1_000_000) * qnaRate,
+      });
+    }
+
+    // Sort by tokens descending
+    byModel.sort((a, b) => b.tokens - a.tokens);
+
+    const totalTokens = byModel.reduce((sum, m) => sum + m.tokens, 0);
+    const totalEstimatedCost = byModel.reduce((sum, m) => sum + m.estimatedCost, 0);
+
+    return {
+      timeRange,
+      totalTokens,
+      totalEstimatedCost,
+      byModel,
+      byRepo,
+    };
   }
 }

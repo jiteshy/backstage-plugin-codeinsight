@@ -120,5 +120,17 @@ export interface Config {
       /** LLM temperature for answer generation. Default: 0.3. */
       temperature?: number;
     };
+
+    /**
+     * Token usage dashboard settings.
+     * @visibility backend
+     */
+    usage?: {
+      /**
+       * Cost per million tokens, keyed by model name.
+       * Include a 'default' key for fallback. Example: { 'claude-sonnet-4-20250514': 3.0, default: 3.0 }
+       */
+      costPerMillionTokens?: Record<string, number>;
+    };
   };
 }

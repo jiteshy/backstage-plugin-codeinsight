@@ -236,6 +236,26 @@ describe('CachingLLMClient', () => {
         expect.objectContaining({ cacheKey: expect.any(String) }),
       );
     });
+
+    it('estimates tokens_used from response length on cache miss', async () => {
+      const response = 'a'.repeat(400); // 400 chars => ceil(400/4) = 100 tokens
+      const { knex, chain } = buildKnexMock(undefined);
+      const inner = buildInnerClient();
+      inner.complete.mockResolvedValue(response);
+
+      const client = new CachingLLMClient(inner, knex as any, MODEL_NAME);
+      await client.complete(SYSTEM_PROMPT, USER_PROMPT);
+
+      // Verify the insert call included the calculated token estimate
+      expect(chain.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cache_key: expect.any(String),
+          response,
+          tokens_used: 100,
+          model_used: MODEL_NAME,
+        }),
+      );
+    });
   });
 
   // -------------------------------------------------------------------------

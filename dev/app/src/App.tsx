@@ -7,7 +7,7 @@ import {
   EntityLayout,
 } from '@backstage/plugin-catalog';
 import { themes, UnifiedThemeProvider } from '@backstage/theme';
-import { EntityCodeInsightContent } from '@codeinsight/plugin';
+import { EntityCodeInsightContent, TokenUsagePage } from '@codeinsight/plugin';
 import React from 'react';
 import { Route } from 'react-router-dom';
 
@@ -54,6 +54,7 @@ export default app.createRoot(
       >
         {entityPage}
       </Route>
+      <Route path="/codeinsight/usage" element={<TokenUsagePage />} />
     </FlatRoutes>
   </AppRouter>,
 );

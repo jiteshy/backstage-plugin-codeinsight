@@ -804,4 +804,222 @@ describe('KnexStorageAdapter', () => {
       ]);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // getTokenUsageStats tests
+  // -------------------------------------------------------------------------
+
+  describe('getTokenUsageStats', () => {
+    const costMap = {
+      'claude-sonnet-4-20250514': 3.0,
+      'text-embedding-3-small': 0.02,
+      default: 3.0,
+    };
+
+    beforeEach(async () => {
+      await trx('ci_qna_messages').del();
+      await trx('ci_qna_sessions').del();
+      await trx('ci_artifacts').del();
+      await trx('ci_repositories').del();
+    });
+
+    it('returns empty stats when no data exists', async () => {
+      const stats = await adapter.getTokenUsageStats('all', costMap);
+      expect(stats.timeRange).toBe('all');
+      expect(stats.totalTokens).toBe(0);
+      expect(stats.totalEstimatedCost).toBe(0);
+      expect(stats.byRepo).toEqual([]);
+      expect(stats.byModel).toEqual([]);
+    });
+
+    it('aggregates ingestion tokens by repo from ci_artifacts', async () => {
+      const repo = makeRepo({ name: 'my-repo' });
+      await adapter.upsertRepo(repo);
+
+      // Insert 2 artifacts with llm_used = true
+      await trx('ci_artifacts').insert({
+        repo_id: repo.repoId,
+        artifact_id: 'doc/a',
+        artifact_type: 'doc',
+        content: JSON.stringify({ kind: 'doc', module: 'overview', markdown: 'Hello' }),
+        input_sha: 'sha1',
+        tokens_used: 500,
+        llm_used: true,
+        is_stale: false,
+        generation_sig: 'claude-sonnet-4-20250514:v1',
+        generated_at: new Date(),
+      });
+      await trx('ci_artifacts').insert({
+        repo_id: repo.repoId,
+        artifact_id: 'doc/b',
+        artifact_type: 'doc',
+        content: JSON.stringify({ kind: 'doc', module: 'overview', markdown: 'World' }),
+        input_sha: 'sha2',
+        tokens_used: 300,
+        llm_used: true,
+        is_stale: false,
+        generation_sig: 'claude-sonnet-4-20250514:v1',
+        generated_at: new Date(),
+      });
+
+      const stats = await adapter.getTokenUsageStats('all', costMap);
+      expect(stats.byRepo).toHaveLength(1);
+      expect(stats.byRepo[0].repoId).toBe(repo.repoId);
+      expect(stats.byRepo[0].repoName).toBe('my-repo');
+      expect(stats.byRepo[0].ingestionTokens).toBe(800);
+      expect(stats.byRepo[0].totalTokens).toBe(800);
+    });
+
+    it('aggregates QnA tokens from ci_qna_messages', async () => {
+      const repo = makeRepo({ name: 'qna-repo' });
+      await adapter.upsertRepo(repo);
+
+      const sessionId = randomUUID();
+      await trx('ci_qna_sessions').insert({
+        session_id: sessionId,
+        repo_id: repo.repoId,
+        active_context: JSON.stringify({ mentionedFiles: [], mentionedSymbols: [] }),
+        created_at: new Date(),
+        last_active: new Date(),
+      });
+
+      await trx('ci_qna_messages').insert({
+        message_id: randomUUID(),
+        session_id: sessionId,
+        role: 'user',
+        content: 'What does this do?',
+        tokens_used: 100,
+        created_at: new Date(),
+      });
+      await trx('ci_qna_messages').insert({
+        message_id: randomUUID(),
+        session_id: sessionId,
+        role: 'assistant',
+        content: 'It does X.',
+        tokens_used: 200,
+        created_at: new Date(),
+      });
+
+      const stats = await adapter.getTokenUsageStats('all', costMap);
+      expect(stats.byRepo).toHaveLength(1);
+      expect(stats.byRepo[0].qnaTokens).toBe(300);
+
+      const llmModel = stats.byModel.find(m => m.model === 'llm');
+      expect(llmModel).toBeDefined();
+      expect(llmModel!.tokens).toBe(300);
+    });
+
+    it('breaks down tokens by model from generation_sig', async () => {
+      const repo = makeRepo();
+      await adapter.upsertRepo(repo);
+
+      await trx('ci_artifacts').insert({
+        repo_id: repo.repoId,
+        artifact_id: 'doc/sonnet',
+        artifact_type: 'doc',
+        content: JSON.stringify({ kind: 'doc', module: 'overview', markdown: 'A' }),
+        input_sha: 'sha1',
+        tokens_used: 1000,
+        llm_used: true,
+        is_stale: false,
+        generation_sig: 'claude-sonnet-4-20250514:v1',
+        generated_at: new Date(),
+      });
+      await trx('ci_artifacts').insert({
+        repo_id: repo.repoId,
+        artifact_id: 'doc/embed',
+        artifact_type: 'doc',
+        content: JSON.stringify({ kind: 'doc', module: 'overview', markdown: 'B' }),
+        input_sha: 'sha2',
+        tokens_used: 500,
+        llm_used: true,
+        is_stale: false,
+        generation_sig: 'text-embedding-3-small:v1',
+        generated_at: new Date(),
+      });
+
+      const stats = await adapter.getTokenUsageStats('all', costMap);
+      expect(stats.byModel.length).toBeGreaterThanOrEqual(2);
+
+      const sonnetModel = stats.byModel.find(m => m.model === 'claude-sonnet-4-20250514');
+      expect(sonnetModel).toBeDefined();
+      expect(sonnetModel!.tokens).toBe(1000);
+
+      const embedModel = stats.byModel.find(m => m.model === 'text-embedding-3-small');
+      expect(embedModel).toBeDefined();
+      expect(embedModel!.tokens).toBe(500);
+    });
+
+    it('filters by time range', async () => {
+      const repo = makeRepo();
+      await adapter.upsertRepo(repo);
+
+      const now = new Date();
+      const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000);
+
+      // Old artifact (40 days ago)
+      await trx('ci_artifacts').insert({
+        repo_id: repo.repoId,
+        artifact_id: 'doc/old',
+        artifact_type: 'doc',
+        content: JSON.stringify({ kind: 'doc', module: 'overview', markdown: 'Old' }),
+        input_sha: 'sha-old',
+        tokens_used: 1000,
+        llm_used: true,
+        is_stale: false,
+        generation_sig: 'claude-sonnet-4-20250514:v1',
+        generated_at: daysAgo(40),
+      });
+      // Recent artifact (2 days ago)
+      await trx('ci_artifacts').insert({
+        repo_id: repo.repoId,
+        artifact_id: 'doc/new',
+        artifact_type: 'doc',
+        content: JSON.stringify({ kind: 'doc', module: 'overview', markdown: 'New' }),
+        input_sha: 'sha-new',
+        tokens_used: 500,
+        llm_used: true,
+        is_stale: false,
+        generation_sig: 'claude-sonnet-4-20250514:v1',
+        generated_at: daysAgo(2),
+      });
+
+      const stats7d = await adapter.getTokenUsageStats('7d', costMap);
+      expect(stats7d.byRepo).toHaveLength(1);
+      expect(stats7d.byRepo[0].ingestionTokens).toBe(500);
+
+      const stats30d = await adapter.getTokenUsageStats('30d', costMap);
+      expect(stats30d.byRepo).toHaveLength(1);
+      expect(stats30d.byRepo[0].ingestionTokens).toBe(500);
+
+      const statsAll = await adapter.getTokenUsageStats('all', costMap);
+      expect(statsAll.byRepo).toHaveLength(1);
+      expect(statsAll.byRepo[0].ingestionTokens).toBe(1500);
+    });
+
+    it('computes cost using the cost map', async () => {
+      const repo = makeRepo();
+      await adapter.upsertRepo(repo);
+
+      // Insert 1M tokens with claude-sonnet model
+      await trx('ci_artifacts').insert({
+        repo_id: repo.repoId,
+        artifact_id: 'doc/expensive',
+        artifact_type: 'doc',
+        content: JSON.stringify({ kind: 'doc', module: 'overview', markdown: 'Big' }),
+        input_sha: 'sha-big',
+        tokens_used: 1_000_000,
+        llm_used: true,
+        is_stale: false,
+        generation_sig: 'claude-sonnet-4-20250514:v1',
+        generated_at: new Date(),
+      });
+
+      const stats = await adapter.getTokenUsageStats('all', costMap);
+
+      const sonnetModel = stats.byModel.find(m => m.model === 'claude-sonnet-4-20250514');
+      expect(sonnetModel).toBeDefined();
+      expect(sonnetModel!.estimatedCost).toBeCloseTo(3.0, 2);
+    });
+  });
 });
