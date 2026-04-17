@@ -15,9 +15,9 @@ import MuiTableBody from '@material-ui/core/TableBody';
 import MuiTableCell from '@material-ui/core/TableCell';
 import MuiTableHead from '@material-ui/core/TableHead';
 import MuiTableRow from '@material-ui/core/TableRow';
+import Typography from '@material-ui/core/Typography';
 import ToggleButton from '@material-ui/lab/ToggleButton';
 import ToggleButtonGroup from '@material-ui/lab/ToggleButtonGroup';
-import Typography from '@material-ui/core/Typography';
 import { useCallback, useEffect, useState } from 'react';
 
 import {
