@@ -8,12 +8,13 @@ import {
 
 import { codeInsightApiRef } from './api';
 import { CodeInsightClient } from './api-client';
-import { rootRouteRef } from './routes';
+import { rootRouteRef, usageRouteRef } from './routes';
 
 export const codeinsightPlugin = createPlugin({
   id: 'codeinsight',
   routes: {
     root: rootRouteRef,
+    usage: usageRouteRef,
   },
   apis: [
     createApiFactory({
@@ -36,5 +37,14 @@ export const EntityCodeInsightContent = codeinsightPlugin.provide(
         m => m.EntityCodeInsightContent,
       ),
     mountPoint: rootRouteRef,
+  }),
+);
+
+export const TokenUsagePage = codeinsightPlugin.provide(
+  createRoutableExtension({
+    name: 'TokenUsagePage',
+    component: () =>
+      import('./components/TokenUsagePage').then(m => m.TokenUsagePage),
+    mountPoint: usageRouteRef,
   }),
 );
