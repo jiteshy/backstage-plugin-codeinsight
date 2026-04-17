@@ -281,6 +281,15 @@ export const codeinsightPlugin = createBackendPlugin({
           );
         }
 
+        // Usage dashboard — cost-per-million-tokens map from config
+        const usageCostConfig = config.getOptionalConfig('codeinsight.usage.costPerMillionTokens');
+        const costMap: Record<string, number> = { default: 3.0 };
+        if (usageCostConfig) {
+          for (const key of usageCostConfig.keys()) {
+            costMap[key] = usageCostConfig.getNumber(key);
+          }
+        }
+
         // ------------------------------------------------------------------
         // Mount router
         // ------------------------------------------------------------------
@@ -292,6 +301,7 @@ export const codeinsightPlugin = createBackendPlugin({
           storageAdapter,
           jobQueue,
           qnaService,
+          costMap,
         });
         httpRouter.use(router);
 

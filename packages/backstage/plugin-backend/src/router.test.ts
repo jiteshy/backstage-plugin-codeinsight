@@ -81,6 +81,7 @@ function mockStorageAdapter() {
     getActiveJobForRepo: jest.fn(),
     deleteRepo: jest.fn().mockResolvedValue(undefined),
     getSessionMessages: jest.fn().mockResolvedValue([]),
+    getTokenUsageStats: jest.fn(),
   };
 }
 
@@ -689,6 +690,56 @@ describe('createRouter', () => {
 
       expect(res.status).toBe(204);
       expect(storageAdapter.deleteRepo).toHaveBeenCalledWith('org~my-repo');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // GET /usage
+  // -------------------------------------------------------------------------
+
+  describe('GET /usage', () => {
+    it('returns token usage stats', async () => {
+      const mockStats = {
+        timeRange: '30d',
+        totalTokens: 1500,
+        totalEstimatedCost: 4.5,
+        byModel: [{ model: 'claude-sonnet-4-20250514', tokens: 1500, estimatedCost: 4.5 }],
+        byRepo: [{
+          repoId: 'org~repo',
+          repoName: 'repo',
+          ingestionTokens: 1000,
+          qnaTokens: 500,
+          totalTokens: 1500,
+          estimatedCost: 4.5,
+          lastActivity: new Date().toISOString(),
+        }],
+      };
+      storageAdapter.getTokenUsageStats.mockResolvedValue(mockStats);
+
+      const { status, body } = await request(server, 'GET', '/usage?range=30d');
+      expect(status).toBe(200);
+      expect(body).toMatchObject({ timeRange: '30d', totalTokens: 1500 });
+      expect(storageAdapter.getTokenUsageStats).toHaveBeenCalledWith('30d', { default: 3.0 });
+    });
+
+    it('defaults to 30d when no range param', async () => {
+      storageAdapter.getTokenUsageStats.mockResolvedValue({
+        timeRange: '30d',
+        totalTokens: 0,
+        totalEstimatedCost: 0,
+        byModel: [],
+        byRepo: [],
+      });
+
+      const { status } = await request(server, 'GET', '/usage');
+      expect(status).toBe(200);
+      expect(storageAdapter.getTokenUsageStats).toHaveBeenCalledWith('30d', { default: 3.0 });
+    });
+
+    it('rejects invalid range', async () => {
+      const { status, body } = await request(server, 'GET', '/usage?range=1y');
+      expect(status).toBe(400);
+      expect((body as any).error).toContain('Invalid range');
     });
   });
 });
