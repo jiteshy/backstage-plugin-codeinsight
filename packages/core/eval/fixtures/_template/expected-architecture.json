@@ -1,0 +1,6 @@
+{
+  "subsystems": [
+    { "name": "Subsystem Name", "mustMentionFiles": ["src/example.ts"] }
+  ],
+  "externalDependencies": ["some-package"]
+}

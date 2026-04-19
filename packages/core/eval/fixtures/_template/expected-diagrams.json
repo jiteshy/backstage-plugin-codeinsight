@@ -1,0 +1,8 @@
+{
+  "systemArchitecture": {
+    "mustContainLabels": ["API", "DB"],
+    "mustContainEdges": [{ "from": "API", "to": "DB" }]
+  },
+  "dataModel": null,
+  "keyFlows": []
+}
