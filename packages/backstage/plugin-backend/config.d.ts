@@ -127,10 +127,24 @@ export interface Config {
      */
     usage?: {
       /**
-       * Cost per million tokens, keyed by model name.
-       * Include a 'default' key for fallback. Example: { 'claude-sonnet-4-20250514': 3.0, default: 3.0 }
+       * Cost per million tokens (USD), keyed by model name.
+       *
+       * Recognized keys:
+       *  - Any LLM model id extracted from `Artifact.generation_sig` (e.g. `claude-sonnet-4-20250514`, `gpt-4o`).
+       *  - `llm` — synthetic label for QnA tokens, which are not tracked per-model. Set this to your
+       *    QnA model's rate so QnA cost is reflected in the dashboard.
+       *  - `default` — fallback rate for any model not listed above.
+       *
+       * Example:
+       *   costPerMillionTokens:
+       *     claude-sonnet-4-20250514: 3.0
+       *     gpt-4o: 2.5
+       *     llm: 3.0
+       *     default: 3.0
        */
-      costPerMillionTokens?: Record<string, number>;
+      costPerMillionTokens?: {
+        [modelName: string]: number;
+      };
     };
   };
 }
