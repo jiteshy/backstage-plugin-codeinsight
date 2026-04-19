@@ -26,7 +26,11 @@
     "db:reset": "docker compose down -v && docker compose up -d postgres && pnpm db:migrate",
     "db:migrate": "pnpm --filter @codeinsight/storage db:migrate",
     "db:rollback": "pnpm --filter @codeinsight/storage db:rollback",
-    "db:nuke": "./scripts/db-nuke.sh"
+    "db:nuke": "./scripts/db-nuke.sh",
+    "eval:build": "pnpm --filter @codeinsight/eval build",
+    "eval:run": "pnpm --filter @codeinsight/eval build && node packages/core/eval/dist/cli.js run",
+    "eval:baseline": "pnpm --filter @codeinsight/eval build && node packages/core/eval/dist/cli.js baseline",
+    "eval:compare": "pnpm --filter @codeinsight/eval build && node packages/core/eval/dist/cli.js compare"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
