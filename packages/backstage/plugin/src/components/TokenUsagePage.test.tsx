@@ -40,6 +40,7 @@ jest.mock('@backstage/core-components', () => ({
   Content: ({ children }: { children?: React.ReactNode }) => (
     <div data-testid="content">{children}</div>
   ),
+  Progress: () => <div data-testid="progress" />,
   Table: ({ title, data, columns }: { title?: string; data?: any[]; columns?: any[] }) => (
     <div data-testid="backstage-table">
       {title && <div>{title}</div>}
@@ -171,6 +172,36 @@ describe('TokenUsagePage', () => {
     await waitFor(() => {
       expect(screen.getByText(/Network error/)).toBeInTheDocument();
     });
+  });
+
+  it('shows loading indicator while fetching', async () => {
+    let resolveFetch: (value: typeof mockStats) => void;
+    mockApi.getTokenUsage.mockReturnValue(
+      new Promise(resolve => {
+        resolveFetch = resolve;
+      }),
+    );
+    renderPage();
+    expect(screen.getByTestId('progress')).toBeInTheDocument();
+    resolveFetch!(mockStats);
+    await waitFor(() => {
+      expect(screen.queryByTestId('progress')).not.toBeInTheDocument();
+    });
+  });
+
+  it('clears stale stats when a fetch fails', async () => {
+    mockApi.getTokenUsage.mockResolvedValue(mockStats);
+    renderPage();
+    await waitFor(() => expect(screen.getAllByText('1.2M').length).toBeGreaterThanOrEqual(1));
+
+    mockApi.getTokenUsage.mockRejectedValue(new Error('Backend exploded'));
+    const sevenDayButton = screen.getByText('Last 7 days');
+    fireEvent.click(sevenDayButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Backend exploded/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText('1.2M')).not.toBeInTheDocument();
   });
 
   it('renders the page header with title', async () => {

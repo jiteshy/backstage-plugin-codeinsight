@@ -2,6 +2,7 @@ import {
   Content,
   Header,
   Page,
+  Progress,
   Table,
   TableColumn,
 } from '@backstage/core-components';
@@ -18,7 +19,7 @@ import MuiTableRow from '@material-ui/core/TableRow';
 import Typography from '@material-ui/core/Typography';
 import ToggleButton from '@material-ui/lab/ToggleButton';
 import ToggleButtonGroup from '@material-ui/lab/ToggleButtonGroup';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   codeInsightApiRef,
@@ -114,17 +115,22 @@ export function TokenUsagePage() {
   const [stats, setStats] = useState<TokenUsageStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fetchIdRef = useRef(0);
 
   const fetchUsage = useCallback(async (r: UsageTimeRange) => {
+    const fetchId = ++fetchIdRef.current;
     setLoading(true);
     setError(null);
     try {
       const data = await api.getTokenUsage(r);
+      if (fetchId !== fetchIdRef.current) return;
       setStats(data);
     } catch (err) {
+      if (fetchId !== fetchIdRef.current) return;
+      setStats(null);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      if (fetchId === fetchIdRef.current) setLoading(false);
     }
   }, [api]);
 
@@ -152,6 +158,8 @@ export function TokenUsagePage() {
             <ToggleButton value="all">All time</ToggleButton>
           </ToggleButtonGroup>
         </Box>
+
+        {loading && <Progress />}
 
         {error && (
           <Typography color="error" gutterBottom>
