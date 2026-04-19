@@ -1,0 +1,10 @@
+{
+  "bullets": [
+    "RESTful API boilerplate built with Node.js and Express",
+    "Uses Mongoose for MongoDB data modeling",
+    "Provides JWT-based authentication with separate access and refresh tokens",
+    "Implements role-based access control through a passport JWT middleware",
+    "Supports password reset and email verification flows via nodemailer",
+    "Validates incoming requests with Joi schemas"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "subsystems": [
+    { "name": "Routes", "mustMentionFiles": ["src/routes/v1/auth.route.js", "src/routes/v1/user.route.js"] },
+    { "name": "Controllers", "mustMentionFiles": ["src/controllers/auth.controller.js", "src/controllers/user.controller.js"] },
+    { "name": "Services", "mustMentionFiles": ["src/services/auth.service.js", "src/services/token.service.js", "src/services/user.service.js"] },
+    { "name": "Models", "mustMentionFiles": ["src/models/user.model.js", "src/models/token.model.js"] },
+    { "name": "Middleware", "mustMentionFiles": ["src/middlewares/auth.js", "src/middlewares/error.js", "src/middlewares/validate.js"] }
+  ],
+  "externalDependencies": ["express", "mongoose", "jsonwebtoken", "passport", "joi", "bcryptjs"]
+}

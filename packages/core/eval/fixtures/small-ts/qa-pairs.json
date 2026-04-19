@@ -1,0 +1,109 @@
+[
+  {
+    "question": "How does login work in this project?",
+    "expectedFiles": ["src/controllers/auth.controller.js", "src/services/auth.service.js"],
+    "mustIncludeFacts": [
+      "the password is checked against the stored hash using bcrypt",
+      "on success, access and refresh tokens are issued"
+    ],
+    "shouldNotHallucinate": ["OAuth", "Google login", "SAML"]
+  },
+  {
+    "question": "How are JWT tokens generated?",
+    "expectedFiles": ["src/services/token.service.js"],
+    "mustIncludeFacts": [
+      "jsonwebtoken's jwt.sign is used with a secret from config.jwt.secret",
+      "the payload includes sub (userId), iat, exp, and type"
+    ],
+    "shouldNotHallucinate": ["RSA key pair", "asymmetric signing"]
+  },
+  {
+    "question": "How does the authentication middleware work?",
+    "expectedFiles": ["src/middlewares/auth.js", "src/config/passport.js"],
+    "mustIncludeFacts": [
+      "it uses passport's jwt strategy to authenticate requests",
+      "required rights are checked against the user's role via roleRights"
+    ],
+    "shouldNotHallucinate": ["session cookies", "CSRF tokens"]
+  },
+  {
+    "question": "What fields does the User model have?",
+    "expectedFiles": ["src/models/user.model.js"],
+    "mustIncludeFacts": [
+      "User has name, email, password, role, and isEmailVerified fields",
+      "the password is hashed with bcrypt in a pre-save hook"
+    ],
+    "shouldNotHallucinate": ["phone number", "address", "profile picture"]
+  },
+  {
+    "question": "What fields does the Token model have?",
+    "expectedFiles": ["src/models/token.model.js"],
+    "mustIncludeFacts": [
+      "Token has token, user, type, expires, and blacklisted fields",
+      "type is an enum of refresh, resetPassword, and verifyEmail"
+    ],
+    "shouldNotHallucinate": ["accessToken field"]
+  },
+  {
+    "question": "How is password reset implemented?",
+    "expectedFiles": ["src/services/auth.service.js", "src/services/email.service.js"],
+    "mustIncludeFacts": [
+      "a reset password token is generated and emailed to the user",
+      "resetPassword verifies the token and updates the user's password"
+    ],
+    "shouldNotHallucinate": ["SMS verification"]
+  },
+  {
+    "question": "How does role-based access control work?",
+    "expectedFiles": ["src/config/roles.js", "src/middlewares/auth.js"],
+    "mustIncludeFacts": [
+      "roles are 'user' and 'admin', defined in config/roles.js",
+      "admin has the rights getUsers and manageUsers"
+    ],
+    "shouldNotHallucinate": ["superadmin role", "RBAC database table"]
+  },
+  {
+    "question": "What calls the userService?",
+    "expectedFiles": ["src/controllers/user.controller.js", "src/controllers/auth.controller.js"],
+    "mustIncludeFacts": [
+      "user.controller.js uses userService for CRUD operations",
+      "auth.controller.js uses userService.createUser during register"
+    ],
+    "shouldNotHallucinate": []
+  },
+  {
+    "question": "What calls tokenService.generateAuthTokens?",
+    "expectedFiles": ["src/controllers/auth.controller.js", "src/services/auth.service.js"],
+    "mustIncludeFacts": [
+      "auth.controller.js calls it in register and login handlers",
+      "auth.service.js calls it inside refreshAuth to rotate tokens"
+    ],
+    "shouldNotHallucinate": []
+  },
+  {
+    "question": "Where is the user schema defined?",
+    "expectedFiles": ["src/models/user.model.js"],
+    "mustIncludeFacts": [
+      "the schema is defined in src/models/user.model.js using mongoose.Schema"
+    ],
+    "shouldNotHallucinate": ["Prisma schema", "TypeORM entity"]
+  },
+  {
+    "question": "Where are the Express routes mounted?",
+    "expectedFiles": ["src/app.js", "src/routes/v1/index.js"],
+    "mustIncludeFacts": [
+      "routes are mounted under the /v1 prefix in src/app.js",
+      "the v1 router is defined in src/routes/v1/index.js"
+    ],
+    "shouldNotHallucinate": ["GraphQL endpoint", "tRPC router"]
+  },
+  {
+    "question": "How does global error handling work?",
+    "expectedFiles": ["src/middlewares/error.js", "src/utils/ApiError.js"],
+    "mustIncludeFacts": [
+      "errorConverter wraps unknown errors into ApiError instances",
+      "errorHandler sends a JSON response with statusCode and message"
+    ],
+    "shouldNotHallucinate": ["Sentry integration"]
+  }
+]
