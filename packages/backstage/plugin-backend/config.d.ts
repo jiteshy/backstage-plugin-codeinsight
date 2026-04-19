@@ -142,7 +142,9 @@ export interface Config {
        *     llm: 3.0
        *     default: 3.0
        */
-      costPerMillionTokens?: Record<string, number>;
+      costPerMillionTokens?: {
+        [modelName: string]: number;
+      };
     };
   };
 }
