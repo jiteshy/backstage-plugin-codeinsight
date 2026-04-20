@@ -85,4 +85,33 @@ describe('scoreDocs', () => {
     const result = await scoreDocs(artifacts, overview, { subsystems: [], externalDependencies: [] }, llm);
     expect(result[0].overall).toBe(0.5);
   });
+
+  it('deterministically scores mustMentionFiles by substring presence in the architecture doc', async () => {
+    const markdown = '# Arch\nThe API layer lives in src/routes/v1/auth.route.js.\nWorkers are in src/workers/.';
+    const artifacts = [docArtifact('architecture', markdown)];
+    const archWithFiles: ExpectedArchitecture = {
+      subsystems: [
+        {
+          name: 'API',
+          mustMentionFiles: ['src/routes/v1/auth.route.js', 'src/routes/v1/user.route.js'],
+        },
+      ],
+      externalDependencies: [],
+    };
+    const llm = mockLLM([
+      JSON.stringify({ results: [
+        { fact: 'mentions subsystem API', score: 1, reason: 'said' },
+      ]}),
+    ]);
+
+    const result = await scoreDocs(artifacts, { bullets: [] }, archWithFiles, llm);
+
+    const archScore = result[1];
+    const fileScores = archScore.factScores.filter(f => f.fact.startsWith('mentions file'));
+    expect(fileScores).toHaveLength(2);
+    expect(fileScores.find(f => f.fact.includes('auth.route.js'))?.score).toBe(1);
+    expect(fileScores.find(f => f.fact.includes('user.route.js'))?.score).toBe(0);
+    // overall = (1 subsystem + 1 hit + 0 miss) / 3 = 0.666...
+    expect(archScore.overall).toBeCloseTo(2 / 3, 5);
+  });
 });

@@ -423,9 +423,6 @@ importers:
       commander:
         specifier: ^12.0.0
         version: 12.1.0
-      mermaid:
-        specifier: ^10.9.0
-        version: 10.9.5
       simple-git:
         specifier: ^3.24.0
         version: 3.32.3
@@ -1408,9 +1405,6 @@ packages:
 
   '@bcoe/v8-coverage@0.2.3':
     resolution: {integrity: sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==}
-
-  '@braintree/sanitize-url@6.0.4':
-    resolution: {integrity: sha512-s3jaWicZd0pkP0jf5ysyHUI/RE7MHos6qlToFcGWXVp+ykHOy77OUMrfbgJ9it2C5bow7OIQwYYaHjk9XlBQ2A==}
 
   '@braintree/sanitize-url@7.1.2':
     resolution: {integrity: sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==}
@@ -5746,9 +5740,6 @@ packages:
     resolution: {integrity: sha512-e1U46jVP+w7Iut8Jt8ri1YsPOvFpg46k+K8TpCb0P+zjCkjkPnV7WzfDJzMHy1LnA+wj5pLT1wjO901gLXeEhA==}
     engines: {node: '>=12'}
 
-  dagre-d3-es@7.0.13:
-    resolution: {integrity: sha512-efEhnxpSuwpYOKRm/L5KbqoZmNNukHa/Flty4Wp62JRvgH2ojwVgPgdYyr4twpieZnyRDdIH7PY2mopX26+j2Q==}
-
   dagre-d3-es@7.0.14:
     resolution: {integrity: sha512-P4rFMVq9ESWqmOgK+dlXvOtLwYg0i7u0HBGJER0LZDJT2VHIPAMZ/riPxqJceWMStH5+E61QxFra9kIS3AqdMg==}
 
@@ -6055,9 +6046,6 @@ packages:
 
   electron-to-chromium@1.5.307:
     resolution: {integrity: sha512-5z3uFKBWjiNR44nFcYdkcXjKMbg5KXNdciu7mhTPo9tB7NbqSNP2sSnGR+fqknZSCwKkBN+oxiiajWs4dT6ORg==}
-
-  elkjs@0.9.3:
-    resolution: {integrity: sha512-f/ZeWvW/BCXbhGEf1Ujp29EASo/lk1FDnETgNKwJrsVvGZhUWCZyg3xLJjAsxfOmt8KjswHmI5EwCQcPMpOYhQ==}
 
   elliptic@6.6.1:
     resolution: {integrity: sha512-RaddvvMatK2LJHqFJ+YA4WysVN5Ita9E35botqIYspQ4TkRAlCicdzKOjlyv/1Za5RyTNn7di//eEV0uTAfe3g==}
@@ -8176,9 +8164,6 @@ packages:
     resolution: {integrity: sha512-8q7VEgMJW4J8tcfVPy8g09NcQwZdbwFEqhe/WZkoIzjn/3TGDwtOCYtXGxA3O8tPzpczCCDgv+P2P5y00ZJOOg==}
     engines: {node: '>= 8'}
 
-  mermaid@10.9.5:
-    resolution: {integrity: sha512-eRlKEjzak4z1rcXeCd1OAlyawhrptClQDo8OuI8n6bSVqJ9oMfd5Lrf3Q+TdJHewi/9AIOc3UmEo8Fz+kNzzuQ==}
-
   mermaid@11.13.0:
     resolution: {integrity: sha512-fEnci+Immw6lKMFI8sqzjlATTyjLkRa6axrEgLV2yHTfv8r+h1wjFbV6xeRtd4rUV1cS4EpR9rwp3Rci7TRWDw==}
 
@@ -8498,9 +8483,6 @@ packages:
   node-stdlib-browser@1.3.1:
     resolution: {integrity: sha512-X75ZN8DCLftGM5iKwoYLA3rjnrAEs97MkzvSd4q2746Tgpg8b8XWiBGiBG4ZpgcAqBgtgPHTiAc8ZMCvZuikDw==}
     engines: {node: '>=10'}
-
-  non-layered-tidy-tree-layout@2.0.2:
-    resolution: {integrity: sha512-gkXMxRzUH+PB0ax9dUN0yYF0S25BqeAYqhgMaLUFmpXLEk7Fcu8f4emJuOAY0V8kjDICxROIKsTAKsV/v355xw==}
 
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
@@ -10897,9 +10879,6 @@ packages:
     resolution: {integrity: sha512-QW95TCTaHmsYfHDybGMwO5IJIM93I/6vTRk+daHTWFPhwh+C8Cg7j7XyKrwrj8Ib6vYXe0ocYNrmzY4xAAN6ug==}
     engines: {node: '>= 14'}
 
-  web-worker@1.5.0:
-    resolution: {integrity: sha512-RiMReJrTAiA+mBjGONMnjVDP2u3p9R1vkcGz6gDIrOMT3oGuYwX2WRMYI9ipkphSuE5XKEhydbhNEJh4NY9mlw==}
-
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
 
@@ -12327,7 +12306,7 @@ snapshots:
       '@backstage/errors': 1.2.7
       '@backstage/integration': 1.20.1
       '@backstage/integration-aws-node': 0.1.20
-      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
       '@backstage/plugin-events-node': 0.4.19(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
       '@backstage/plugin-permission-node': 0.10.10(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
       '@backstage/types': 1.2.2
@@ -12439,7 +12418,7 @@ snapshots:
       '@backstage/cli-common': 0.1.18
       '@backstage/config': 1.3.6
       '@backstage/errors': 1.2.7
-      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)
       '@backstage/plugin-permission-common': 0.9.6
       '@backstage/plugin-permission-node': 0.10.10(better-sqlite3@12.6.2)
       '@backstage/types': 1.2.2
@@ -12493,7 +12472,7 @@ snapshots:
       '@backstage/cli-common': 0.1.18
       '@backstage/config': 1.3.6
       '@backstage/errors': 1.2.7
-      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
       '@backstage/plugin-permission-common': 0.9.6
       '@backstage/plugin-permission-node': 0.10.10(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
       '@backstage/types': 1.2.2
@@ -12549,7 +12528,7 @@ snapshots:
       '@backstage/backend-plugin-api': 1.7.0(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
       '@backstage/config': 1.3.6
       '@backstage/errors': 1.2.7
-      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
       '@backstage/plugin-events-node': 0.4.19(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
       '@backstage/plugin-permission-common': 0.9.6
       '@backstage/types': 1.2.2
@@ -13188,7 +13167,7 @@ snapshots:
       '@backstage/config-loader': 1.10.8(@swc/core@1.15.18(@swc/helpers@0.5.19))
       '@backstage/errors': 1.2.7
       '@backstage/plugin-app-node': 0.1.42(@swc/core@1.15.18(@swc/helpers@0.5.19))(better-sqlite3@12.6.2)
-      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)
       '@backstage/types': 1.2.2
       express: 4.22.1
       express-promise-router: 4.1.1(@types/express@4.17.25)(express@4.22.1)
@@ -13249,7 +13228,7 @@ snapshots:
       '@backstage/backend-plugin-api': 1.7.0(better-sqlite3@12.6.2)
       '@backstage/catalog-model': 1.7.6
       '@backstage/errors': 1.2.7
-      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)
       passport-oauth2: 1.8.0
     transitivePeerDependencies:
       - better-sqlite3
@@ -13268,7 +13247,7 @@ snapshots:
       '@backstage/catalog-model': 1.7.6
       '@backstage/config': 1.3.6
       '@backstage/errors': 1.2.7
-      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)
       '@backstage/plugin-catalog-node': 2.0.0(better-sqlite3@12.6.2)
       '@backstage/types': 1.2.2
       '@google-cloud/firestore': 7.11.6
@@ -13301,9 +13280,65 @@ snapshots:
       - supports-color
       - tedious
 
+  '@backstage/plugin-auth-node@0.6.13(better-sqlite3@12.6.2)':
+    dependencies:
+      '@backstage/backend-plugin-api': 1.7.0(better-sqlite3@12.6.2)
+      '@backstage/catalog-client': 1.13.0
+      '@backstage/catalog-model': 1.7.6
+      '@backstage/config': 1.3.6
+      '@backstage/errors': 1.2.7
+      '@backstage/types': 1.2.2
+      '@types/express': 4.17.25
+      '@types/passport': 1.0.17
+      express: 4.22.1
+      jose: 5.10.0
+      lodash: 4.17.23
+      passport: 0.7.0
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.1(zod@3.25.76)
+      zod-validation-error: 4.0.2(zod@3.25.76)
+    transitivePeerDependencies:
+      - better-sqlite3
+      - encoding
+      - mysql
+      - mysql2
+      - pg
+      - pg-native
+      - sqlite3
+      - supports-color
+      - tedious
+
   '@backstage/plugin-auth-node@0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)':
     dependencies:
       '@backstage/backend-plugin-api': 1.7.0(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/catalog-client': 1.13.0
+      '@backstage/catalog-model': 1.7.6
+      '@backstage/config': 1.3.6
+      '@backstage/errors': 1.2.7
+      '@backstage/types': 1.2.2
+      '@types/express': 4.17.25
+      '@types/passport': 1.0.17
+      express: 4.22.1
+      jose: 5.10.0
+      lodash: 4.17.23
+      passport: 0.7.0
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.1(zod@3.25.76)
+      zod-validation-error: 4.0.2(zod@3.25.76)
+    transitivePeerDependencies:
+      - better-sqlite3
+      - encoding
+      - mysql
+      - mysql2
+      - pg
+      - pg-native
+      - sqlite3
+      - supports-color
+      - tedious
+
+  '@backstage/plugin-auth-node@0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)':
+    dependencies:
+      '@backstage/backend-plugin-api': 1.7.0(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
       '@backstage/catalog-client': 1.13.0
       '@backstage/catalog-model': 1.7.6
       '@backstage/config': 1.3.6
@@ -13678,7 +13713,7 @@ snapshots:
   '@backstage/plugin-permission-backend-module-allow-all-policy@0.2.16(better-sqlite3@12.6.2)':
     dependencies:
       '@backstage/backend-plugin-api': 1.7.0(better-sqlite3@12.6.2)
-      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)
       '@backstage/plugin-permission-common': 0.9.6
       '@backstage/plugin-permission-node': 0.10.10(better-sqlite3@12.6.2)
     transitivePeerDependencies:
@@ -13697,7 +13732,7 @@ snapshots:
       '@backstage/backend-plugin-api': 1.7.0(better-sqlite3@12.6.2)
       '@backstage/config': 1.3.6
       '@backstage/errors': 1.2.7
-      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)
       '@backstage/plugin-permission-common': 0.9.6
       '@backstage/plugin-permission-node': 0.10.10(better-sqlite3@12.6.2)
       dataloader: 2.2.3
@@ -13747,7 +13782,7 @@ snapshots:
       '@backstage/backend-plugin-api': 1.7.0(better-sqlite3@12.6.2)
       '@backstage/config': 1.3.6
       '@backstage/errors': 1.2.7
-      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)
       '@backstage/plugin-permission-common': 0.9.6
       '@types/express': 4.17.25
       express: 4.22.1
@@ -13793,7 +13828,7 @@ snapshots:
       '@backstage/backend-plugin-api': 1.7.0(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
       '@backstage/config': 1.3.6
       '@backstage/errors': 1.2.7
-      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@18.19.130))(pg@8.20.0)
+      '@backstage/plugin-auth-node': 0.6.13(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
       '@backstage/plugin-permission-common': 0.9.6
       '@types/express': 4.17.25
       express: 4.22.1
@@ -13986,8 +14021,6 @@ snapshots:
   '@balena/dockerignore@1.0.2': {}
 
   '@bcoe/v8-coverage@0.2.3': {}
-
-  '@braintree/sanitize-url@6.0.4': {}
 
   '@braintree/sanitize-url@7.1.2': {}
 
@@ -19789,11 +19822,6 @@ snapshots:
       d3-transition: 3.0.1(d3-selection@3.0.0)
       d3-zoom: 3.0.0
 
-  dagre-d3-es@7.0.13:
-    dependencies:
-      d3: 7.9.0
-      lodash-es: 4.17.23
-
   dagre-d3-es@7.0.14:
     dependencies:
       d3: 7.9.0
@@ -20083,8 +20111,6 @@ snapshots:
   ee-first@1.1.1: {}
 
   electron-to-chromium@1.5.307: {}
-
-  elkjs@0.9.3: {}
 
   elliptic@6.6.1:
     dependencies:
@@ -23240,31 +23266,6 @@ snapshots:
 
   merge2@1.4.1: {}
 
-  mermaid@10.9.5:
-    dependencies:
-      '@braintree/sanitize-url': 6.0.4
-      '@types/d3-scale': 4.0.9
-      '@types/d3-scale-chromatic': 3.1.0
-      cytoscape: 3.33.1
-      cytoscape-cose-bilkent: 4.1.0(cytoscape@3.33.1)
-      d3: 7.9.0
-      d3-sankey: 0.12.3
-      dagre-d3-es: 7.0.13
-      dayjs: 1.11.20
-      dompurify: 3.3.3
-      elkjs: 0.9.3
-      katex: 0.16.40
-      khroma: 2.1.0
-      lodash-es: 4.17.23
-      mdast-util-from-markdown: 1.3.1
-      non-layered-tidy-tree-layout: 2.0.2
-      stylis: 4.3.6
-      ts-dedent: 2.2.0
-      uuid: 9.0.1
-      web-worker: 1.5.0
-    transitivePeerDependencies:
-      - supports-color
-
   mermaid@11.13.0:
     dependencies:
       '@braintree/sanitize-url': 7.1.2
@@ -23762,8 +23763,6 @@ snapshots:
       url: 0.11.4
       util: 0.12.5
       vm-browserify: 1.1.2
-
-  non-layered-tidy-tree-layout@2.0.2: {}
 
   normalize-path@3.0.0: {}
 
@@ -26755,8 +26754,6 @@ snapshots:
   web-namespaces@2.0.1: {}
 
   web-streams-polyfill@4.0.0-beta.3: {}
-
-  web-worker@1.5.0: {}
 
   webidl-conversions@3.0.1: {}
 

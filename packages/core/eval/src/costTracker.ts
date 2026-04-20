@@ -32,6 +32,7 @@ export class CostTracker {
 
     const price = CHAT_PRICES[model];
     if (!price) {
+      // eslint-disable-next-line no-console
       console.warn(`CostTracker: unknown chat model "${model}" — cost reported as 0`);
       return;
     }
@@ -44,6 +45,7 @@ export class CostTracker {
 
     const price = EMBED_PRICES[model];
     if (!price) {
+      // eslint-disable-next-line no-console
       console.warn(`CostTracker: unknown embedding model "${model}" — cost reported as 0`);
       return;
     }

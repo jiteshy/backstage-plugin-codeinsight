@@ -1,6 +1,6 @@
 import type { Artifact, LLMClient } from '@codeinsight/types';
 
-import type { DocScore, ExpectedArchitecture, ExpectedOverview } from '../types';
+import type { DocScore, ExpectedArchitecture, ExpectedOverview, FactScore } from '../types';
 
 import { judgeFactPresence } from './llmJudge';
 
@@ -49,16 +49,32 @@ async function scoreArchitecture(
     return { module: 'architecture', overall: 0, factScores: [] };
   }
 
+  const markdown = artifact.content.markdown;
+
   const facts = [
     ...expected.subsystems.map(s => `mentions subsystem ${s.name}`),
     ...expected.externalDependencies.map(d => `mentions external dependency ${d}`),
   ];
 
-  if (facts.length === 0) {
+  // File-presence checks are scored deterministically by substring match — the filename
+  // is an exact token and using the LLM judge here would be expensive and less reliable.
+  const fileFacts: FactScore[] = expected.subsystems.flatMap(s =>
+    s.mustMentionFiles.map<FactScore>(f => {
+      const found = markdown.includes(f);
+      return {
+        fact: `mentions file ${f}`,
+        score: found ? 1 : 0,
+        reason: found ? 'found in markdown' : 'not mentioned',
+      };
+    }),
+  );
+
+  if (facts.length === 0 && fileFacts.length === 0) {
     return { module: 'architecture', overall: 0, factScores: [] };
   }
 
-  const scores = await judgeFactPresence(judgeLlm, artifact.content.markdown, facts);
-  const overall = scores.reduce((s, f) => s + f.score, 0) / scores.length;
-  return { module: 'architecture', overall, factScores: scores };
+  const judgedScores = facts.length === 0 ? [] : await judgeFactPresence(judgeLlm, markdown, facts);
+  const allScores = [...judgedScores, ...fileFacts];
+  const overall = allScores.reduce((s, f) => s + f.score, 0) / allScores.length;
+  return { module: 'architecture', overall, factScores: allScores };
 }
