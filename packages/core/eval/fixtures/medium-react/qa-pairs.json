@@ -1,0 +1,107 @@
+[
+  {
+    "question": "How does login work in this app?",
+    "expectedFiles": ["src/features/auth/authSlice.ts", "src/features/auth/LoginPage.tsx", "src/App.tsx"],
+    "mustIncludeFacts": [
+      "LoginPage dispatches the login thunk with the selected username",
+      "the login thunk POSTs to /fakeApi/login and stores the username in auth state",
+      "ProtectedRoute redirects unauthenticated users back to the login page"
+    ],
+    "shouldNotHallucinate": ["OAuth", "JWT", "bcrypt"]
+  },
+  {
+    "question": "How does the app fetch posts from the server?",
+    "expectedFiles": ["src/features/api/apiSlice.ts", "src/features/posts/PostsList.tsx"],
+    "mustIncludeFacts": [
+      "uses RTK Query's getPosts endpoint defined on apiSlice",
+      "baseQuery is fetchBaseQuery configured against /fakeApi"
+    ],
+    "shouldNotHallucinate": ["Axios", "Apollo Client", "GraphQL"]
+  },
+  {
+    "question": "How are real-time notifications delivered?",
+    "expectedFiles": ["src/features/notifications/notificationsSlice.ts"],
+    "mustIncludeFacts": [
+      "the getNotifications query opens a WebSocket in onCacheEntryAdded",
+      "incoming messages are pushed into the cached list via updateCachedData"
+    ],
+    "shouldNotHallucinate": ["Server-Sent Events", "long polling"]
+  },
+  {
+    "question": "What endpoints does apiSlice define?",
+    "expectedFiles": ["src/features/api/apiSlice.ts"],
+    "mustIncludeFacts": [
+      "getPosts, getPost, addNewPost, editPost, and addReaction are defined on apiSlice"
+    ],
+    "shouldNotHallucinate": ["deletePost", "upvotePost"]
+  },
+  {
+    "question": "What does the addReaction mutation do with the cache?",
+    "expectedFiles": ["src/features/api/apiSlice.ts"],
+    "mustIncludeFacts": [
+      "onQueryStarted optimistically increments the reaction count using updateQueryData",
+      "the patch is undone if the request rejects"
+    ],
+    "shouldNotHallucinate": ["Redux Saga", "redux-thunk action creators"]
+  },
+  {
+    "question": "What reducers are registered in the Redux store?",
+    "expectedFiles": ["src/app/store.ts"],
+    "mustIncludeFacts": [
+      "the store registers auth, notifications, and apiSlice reducers",
+      "listenerMiddleware is prepended and apiSlice.middleware is concatenated"
+    ],
+    "shouldNotHallucinate": ["redux-persist", "combineReducers with a users slice"]
+  },
+  {
+    "question": "What fields does a Post have?",
+    "expectedFiles": ["src/features/posts/postsSlice.ts"],
+    "mustIncludeFacts": [
+      "a Post has id, title, content, user, date, and reactions fields"
+    ],
+    "shouldNotHallucinate": ["comments", "likes", "tags"]
+  },
+  {
+    "question": "Which component dispatches the login thunk?",
+    "expectedFiles": ["src/features/auth/LoginPage.tsx", "src/features/auth/authSlice.ts"],
+    "mustIncludeFacts": [
+      "LoginPage.tsx dispatches login(username) from its handleSubmit and then navigates to /posts"
+    ],
+    "shouldNotHallucinate": ["Navbar", "App.tsx dispatches login"]
+  },
+  {
+    "question": "What triggers the 'New post added!' toast?",
+    "expectedFiles": ["src/features/posts/postsSlice.ts", "src/app/listenerMiddleware.ts"],
+    "mustIncludeFacts": [
+      "a listener effect registered via addPostsListeners matches apiSlice.endpoints.addNewPost.matchFulfilled",
+      "the effect imports react-tiny-toast and shows a success toast"
+    ],
+    "shouldNotHallucinate": ["a React useEffect in AddPostForm", "a createAsyncThunk.fulfilled case reducer"]
+  },
+  {
+    "question": "Where is the root Redux store configured?",
+    "expectedFiles": ["src/app/store.ts"],
+    "mustIncludeFacts": [
+      "configureStore is called in src/app/store.ts with the auth, notifications, and apiSlice reducers"
+    ],
+    "shouldNotHallucinate": ["src/store/index.ts", "src/redux/store.ts"]
+  },
+  {
+    "question": "Where is the mock server defined?",
+    "expectedFiles": ["src/api/server.ts"],
+    "mustIncludeFacts": [
+      "src/api/server.ts uses MSW handlers together with an @mswjs/data factory",
+      "it also sets up a mock-socket server for websocket notifications",
+      "responses are delayed by ARTIFICIAL_DELAY_MS to show loading states"
+    ],
+    "shouldNotHallucinate": ["json-server", "a real Express backend"]
+  },
+  {
+    "question": "How does the app gate protected routes?",
+    "expectedFiles": ["src/App.tsx", "src/features/auth/authSlice.ts"],
+    "mustIncludeFacts": [
+      "a ProtectedRoute component reads selectCurrentUsername and redirects to '/' when no username is set"
+    ],
+    "shouldNotHallucinate": ["a useAuth hook from a third-party library", "react-router loaders"]
+  }
+]
