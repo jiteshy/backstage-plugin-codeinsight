@@ -1,0 +1,10 @@
+{
+  "bullets": [
+    "TypeORM is a TypeScript Data Mapper ORM for Node.js that also supports the Active Record pattern",
+    "Entities are defined with decorators such as @Entity, @Column, @PrimaryColumn, @ManyToOne, and @OneToMany that push metadata into a global MetadataArgsStorage",
+    "A DataSource owns the connection lifecycle and delegates to a pluggable Driver (Postgres, MySQL/MariaDB, SQL Server, Oracle, SAP HANA, SQLite variants, CockroachDB, Spanner, MongoDB)",
+    "The SelectQueryBuilder composes SQL by concatenating select, join, where, group-by, having, order-by, limit-offset, and lock expressions",
+    "A SchemaBuilder (RdbmsSchemaBuilder for relational drivers) synchronizes database schema against entity metadata, and MigrationExecutor runs versioned migrations inside a transaction",
+    "The package exposes a CLI (typeorm, typeorm-ts-node-commonjs, typeorm-ts-node-esm) for generating and running migrations and other operations"
+  ]
+}

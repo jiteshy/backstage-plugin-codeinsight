@@ -1,0 +1,19 @@
+{
+  "systemArchitecture": {
+    "mustContainLabels": ["DataSource", "EntityManager", "Repository", "QueryBuilder", "Driver", "SchemaBuilder"],
+    "mustContainEdges": [
+      { "from": "Repository", "to": "EntityManager" },
+      { "from": "EntityManager", "to": "QueryBuilder" },
+      { "from": "QueryBuilder", "to": "Driver" },
+      { "from": "DataSource", "to": "Driver" },
+      { "from": "SchemaBuilder", "to": "Driver" }
+    ]
+  },
+  "dataModel": null,
+  "keyFlows": [
+    { "name": "initialize", "mustContainSteps": ["DataSource.initialize", "DriverFactory.create", "driver.connect", "buildMetadatas"] },
+    { "name": "save-entity", "mustContainSteps": ["Repository.save", "EntityManager.save", "EntityPersistExecutor"] },
+    { "name": "select-query", "mustContainSteps": ["SelectQueryBuilder.getQuery", "createSelectExpression", "createWhereExpression"] },
+    { "name": "run-migrations", "mustContainSteps": ["MigrationExecutor.executePendingMigrations", "createMigrationsTableIfNotExist", "queryRunner transaction"] }
+  ]
+}

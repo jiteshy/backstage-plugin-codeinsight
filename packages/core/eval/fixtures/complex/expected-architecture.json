@@ -1,0 +1,11 @@
+{
+  "subsystems": [
+    { "name": "DataSource & Connection", "mustMentionFiles": ["src/data-source/DataSource.ts", "src/data-source/DataSourceOptions.ts"] },
+    { "name": "Drivers", "mustMentionFiles": ["src/driver/Driver.ts", "src/driver/DriverFactory.ts", "src/driver/postgres/PostgresDriver.ts", "src/driver/mysql/MysqlDriver.ts"] },
+    { "name": "EntityManager & Repository", "mustMentionFiles": ["src/entity-manager/EntityManager.ts", "src/repository/Repository.ts", "src/persistence/EntityPersistExecutor.ts"] },
+    { "name": "QueryBuilder", "mustMentionFiles": ["src/query-builder/QueryBuilder.ts", "src/query-builder/SelectQueryBuilder.ts", "src/query-builder/InsertQueryBuilder.ts", "src/query-builder/UpdateQueryBuilder.ts", "src/query-builder/DeleteQueryBuilder.ts"] },
+    { "name": "Schema building & Migrations", "mustMentionFiles": ["src/schema-builder/SchemaBuilder.ts", "src/schema-builder/RdbmsSchemaBuilder.ts", "src/migration/MigrationExecutor.ts"] },
+    { "name": "Decorators & Metadata", "mustMentionFiles": ["src/decorator/entity/Entity.ts", "src/decorator/columns/Column.ts", "src/metadata-args/MetadataArgsStorage.ts", "src/metadata-builder/EntityMetadataBuilder.ts", "src/globals.ts"] }
+  ],
+  "externalDependencies": ["reflect-metadata", "tslib", "dayjs", "debug", "yargs", "@sqltools/formatter", "tinyglobby", "pg", "mysql2", "mongodb", "mssql", "oracledb", "better-sqlite3"]
+}

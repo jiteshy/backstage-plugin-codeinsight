@@ -1,0 +1,7 @@
+{
+  "gitUrl": "https://github.com/typeorm/typeorm.git",
+  "commitSha": "8ba2d25676623608b952f8360457091e61a8eb6e",
+  "description": "TypeORM: a TypeScript Data Mapper ORM that supports MySQL/MariaDB, Postgres, SQL Server, Oracle, SAP HANA, SQLite, CockroachDB, Spanner, and MongoDB through a pluggable driver architecture",
+  "sizeCategory": "large",
+  "fileCountApprox": 500
+}
