@@ -2,4 +2,5 @@ packages:
   - 'packages/core/*'
   - 'packages/adapters/*'
   - 'packages/backstage/*'
+  - 'packages/composition'
   - 'dev/*'

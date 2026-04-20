@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "composite": true,
+    "declarationMap": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.spec.ts"],
+  "references": [
+    { "path": "../adapters/embeddings" },
+    { "path": "../adapters/llm" },
+    { "path": "../adapters/repo" },
+    { "path": "../adapters/storage" },
+    { "path": "../adapters/vector-store" },
+    { "path": "../core/chunking" },
+    { "path": "../core/cig" },
+    { "path": "../core/diagram-gen" },
+    { "path": "../core/doc-generator" },
+    { "path": "../core/indexing" },
+    { "path": "../core/ingestion" },
+    { "path": "../core/qna" },
+    { "path": "../core/types" }
+  ]
+}

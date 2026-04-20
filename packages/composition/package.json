@@ -1,0 +1,38 @@
+{
+  "name": "@codeinsight/composition",
+  "version": "0.1.0",
+  "description": "Composition root factory that wires CodeInsight core services + adapters into a ready-to-use stack. Framework-agnostic; zero @backstage imports.",
+  "license": "Apache-2.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@codeinsight/chunking": "workspace:*",
+    "@codeinsight/cig": "workspace:*",
+    "@codeinsight/diagram-gen": "workspace:*",
+    "@codeinsight/doc-generator": "workspace:*",
+    "@codeinsight/embeddings": "workspace:*",
+    "@codeinsight/indexing": "workspace:*",
+    "@codeinsight/ingestion": "workspace:*",
+    "@codeinsight/llm": "workspace:*",
+    "@codeinsight/qna": "workspace:*",
+    "@codeinsight/repo": "workspace:*",
+    "@codeinsight/storage": "workspace:*",
+    "@codeinsight/types": "workspace:*",
+    "@codeinsight/vector-store": "workspace:*",
+    "knex": "^3.1.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^20.11.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "~5.4.0"
+  }
+}
