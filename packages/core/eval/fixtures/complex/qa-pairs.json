@@ -1,0 +1,110 @@
+[
+  {
+    "question": "How does DataSource.initialize establish a database connection?",
+    "expectedFiles": ["src/data-source/DataSource.ts", "src/driver/DriverFactory.ts"],
+    "mustIncludeFacts": [
+      "DataSource.initialize() calls this.driver.connect() and then buildMetadatas()",
+      "the concrete driver is produced by DriverFactory.create() based on the options.type string"
+    ],
+    "shouldNotHallucinate": ["a single hardcoded Postgres client", "Prisma-style schema introspection", "a GraphQL layer"]
+  },
+  {
+    "question": "What does Repository.save delegate to internally?",
+    "expectedFiles": ["src/repository/Repository.ts", "src/entity-manager/EntityManager.ts", "src/persistence/EntityPersistExecutor.ts"],
+    "mustIncludeFacts": [
+      "Repository.save calls this.manager.save with the repository's metadata target",
+      "EntityManager.save constructs an EntityPersistExecutor with mode 'save' and calls execute()"
+    ],
+    "shouldNotHallucinate": ["a direct INSERT executed from Repository", "Sequelize-compatible save hooks", "an Active Record save that bypasses the EntityManager"]
+  },
+  {
+    "question": "Where is the Postgres driver's connect logic defined?",
+    "expectedFiles": ["src/driver/postgres/PostgresDriver.ts"],
+    "mustIncludeFacts": [
+      "PostgresDriver.connect() creates connection pools via createPool, using options.replication when set",
+      "loadDependencies() uses PlatformTools.load(\"pg\") to require the pg package at runtime"
+    ],
+    "shouldNotHallucinate": ["node-postgres client code living inside DataSource.ts", "a static import of pg at the top of the file", "Prisma Postgres adapter"]
+  },
+  {
+    "question": "How does the SelectQueryBuilder build its final SQL?",
+    "expectedFiles": ["src/query-builder/SelectQueryBuilder.ts"],
+    "mustIncludeFacts": [
+      "getQuery() concatenates the CTE, select, join, where, group-by, having, order-by, limit-offset, and lock expressions",
+      "after concatenation it calls replacePropertyNamesForTheWholeQuery to substitute property aliases"
+    ],
+    "shouldNotHallucinate": ["a direct AST that is sent to the driver", "a Prisma-style query engine", "raw string templates with no alias substitution"]
+  },
+  {
+    "question": "How does the @Column decorator register column metadata?",
+    "expectedFiles": ["src/decorator/columns/Column.ts", "src/globals.ts", "src/metadata-args/MetadataArgsStorage.ts"],
+    "mustIncludeFacts": [
+      "Column pushes a ColumnMetadataArgs entry onto getMetadataArgsStorage().columns",
+      "getMetadataArgsStorage() returns a process-global singleton MetadataArgsStorage stored on the global scope"
+    ],
+    "shouldNotHallucinate": ["a per-DataSource registry populated at decoration time", "database-driven schema introspection on import"]
+  },
+  {
+    "question": "How does @ManyToOne differ from @Column in what it stores?",
+    "expectedFiles": ["src/decorator/relations/ManyToOne.ts", "src/decorator/columns/Column.ts"],
+    "mustIncludeFacts": [
+      "ManyToOne pushes a RelationMetadataArgs with relationType 'many-to-one' onto getMetadataArgsStorage().relations",
+      "Column pushes a ColumnMetadataArgs onto getMetadataArgsStorage().columns (never into relations)"
+    ],
+    "shouldNotHallucinate": ["both decorators sharing a single storage array", "ManyToOne immediately issuing a JOIN SQL"]
+  },
+  {
+    "question": "When DataSource.initialize is called, how are entity metadatas built from decorators?",
+    "expectedFiles": ["src/data-source/DataSource.ts", "src/connection/ConnectionMetadataBuilder.ts", "src/metadata-builder/EntityMetadataBuilder.ts"],
+    "mustIncludeFacts": [
+      "DataSource.buildMetadatas uses ConnectionMetadataBuilder.buildEntityMetadatas on the configured entities",
+      "ConnectionMetadataBuilder instantiates an EntityMetadataBuilder with the global getMetadataArgsStorage() and calls .build(entities)"
+    ],
+    "shouldNotHallucinate": ["reading metadata from a JSON schema file at runtime", "generating a Prisma schema"]
+  },
+  {
+    "question": "How does MigrationExecutor run pending migrations?",
+    "expectedFiles": ["src/migration/MigrationExecutor.ts", "src/migration/Migration.ts"],
+    "mustIncludeFacts": [
+      "executePendingMigrations creates a QueryRunner, ensures the migrations table exists, and filters out already-executed migrations by name",
+      "each Migration has an id, timestamp, name, and an optional MigrationInterface instance"
+    ],
+    "shouldNotHallucinate": ["migrations are tracked in a filesystem .lock file", "MigrationExecutor parses SQL files directly without QueryRunner"]
+  },
+  {
+    "question": "How does RdbmsSchemaBuilder synchronize the database schema?",
+    "expectedFiles": ["src/schema-builder/RdbmsSchemaBuilder.ts", "src/schema-builder/SchemaBuilder.ts"],
+    "mustIncludeFacts": [
+      "RdbmsSchemaBuilder.build() opens a QueryRunner, starts a transaction (except for cockroachdb and spanner), and calls executeSchemaSyncOperationsInProperOrder",
+      "the builder compares entity metadata against tables and views loaded from the database to compute the sync operations"
+    ],
+    "shouldNotHallucinate": ["it generates a Prisma migration file", "it drops the entire database every run by default"]
+  },
+  {
+    "question": "Which database drivers does DriverFactory support?",
+    "expectedFiles": ["src/driver/DriverFactory.ts"],
+    "mustIncludeFacts": [
+      "DriverFactory.create switches on options.type and returns drivers including postgres, mysql (also used for mariadb), mssql, oracle, sap, spanner, cockroachdb, mongodb, and several sqlite variants (better-sqlite3, sqljs, capacitor, cordova, expo, react-native, nativescript)",
+      "when the type is unknown it throws MissingDriverError with the list of supported types"
+    ],
+    "shouldNotHallucinate": ["Cassandra driver", "DynamoDB driver", "a driver for Prisma"]
+  },
+  {
+    "question": "What does the typeorm CLI do?",
+    "expectedFiles": ["src/cli.ts", "src/commands/MigrationRunCommand.ts"],
+    "mustIncludeFacts": [
+      "src/cli.ts registers yargs commands such as MigrationCreateCommand, MigrationGenerateCommand, MigrationRunCommand, MigrationRevertCommand, SchemaSyncCommand, SchemaDropCommand, and QueryCommand",
+      "the package exposes bin entries typeorm, typeorm-ts-node-commonjs, and typeorm-ts-node-esm"
+    ],
+    "shouldNotHallucinate": ["a built-in REPL", "a web UI for migrations"]
+  },
+  {
+    "question": "How does a Repository obtain a QueryBuilder?",
+    "expectedFiles": ["src/repository/Repository.ts", "src/entity-manager/EntityManager.ts"],
+    "mustIncludeFacts": [
+      "Repository.createQueryBuilder delegates to this.manager.createQueryBuilder using the repository's metadata target",
+      "EntityManager.createQueryBuilder ultimately returns a SelectQueryBuilder bound to the DataSource"
+    ],
+    "shouldNotHallucinate": ["the Repository instantiates SelectQueryBuilder directly", "QueryBuilder is created by the Driver"]
+  }
+]

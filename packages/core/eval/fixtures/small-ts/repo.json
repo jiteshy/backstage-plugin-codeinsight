@@ -1,0 +1,7 @@
+{
+  "gitUrl": "https://github.com/hagopj13/node-express-boilerplate.git",
+  "commitSha": "179ae84efec61b14206d0305d941daed6c6d07f9",
+  "description": "RESTful API boilerplate built with Node.js, Express, and Mongoose with JWT authentication, validation, and role-based authorization.",
+  "sizeCategory": "small",
+  "fileCountApprox": 78
+}

@@ -1242,3 +1242,22 @@ Replace low-value diagrams with high-value architecture diagrams.
 | 7 | npm release | Open source installable plugin |
 
 Each phase is a shippable increment. Phase 2 alone is useful without diagrams or QnA. Phase 3 alone (with pure-AST diagrams) is useful without an LLM key.
+
+---
+
+## Phase 8: v2 Redesign (Evaluable, Structured, Consolidated)
+
+> Spec: `docs/superpowers/specs/2026-04-19-codeinsight-v2-design.md`
+
+### 8.1 Eval Harness — ✅ COMPLETED
+- `@codeinsight/eval` package with fixture loader, cost tracker, 3 scorers (doc / diagram / QnA), runner, report writer, CLI.
+- 3 hand-curated gold fixtures: `small-ts`, `medium-react`, `complex`.
+- Root `pnpm eval:run` / `eval:baseline` / `eval:compare` scripts.
+- `PipelineAdapter` interface enables version-agnostic runs. The v1 adapter itself lands in Phase 8.2.
+
+### 8.2 Baseline Measurement (Phase 2 of v2) — PENDING
+### 8.3 FileIntel + RCM — PENDING
+### 8.4 Consolidated Docs + Diagrams — PENDING
+### 8.5 QnA Redesign — PENDING
+### 8.6 Flip Flag + Delete v1 — PENDING
+### 8.7 Final Eval — PENDING

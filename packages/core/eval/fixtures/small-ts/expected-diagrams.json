@@ -1,0 +1,14 @@
+{
+  "systemArchitecture": {
+    "mustContainLabels": ["Routes", "Controllers", "Services", "Models", "MongoDB"],
+    "mustContainEdges": [
+      { "from": "Routes", "to": "Controllers" },
+      { "from": "Controllers", "to": "Services" },
+      { "from": "Services", "to": "Models" }
+    ]
+  },
+  "dataModel": { "mustContainEntities": ["User", "Token"] },
+  "keyFlows": [
+    { "name": "auth", "mustContainSteps": ["Login", "Generate Token", "Verify Token"] }
+  ]
+}

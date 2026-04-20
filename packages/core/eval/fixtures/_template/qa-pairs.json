@@ -1,0 +1,8 @@
+[
+  {
+    "question": "What does this service do?",
+    "expectedFiles": ["src/index.ts"],
+    "mustIncludeFacts": ["it is an HTTP server"],
+    "shouldNotHallucinate": []
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "bullets": [
+    "React single-page app built with Vite and TypeScript",
+    "Uses Redux Toolkit to manage global state and RTK Query for server data",
+    "Features a social feed with posts, users, reactions, and notifications",
+    "Runs against an in-browser mock server powered by Mock Service Worker (MSW)",
+    "Delivers real-time notifications via a websocket connection managed by the RTK Query lifecycle",
+    "Routes the app with react-router-dom and gates protected pages behind a simple username-based login"
+  ]
+}

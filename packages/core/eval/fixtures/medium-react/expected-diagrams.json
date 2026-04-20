@@ -1,0 +1,15 @@
+{
+  "systemArchitecture": {
+    "mustContainLabels": ["Pages", "Components", "Store", "API Slice", "Mock Server"],
+    "mustContainEdges": [
+      { "from": "Components", "to": "Store" },
+      { "from": "Components", "to": "API Slice" },
+      { "from": "API Slice", "to": "Mock Server" }
+    ]
+  },
+  "dataModel": { "mustContainEntities": ["Post", "User", "Notification"] },
+  "keyFlows": [
+    { "name": "add-post", "mustContainSteps": ["AddPostForm", "addNewPost mutation", "MSW handler", "invalidate Post tag"] },
+    { "name": "notifications", "mustContainSteps": ["getNotifications query", "WebSocket", "updateCachedData"] }
+  ]
+}

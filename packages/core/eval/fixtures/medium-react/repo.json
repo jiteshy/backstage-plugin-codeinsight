@@ -1,0 +1,7 @@
+{
+  "gitUrl": "https://github.com/reduxjs/redux-essentials-example-app.git",
+  "commitSha": "790dd5f529ee1eaa2c1db5a3521ee4101a1a633d",
+  "description": "Redux Essentials tutorial app: a React + Redux Toolkit + RTK Query social feed with auth, posts, users, and websocket-driven notifications, using an MSW mock server",
+  "sizeCategory": "medium",
+  "fileCountApprox": 45
+}

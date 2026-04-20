@@ -1,0 +1,11 @@
+{
+  "subsystems": [
+    { "name": "Store", "mustMentionFiles": ["src/app/store.ts", "src/app/listenerMiddleware.ts"] },
+    { "name": "Auth", "mustMentionFiles": ["src/features/auth/authSlice.ts", "src/features/auth/LoginPage.tsx"] },
+    { "name": "Posts", "mustMentionFiles": ["src/features/posts/postsSlice.ts", "src/features/posts/AddPostForm.tsx"] },
+    { "name": "API layer", "mustMentionFiles": ["src/features/api/apiSlice.ts", "src/api/client.ts"] },
+    { "name": "Mock server", "mustMentionFiles": ["src/api/server.ts"] },
+    { "name": "Notifications", "mustMentionFiles": ["src/features/notifications/notificationsSlice.ts"] }
+  ],
+  "externalDependencies": ["@reduxjs/toolkit", "react", "react-dom", "react-redux", "react-router-dom", "msw"]
+}
