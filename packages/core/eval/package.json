@@ -13,14 +13,20 @@
     "test": "jest"
   },
   "dependencies": {
-    "@codeinsight/types": "workspace:*",
+    "@codeinsight/composition": "workspace:*",
     "@codeinsight/llm": "workspace:*",
+    "@codeinsight/types": "workspace:*",
     "commander": "^12.0.0",
+    "js-yaml": "^4.1.0",
+    "knex": "^3.1.0",
+    "pg": "^8.11.0",
     "simple-git": "^3.24.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.11.0",
+    "@types/pg": "^8.11.0",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
     "typescript": "~5.4.0"

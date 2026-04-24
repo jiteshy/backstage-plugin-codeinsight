@@ -478,6 +478,9 @@ importers:
 
   packages/core/eval:
     dependencies:
+      '@codeinsight/composition':
+        specifier: workspace:*
+        version: link:../../composition
       '@codeinsight/llm':
         specifier: workspace:*
         version: link:../../adapters/llm
@@ -487,6 +490,15 @@ importers:
       commander:
         specifier: ^12.0.0
         version: 12.1.0
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.1.1
+      knex:
+        specifier: ^3.1.0
+        version: 3.1.0(better-sqlite3@12.6.2)(mysql2@3.19.0(@types/node@25.3.5))(pg@8.20.0)
+      pg:
+        specifier: ^8.11.0
+        version: 8.20.0
       simple-git:
         specifier: ^3.24.0
         version: 3.32.3
@@ -494,9 +506,15 @@ importers:
       '@types/jest':
         specifier: ^29.5.14
         version: 29.5.14
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
       '@types/node':
         specifier: ^20.11.0
         version: 20.19.39
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.18.0
       jest:
         specifier: ^29.7.0
         version: 29.7.0(@types/node@20.19.39)(babel-plugin-macros@3.1.0)(ts-node@10.9.2(@swc/core@1.15.18(@swc/helpers@0.5.19))(@types/node@20.19.39)(typescript@5.4.5))
@@ -4238,6 +4256,9 @@ packages:
 
   '@types/js-cookie@2.2.7':
     resolution: {integrity: sha512-aLkWa0C0vO5b4Sr798E26QgOkss68Un0bLjs7u9qxzPT5CG+8DuNTffWES58YzJs3hrVAOs1wonycqEBqNJubA==}
+
+  '@types/js-yaml@4.0.9':
+    resolution: {integrity: sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==}
 
   '@types/jsdom@21.1.7':
     resolution: {integrity: sha512-yOriVnggzrnQ3a9OKOCxaVuSug3w3/SbOj5i7VwXWZEyUNl3bLF9V3MfxGbZKuwqJOQyRfqXyROBB1CoZLFWzA==}
@@ -17744,6 +17765,8 @@ snapshots:
       pretty-format: 30.2.0
 
   '@types/js-cookie@2.2.7': {}
+
+  '@types/js-yaml@4.0.9': {}
 
   '@types/jsdom@21.1.7':
     dependencies:

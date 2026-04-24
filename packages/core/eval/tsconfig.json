@@ -10,6 +10,7 @@
   "exclude": ["dist", "node_modules", "**/*.test.ts", "**/*.spec.ts"],
   "references": [
     { "path": "../types" },
-    { "path": "../../adapters/llm" }
+    { "path": "../../adapters/llm" },
+    { "path": "../../composition" }
   ]
 }
