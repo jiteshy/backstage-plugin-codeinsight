@@ -73,6 +73,9 @@ web_modules/
 # Local Backstage config overrides (contain secrets)
 app-config.local.yaml
 
+# Local eval harness config (contains API keys)
+eval/eval.config.local.yaml
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache

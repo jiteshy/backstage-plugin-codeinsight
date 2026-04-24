@@ -1,0 +1,32 @@
+# Eval harness config template.
+# Copy to eval/eval.config.local.yaml and fill in real values.
+# The local file is gitignored — never commit API keys.
+
+db:
+  host: localhost
+  port: 5433
+  user: codeinsight
+  password: codeinsight
+  database: backstage_plugin_codeinsight
+
+llm:
+  provider: anthropic
+  apiKey: REPLACE_ME
+  model: claude-opus-4-7
+
+embeddings:
+  provider: openai
+  apiKey: REPLACE_ME
+  model: text-embedding-3-small
+
+cloneTempDir: /tmp/codeinsight-eval
+# githubToken: ghp_xxx  # optional, for cloning private repos
+
+# Optional overrides for composition config defaults:
+# ingestion:
+#   maxConcurrentJobs: 2
+#   cleanupAfterIngestion: true
+# docGen:
+#   maxConcurrency: 20
+# qna:
+#   maxContextTokens: 8000
