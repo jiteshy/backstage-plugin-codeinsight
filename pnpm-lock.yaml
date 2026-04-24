@@ -277,6 +277,9 @@ importers:
       '@backstage/backend-plugin-api':
         specifier: ^1.7.0
         version: 1.7.0(better-sqlite3@12.6.2)
+      '@codeinsight/composition':
+        specifier: workspace:*
+        version: link:../../composition
       '@codeinsight/diagram-gen':
         specifier: workspace:*
         version: link:../../core/diagram-gen
